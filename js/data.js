@@ -1,5 +1,5 @@
 // ─── DATA VERSION (構造変更時に上げる) ───
-const DATA_VERSION = 3;
+const DATA_VERSION = 6;
 
 // ─── ROLE DEFINITIONS ───
 const ROLES = {
@@ -67,6 +67,8 @@ const LS = {
   users:    'lc_users',
   reports:  'lc_reports',
   targets:  'lc_targets',
+  shiftSites: 'lc_shift_sites',
+  shiftSchedules: 'lc_shift_schedules',
   session:  'lc_session',
   version:  'lc_version',
 };
@@ -82,6 +84,12 @@ function initData() {
 
   if (!localStorage.getItem(LS.reports)) localStorage.setItem(LS.reports, JSON.stringify([]));
   if (!localStorage.getItem(LS.targets)) localStorage.setItem(LS.targets, JSON.stringify([]));
+  if (!localStorage.getItem(LS.shiftSites)) {
+    localStorage.setItem(LS.shiftSites, JSON.stringify(DEFAULT_SHIFT_SITES));
+  }
+  if (!localStorage.getItem(LS.shiftSchedules)) {
+    localStorage.setItem(LS.shiftSchedules, JSON.stringify(buildInitialShiftSchedules()));
+  }
 }
 
 function _migrate() {
@@ -102,6 +110,9 @@ function _migrate() {
   const reports = JSON.parse(localStorage.getItem(LS.reports) || '[]');
   const migratedReports = reports.map(r => r.type ? r : { ...r, type: 'mobile' });
   localStorage.setItem(LS.reports, JSON.stringify(migratedReports));
+
+  // ── シフトを曜日ベース→日付ベースにリセット ──
+  localStorage.removeItem(LS.shiftSchedules);
 }
 
 // ─── USERS ───
@@ -167,6 +178,95 @@ function _upsertTarget(userId, month, fields) {
 // 後方互換性のためのエイリアス
 function setTarget(userId, month, mnpTarget, shinkiTarget) {
   setMobileTarget(userId, month, mnpTarget, shinkiTarget);
+}
+
+// ─── SHIFTS (日付ベース) ───
+const DEFAULT_SHIFT_SITES = [
+  'テラスモール松戸',
+  'アリオ市原',
+  'ユーカリが丘',
+  'イオン木更津',
+];
+
+// 現場ごとの色（base.cssの配色に合わせた明度）
+const SITE_COLORS = [
+  { bg: 'rgba(79,124,255,.22)',  text: '#a0b8ff', border: 'rgba(79,124,255,.55)'  }, // blue
+  { bg: 'rgba(167,139,250,.22)', text: '#c4b5fd', border: 'rgba(167,139,250,.55)' }, // purple
+  { bg: 'rgba(52,211,153,.22)',  text: '#6ee7b7', border: 'rgba(52,211,153,.55)'  }, // green
+  { bg: 'rgba(251,146,60,.22)',  text: '#fcd9a0', border: 'rgba(251,146,60,.55)'  }, // orange
+  { bg: 'rgba(244,114,182,.22)', text: '#f9a8d4', border: 'rgba(244,114,182,.55)' }, // pink
+  { bg: 'rgba(96,165,250,.22)',  text: '#bfdbfe', border: 'rgba(96,165,250,.55)'  }, // sky
+];
+
+function buildInitialShiftSchedules() {
+  return {}; // 日付ベース: { [userId]: { [dateStr]: { site, start, end } } }
+}
+
+function getShiftSites() {
+  return JSON.parse(localStorage.getItem(LS.shiftSites) || JSON.stringify(DEFAULT_SHIFT_SITES));
+}
+function saveShiftSites(sites) {
+  localStorage.setItem(LS.shiftSites, JSON.stringify(sites));
+}
+function getShiftSchedules() {
+  return JSON.parse(localStorage.getItem(LS.shiftSchedules) || '{}');
+}
+function saveShiftSchedules(schedules) {
+  localStorage.setItem(LS.shiftSchedules, JSON.stringify(schedules));
+}
+
+// 特定ユーザー・日付のシフトを取得
+function getShiftForUser(userId, dateStr) {
+  const s = getShiftSchedules();
+  return s[userId]?.[dateStr] || null;
+}
+
+// 特定ユーザー・日付のシフトを保存
+function setShiftForUser(userId, dateStr, data) {
+  const s = getShiftSchedules();
+  s[userId] = s[userId] || {};
+  s[userId][dateStr] = data;
+  saveShiftSchedules(s);
+}
+
+// ユーザーの月間出勤日数（休み・未設定を除く）
+function getWorkingDaysCount(userId, month) {
+  const s = getShiftSchedules();
+  const userSched = s[userId] || {};
+  return Object.entries(userSched).filter(([date, slot]) =>
+    date.startsWith(month) && slot.site && slot.site !== '休み'
+  ).length;
+}
+
+// 現場名 → 色オブジェクト
+function getSiteColor(site) {
+  const sites = getShiftSites();
+  const idx = sites.indexOf(site);
+  if (idx < 0 || site === '休み') return null;
+  return SITE_COLORS[idx % SITE_COLORS.length];
+}
+
+// Date → 'YYYY-MM-DD'
+function dateToStr(d) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+// 任意の日付が属する週の月曜日を返す
+function getMondayOf(date) {
+  const d = new Date(date);
+  const day = d.getDay();
+  d.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
+  d.setHours(0,0,0,0);
+  return d;
+}
+
+// 月曜日から7日分の Date 配列を返す
+function getWeekDates(monday) {
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(monday);
+    d.setDate(d.getDate() + i);
+    return d;
+  });
 }
 
 // ─── PRODUCTS & POINTS (モバイル事業部) ───

@@ -5,6 +5,9 @@ let CU = null;
 let rankMonth = '';
 let rankItem  = '';
 
+// ─── SHIFT STATE ───
+let shiftWeekStart = null; // Date (月曜日)
+
 // ─── INIT ───
 window.addEventListener('DOMContentLoaded', () => {
   initData();
@@ -41,6 +44,7 @@ function renderSidebar() {
   const nav = [
     { id: 'dashboard', icon: '🏠', label: 'ダッシュボード', show: true },
     { id: 'report',    icon: '📝', label: '実績報告',       show: hasReport },
+    { id: 'shifts',    icon: '🗓️', label: 'シフト',         show: true },
     { id: 'team',      icon: '👥', label: 'チーム実績',     show: canSeeTeam },
     { id: 'ranking',   icon: '🏆', label: 'ランキング',     show: canSeeTeam },
     { id: 'targets',   icon: '🎯', label: '目標設定',       show: canSetTargets },
@@ -91,6 +95,7 @@ function route() {
   const titles = {
     dashboard: 'ダッシュボード',
     report:    '実績報告',
+    shifts:    'シフト',
     team:      'チーム実績',
     ranking:   'ランキング',
     targets:   '目標設定',
@@ -101,6 +106,7 @@ function route() {
   const pages = {
     dashboard: renderDashboard,
     report:    renderReportPage,
+    shifts:    renderShifts,
     team:      renderTeam,
     ranking:   renderRanking,
     targets:   renderTargets,
@@ -217,6 +223,8 @@ function renderAdminDashboard() {
         <div class="kpi-meta">今月未報告のメンバー</div>
       </div>
     </div>
+
+    ${_adminTodayShiftCard()}
 
     <div class="card fade-in">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
@@ -354,6 +362,8 @@ function renderMobileDashboard() {
       </div>
     </div>
 
+    ${_todayShiftCard(CU.id)}
+
     ${topProducts.length > 0 ? `
     <div class="card fade-in">
       <div class="section-title">今月の主な実績</div>
@@ -404,6 +414,108 @@ function renderMobileDashboard() {
   `;
 }
 
+// ── 管理者用：本日の全社出勤サマリーカード ──
+function _adminTodayShiftCard() {
+  const today = todayStr();
+  const users = getUsers();
+  const sites = getShiftSites();
+
+  // 現場別に出勤者をグルーピング
+  const siteMap = {};
+  users.forEach(u => {
+    const slot = getShiftForUser(u.id, today);
+    if (!slot || slot.site === '休み') return;
+    siteMap[slot.site] = siteMap[slot.site] || [];
+    siteMap[slot.site].push(u);
+  });
+
+  const totalWorking = Object.values(siteMap).reduce((s, arr) => s + arr.length, 0);
+  const totalOff     = users.filter(u => {
+    const slot = getShiftForUser(u.id, today);
+    return slot?.site === '休み';
+  }).length;
+
+  if (Object.keys(siteMap).length === 0) {
+    return `
+      <div class="card fade-in" style="display:flex;align-items:center;gap:16px">
+        <div style="font-size:28px">📅</div>
+        <div>
+          <div style="font-size:11px;color:var(--text-sub);font-weight:600;letter-spacing:.8px;text-transform:uppercase;margin-bottom:4px">本日の出勤状況</div>
+          <div style="font-size:14px;color:var(--text-sub)">本日のシフトが未設定です</div>
+        </div>
+      </div>`;
+  }
+
+  return `
+    <div class="card fade-in">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <div class="section-title" style="margin-bottom:0">📅 本日の出勤状況</div>
+        <span style="font-size:12px;color:var(--text-sub)">出勤 <strong style="color:var(--green)">${totalWorking}</strong>名 / 休み ${totalOff}名</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        ${Object.entries(siteMap).map(([site, workers]) => {
+          const c = getSiteColor(site);
+          return `
+            <div style="border-radius:10px;border:1px solid ${c?.border || 'var(--border)'};background:${c?.bg || 'var(--surface2)'};padding:10px 14px">
+              <div style="font-size:12px;font-weight:700;color:${c?.text || 'var(--text)'};margin-bottom:6px">📍 ${site}（${workers.length}名）</div>
+              <div style="display:flex;flex-wrap:wrap;gap:6px">
+                ${workers.map(u => `
+                  <span style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:3px 8px;font-size:12px">${u.name}</span>
+                `).join('')}
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    </div>
+  `;
+}
+
+// ── 本日シフトカード（全ダッシュボード共通） ──
+function _todayShiftCard(userId) {
+  const today = todayStr();
+  const slot  = getShiftForUser(userId, today);
+  const month = currentMonth();
+  const workCount = getWorkingDaysCount(userId, month);
+  const c = slot && slot.site !== '休み' ? getSiteColor(slot.site) : null;
+
+  let icon, title, sub, chipHtml = '';
+  if (!slot) {
+    icon = '📅'; title = '本日のシフト未設定'; sub = '';
+  } else if (slot.site === '休み') {
+    icon = '🌙'; title = '本日はお休み'; sub = '';
+  } else {
+    icon = '📍'; title = slot.site;
+    sub  = slot.start ? `${slot.start} 〜 ${slot.end}` : '';
+    chipHtml = `<div class="shift-chip" style="background:${c?.bg};color:${c?.text};border-color:${c?.border};margin-top:8px">${slot.site}</div>`;
+    // 同じ現場の仲間
+    const colleagues = getUsers().filter(u => {
+      if (u.id === userId) return false;
+      const s = getShiftForUser(u.id, today);
+      return s?.site === slot.site;
+    });
+    if (colleagues.length) {
+      chipHtml += `<div style="margin-top:8px;font-size:11px;color:var(--text-sub)">同じ現場: ${colleagues.map(u => u.name).join('、')}</div>`;
+    }
+  }
+
+  return `
+    <div class="card fade-in" style="display:flex;align-items:flex-start;gap:16px">
+      <div style="font-size:28px;line-height:1;padding-top:2px">${icon}</div>
+      <div style="flex:1">
+        <div style="font-size:11px;color:var(--text-sub);font-weight:600;letter-spacing:.8px;text-transform:uppercase;margin-bottom:4px">本日のシフト</div>
+        <div style="font-size:16px;font-weight:700">${title}</div>
+        ${sub ? `<div style="font-size:12px;color:var(--text-sub);margin-top:2px">${sub}</div>` : ''}
+        ${chipHtml}
+      </div>
+      <div style="text-align:right;flex-shrink:0">
+        <div style="font-size:11px;color:var(--text-sub)">${month.slice(5)}月出勤日数</div>
+        <div style="font-size:22px;font-weight:700;color:${workCount >= 21 ? 'var(--green)' : 'var(--accent)'}">${workCount}<span style="font-size:12px;font-weight:400;color:var(--text-sub)"> / 21日</span></div>
+      </div>
+    </div>
+  `;
+}
+
 // ── Refaダッシュボード ──
 function renderRefaDashboard() {
   const month = currentMonth();
@@ -424,6 +536,8 @@ function renderRefaDashboard() {
       </div>
       <button class="btn btn-primary" onclick="navigate('report')">📝 実績を報告する</button>
     </div>
+
+    ${_todayShiftCard(CU.id)}
 
     <div class="kpi-grid fade-in" style="grid-template-columns:repeat(3,1fr)">
       <div class="kpi-card" style="position:relative;overflow:hidden">
@@ -477,12 +591,13 @@ function renderBasicDashboard() {
         <div class="page-sub">${dept?.label || ''}</div>
       </div>
     </div>
-    <div class="card fade-in" style="text-align:center;padding:48px">
-      <div style="font-size:48px;margin-bottom:16px">🏢</div>
-      <div style="font-size:16px;font-weight:600;margin-bottom:8px">LAMP CORE</div>
+    ${_todayShiftCard(CU.id)}
+    <div class="card fade-in" style="text-align:center;padding:40px">
+      <div style="font-size:40px;margin-bottom:12px">🏢</div>
+      <div style="font-size:16px;font-weight:600;margin-bottom:6px">LUMP CORE</div>
       <div style="color:var(--text-sub);font-size:13px">
         ${getUserDisplayRole(CU)} / ${dept?.label || ''}<br>
-        <span style="margin-top:8px;display:block">今月もよろしくお願いします！</span>
+        <span style="margin-top:6px;display:block">今月もよろしくお願いします！</span>
       </div>
     </div>
   `;
@@ -1064,6 +1179,205 @@ function saveAllTargets() {
     }
   });
   showToast('全員の目標を保存しました！');
+}
+
+// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
+// ─── PAGE: シフト ───
+// ═══════════════════════════════════════════════════════
+function renderShifts() {
+  if (!shiftWeekStart) shiftWeekStart = getMondayOf(new Date());
+
+  const level    = roleLevel(CU.role);
+  const canEdit  = level >= 4;
+  const users    = getUsers();
+  const sites    = getShiftSites();
+  const weekDates = getWeekDates(shiftWeekStart);
+  const today    = todayStr();
+  const dayNames = ['月', '火', '水', '木', '金', '土', '日'];
+
+  // 今週の月・日を表示
+  const wStart = weekDates[0];
+  const wEnd   = weekDates[6];
+  const weekLabel = `${wStart.getMonth()+1}/${wStart.getDate()}(月) ～ ${wEnd.getMonth()+1}/${wEnd.getDate()}(日)`;
+
+  // 月ラベル（シフト表示中の月）
+  const dispMonth = `${wStart.getFullYear()}-${String(wStart.getMonth()+1).padStart(2,'0')}`;
+
+  // 現場凡例
+  const siteLegend = sites.map((site, i) => {
+    const c = SITE_COLORS[i % SITE_COLORS.length];
+    return `<span class="shift-chip" style="background:${c.bg};color:${c.text};border-color:${c.border}">📍 ${site}</span>`;
+  }).join('');
+
+  // 社員行を生成
+  const rows = users.map(u => {
+    const workCount = getWorkingDaysCount(u.id, dispMonth);
+    const workColor = workCount >= 21 ? 'var(--green)' : workCount >= 15 ? 'var(--accent)' : 'var(--text-sub)';
+
+    const cells = weekDates.map((d, di) => {
+      const ds    = dateToStr(d);
+      const slot  = getShiftForUser(u.id, ds);
+      const isToday = ds === today;
+      const isOff   = slot?.site === '休み';
+      const c     = slot && !isOff ? getSiteColor(slot.site) : null;
+      const isSat = di === 5;
+      const isSun = di === 6;
+
+      const chipStyle = c
+        ? `background:${c.bg};color:${c.text};border-color:${c.border}`
+        : isOff
+          ? 'background:rgba(122,130,153,.1);color:var(--text-sub);border-color:rgba(122,130,153,.2)'
+          : 'background:transparent;color:var(--text-sub);border-color:var(--border)';
+
+      const chipLabel = slot
+        ? (isOff ? '休' : _shortSite(slot.site))
+        : '—';
+
+      const timeLabel = slot && !isOff && slot.start
+        ? `<div style="font-size:10px;color:var(--text-sub);margin-top:2px">${slot.start}〜</div>`
+        : '';
+
+      const cellBg = isToday ? 'background:rgba(79,124,255,.06);' : (isSun ? 'background:rgba(255,79,106,.03);' : isSat ? 'background:rgba(255,179,71,.03);' : '');
+
+      if (canEdit) {
+        return `
+          <td class="shift-cell" style="${cellBg}" onclick="openShiftModal('${u.id}','${ds}')">
+            <div class="shift-chip" style="${chipStyle};cursor:pointer">${chipLabel}</div>
+            ${timeLabel}
+          </td>`;
+      }
+      return `
+        <td class="shift-cell" style="${cellBg}">
+          <div class="shift-chip" style="${chipStyle}">${chipLabel}</div>
+          ${timeLabel}
+        </td>`;
+    }).join('');
+
+    return `
+      <tr>
+        <td class="shift-name-cell">
+          <div class="emp-cell">
+            <div class="avatar" style="width:28px;height:28px;font-size:11px;background:${roleColor(u.role)}">${u.name[0]}</div>
+            <div>
+              <div style="font-size:12px;font-weight:600">${u.name}</div>
+              <div style="font-size:10px;color:${workColor}">${dispMonth.slice(5)}月 ${workCount}日出勤</div>
+            </div>
+          </div>
+        </td>
+        ${cells}
+      </tr>`;
+  }).join('');
+
+  document.getElementById('main').innerHTML = `
+    <div class="page-header fade-in">
+      <div>
+        <div class="page-title">シフト表</div>
+        <div class="page-sub">月間21日出勤目標 ${canEdit ? '— <span style="color:var(--green)">セルをクリックで編集</span>' : '— 閲覧のみ'}</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn btn-ghost" style="font-size:18px;padding:6px 12px" onclick="moveWeek(-1)">◀</button>
+        <span style="font-size:13px;font-weight:600;min-width:220px;text-align:center">${weekLabel}</span>
+        <button class="btn btn-ghost" style="font-size:18px;padding:6px 12px" onclick="moveWeek(1)">▶</button>
+      </div>
+    </div>
+
+    <!-- 凡例 -->
+    <div class="fade-in" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <span style="font-size:11px;color:var(--text-sub)">現場：</span>
+      ${siteLegend}
+      <span class="shift-chip" style="background:rgba(122,130,153,.1);color:var(--text-sub);border-color:rgba(122,130,153,.2)">休</span>
+    </div>
+
+    <!-- シフト表 -->
+    <div class="card fade-in" style="padding:0;overflow:hidden">
+      <div style="overflow-x:auto">
+        <table class="shift-table">
+          <thead>
+            <tr>
+              <th class="shift-name-cell" style="font-size:11px">社員</th>
+              ${weekDates.map((d, i) => {
+                const ds = dateToStr(d);
+                const isToday = ds === today;
+                const isSat = i === 5;
+                const isSun = i === 6;
+                const dayColor = isSun ? 'var(--danger)' : isSat ? 'var(--warn)' : 'var(--text-sub)';
+                return `
+                  <th style="text-align:center;${isToday ? 'background:rgba(79,124,255,.1);' : ''}">
+                    <div style="color:${dayColor};font-weight:700">${dayNames[i]}</div>
+                    <div style="font-size:16px;font-weight:700;color:${isToday ? 'var(--accent)' : 'var(--text)'}">${d.getDate()}</div>
+                  </th>`;
+              }).join('')}
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+// 現場名を短縮（長い名前が多いため）
+function _shortSite(site) {
+  if (!site) return '—';
+  // 10文字以上は末尾を省略
+  return site.length > 6 ? site.slice(0, 5) + '…' : site;
+}
+
+function moveWeek(dir) {
+  const d = new Date(shiftWeekStart);
+  d.setDate(d.getDate() + dir * 7);
+  shiftWeekStart = d;
+  renderShifts();
+}
+
+function openShiftModal(userId, dateStr) {
+  if (roleLevel(CU.role) < 4) return;
+  const u     = getUserById(userId);
+  const sites = getShiftSites();
+  const slot  = getShiftForUser(userId, dateStr);
+  const [, mm, dd] = dateStr.split('-');
+
+  showModal(`
+    <div class="modal-header">
+      <div class="avatar" style="background:${roleColor(u.role)};width:32px;height:32px;font-size:12px">${u.name[0]}</div>
+      <div class="modal-title">${u.name} — ${parseInt(mm)}/${parseInt(dd)}</div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">現場</label>
+        <select class="form-select" id="ms_site">
+          <option value="休み" ${slot?.site === '休み' || !slot ? 'selected' : ''}>🗓 休み</option>
+          ${sites.map(s => `<option value="${s}" ${slot?.site === s ? 'selected' : ''}>${s}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">開始時間</label>
+          <input type="time" class="form-input" id="ms_start" value="${slot?.start || '10:00'}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">終了時間</label>
+          <input type="time" class="form-input" id="ms_end" value="${slot?.end || '19:00'}">
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">キャンセル</button>
+      <button class="btn btn-primary" onclick="saveShiftFromModal('${userId}','${dateStr}')">保存</button>
+    </div>
+  `);
+}
+
+function saveShiftFromModal(userId, dateStr) {
+  const site  = document.getElementById('ms_site').value;
+  const start = document.getElementById('ms_start').value;
+  const end   = document.getElementById('ms_end').value;
+  setShiftForUser(userId, dateStr, { site, start, end });
+  closeModal();
+  showToast('シフトを保存しました');
+  renderShifts();
 }
 
 // ═══════════════════════════════════════════════════════

@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LUMP CORE</title>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/components.css">
+</head>
+<body>
+
+<div class="layout">
+
+  <!-- ── TOPBAR ── -->
+  <header class="topbar">
+    <div class="topbar-logo">LUMP<span>CORE</span></div>
+    <div class="topbar-title" id="topbarTitle">ダッシュボード</div>
+    <div class="topbar-right">
+      <div class="topbar-user">
+        <div class="avatar-sm" id="topbarAvatar"></div>
+        <div>
+          <div class="topbar-name" id="topbarName"></div>
+          <div class="topbar-role" id="topbarRoleLabel"></div>
+        </div>
+      </div>
+      <button class="btn-logout" onclick="logout()">ログアウト</button>
+    </div>
+  </header>
+
+  <!-- ── SIDEBAR ── -->
+  <nav class="sidebar" id="sidebar"></nav>
+
+  <!-- ── MAIN ── -->
+  <main class="main" id="main"></main>
+
+</div>
+
+<!-- ── MODAL ── -->
+<div class="modal-overlay hidden" id="modalOverlay">
+  <div class="modal" id="modal"></div>
+</div>
+
+<!-- ── TOAST ── -->
+<div class="toast" id="toast"></div>
+
+<script src="js/data.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/app.js"></script>
+
+</body>
+</html>

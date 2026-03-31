@@ -1,16 +1,16 @@
 /* ─── CSS VARIABLES ─── */
 :root {
-  --bg: #0d0f14;
-  --surface: #161920;
-  --surface2: #1e2230;
-  --border: #2a2f42;
-  --accent: #4f7cff;
-  --accent2: #00e5c3;
-  --warn: #ffb347;
-  --danger: #ff4f6a;
-  --text: #e8ecf4;
-  --text-sub: #7a8299;
-  --green: #3ddc97;
+  --bg: #202b4f;
+  --surface: #2d3a68;
+  --surface2: #3a4d86;
+  --border: #6a80ba;
+  --accent: #aba0ff;
+  --accent2: #80f1ff;
+  --warn: #ffd9a8;
+  --danger: #ff95b3;
+  --text: #fbfcff;
+  --text-sub: #d0d8ee;
+  --green: #86f9d7;
   --radius: 12px;
 }
 
@@ -18,7 +18,7 @@
 
 body {
   font-family: 'Noto Sans JP', sans-serif;
-  background: var(--bg);
+  background: radial-gradient(circle at 12% -12%, #6f8fe0 0%, transparent 48%), radial-gradient(circle at 100% 0%, #765cc4 0%, transparent 42%), var(--bg);
   color: var(--text);
   min-height: 100vh;
   overflow-x: hidden;

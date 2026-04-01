@@ -1,3 +1,13 @@
+// ─── AZURE ENTRA ID 移行メモ ───
+// 現在: data.js の INITIAL_USERS に持つ pw フィールドと照合するシンプル認証
+// 移行後:
+//   - login() を Microsoft Authentication Library (MSAL.js) に置き換える
+//     https://github.com/AzureAD/microsoft-authentication-library-for-js
+//   - 社員は Microsoft 365 アカウントでシングルサインオン（パスワード管理不要）
+//   - セッション管理は MSAL のトークンキャッシュに委譲
+//   - pw フィールドは INITIAL_USERS から削除できる
+//   - ユーザー識別は Azure AD の objectId または userPrincipalName を使う
+
 // ─── SESSION ───
 function getSession() {
   const s = sessionStorage.getItem(LS.session);

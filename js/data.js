@@ -62,39 +62,61 @@ const INITIAL_USERS = [
   { id: 'u35', name: '川喜多航', role: 'admin', dept: 'executive', reportType: null, pw: 'lamp1234' },
 ];
 
-// ─── LOCALSTORAGE KEYS ───
+// ─── STORAGE KEYS ───
 const LS = {
-  users:    'lc_users',
-  reports:  'lc_reports',
-  targets:  'lc_targets',
-  shiftSites: 'lc_shift_sites',
+  users:          'lc_users',
+  reports:        'lc_reports',
+  targets:        'lc_targets',
+  shiftSites:     'lc_shift_sites',
   shiftSchedules: 'lc_shift_schedules',
-  session:  'lc_session',
-  version:  'lc_version',
+  session:        'lc_session',
+  version:        'lc_version',
+};
+
+// ─── STORAGE ADAPTER ───
+// Azure移行時はここだけ差し替える（data.js内の他のコードは変更不要）。
+//
+// 現在: localStorage（プロトタイプ用・バックエンドなし）
+// 移行先: Azure Cosmos DB または Azure SQL Database
+//
+// 移行手順メモ:
+//   1. Store.get / Store.set / Store.remove を Azure SDK 呼び出しに書き換える
+//   2. 各データ関数を async/await 化する（app.js 側も await が必要）
+//   3. LS のキー名をコレクション名・テーブル名に読み替える
+//   4. 認証は auth.js 側で Azure Entra ID (旧Azure AD) に切り替える
+//      → Microsoft 365 アカウントでのシングルサインオンが使える
+//      → pw フィールドは不要になる
+const Store = {
+  get(key, fallback = null) {
+    const v = localStorage.getItem(key);
+    return v !== null ? JSON.parse(v) : fallback;
+  },
+  set(key, value) {
+    localStorage.setItem(key, JSON.stringify(value));
+  },
+  remove(key) {
+    localStorage.removeItem(key);
+  },
 };
 
 // ─── INIT & MIGRATION ───
 function initData() {
-  const version = parseInt(localStorage.getItem(LS.version) || '0');
+  const version = Store.get(LS.version, 0);
 
   if (version < DATA_VERSION) {
     _migrate();
-    localStorage.setItem(LS.version, String(DATA_VERSION));
+    Store.set(LS.version, DATA_VERSION);
   }
 
-  if (!localStorage.getItem(LS.reports)) localStorage.setItem(LS.reports, JSON.stringify([]));
-  if (!localStorage.getItem(LS.targets)) localStorage.setItem(LS.targets, JSON.stringify([]));
-  if (!localStorage.getItem(LS.shiftSites)) {
-    localStorage.setItem(LS.shiftSites, JSON.stringify(DEFAULT_SHIFT_SITES));
-  }
-  if (!localStorage.getItem(LS.shiftSchedules)) {
-    localStorage.setItem(LS.shiftSchedules, JSON.stringify(buildInitialShiftSchedules()));
-  }
+  if (!Store.get(LS.reports))        Store.set(LS.reports, []);
+  if (!Store.get(LS.targets))        Store.set(LS.targets, []);
+  if (!Store.get(LS.shiftSites))     Store.set(LS.shiftSites, DEFAULT_SHIFT_SITES);
+  if (!Store.get(LS.shiftSchedules)) Store.set(LS.shiftSchedules, buildInitialShiftSchedules());
 }
 
 function _migrate() {
   // ── 既存ユーザーのパスワードだけ保持し、INITIAL_USERSを正とする ──
-  const existingUsers = JSON.parse(localStorage.getItem(LS.users) || '[]');
+  const existingUsers = Store.get(LS.users, []);
   const pwMap = {};
   existingUsers.forEach(u => { pwMap[u.id] = u.pw; });
 
@@ -104,23 +126,23 @@ function _migrate() {
     pw: pwMap[u.id] || u.pw,
   }));
 
-  localStorage.setItem(LS.users, JSON.stringify(newUsers));
+  Store.set(LS.users, newUsers);
 
   // ── 既存レポートに type フィールドを追加 ──
-  const reports = JSON.parse(localStorage.getItem(LS.reports) || '[]');
+  const reports = Store.get(LS.reports, []);
   const migratedReports = reports.map(r => r.type ? r : { ...r, type: 'mobile' });
-  localStorage.setItem(LS.reports, JSON.stringify(migratedReports));
+  Store.set(LS.reports, migratedReports);
 
   // ── シフトを曜日ベース→日付ベースにリセット ──
-  localStorage.removeItem(LS.shiftSchedules);
+  Store.remove(LS.shiftSchedules);
 }
 
 // ─── USERS ───
 function getUsers() {
-  return JSON.parse(localStorage.getItem(LS.users) || '[]');
+  return Store.get(LS.users, []);
 }
 function saveUsers(users) {
-  localStorage.setItem(LS.users, JSON.stringify(users));
+  Store.set(LS.users, users);
 }
 function getUserById(id) {
   return getUsers().find(u => u.id === id) || null;
@@ -132,10 +154,10 @@ function getUserDisplayRole(user) {
 
 // ─── REPORTS ───
 function getReports() {
-  return JSON.parse(localStorage.getItem(LS.reports) || '[]');
+  return Store.get(LS.reports, []);
 }
 function saveReports(reports) {
-  localStorage.setItem(LS.reports, JSON.stringify(reports));
+  Store.set(LS.reports, reports);
 }
 function addReport(report) {
   const reports = getReports();
@@ -154,10 +176,10 @@ function getUserReportsForMonth(userId, month) {
 
 // ─── TARGETS ───
 function getTargets() {
-  return JSON.parse(localStorage.getItem(LS.targets) || '[]');
+  return Store.get(LS.targets, []);
 }
 function saveTargets(targets) {
-  localStorage.setItem(LS.targets, JSON.stringify(targets));
+  Store.set(LS.targets, targets);
 }
 function getTargetForUser(userId, month) {
   return getTargets().find(t => t.userId === userId && t.month === month) || null;
@@ -203,16 +225,16 @@ function buildInitialShiftSchedules() {
 }
 
 function getShiftSites() {
-  return JSON.parse(localStorage.getItem(LS.shiftSites) || JSON.stringify(DEFAULT_SHIFT_SITES));
+  return Store.get(LS.shiftSites) || DEFAULT_SHIFT_SITES;
 }
 function saveShiftSites(sites) {
-  localStorage.setItem(LS.shiftSites, JSON.stringify(sites));
+  Store.set(LS.shiftSites, sites);
 }
 function getShiftSchedules() {
-  return JSON.parse(localStorage.getItem(LS.shiftSchedules) || '{}');
+  return Store.get(LS.shiftSchedules, {});
 }
 function saveShiftSchedules(schedules) {
-  localStorage.setItem(LS.shiftSchedules, JSON.stringify(schedules));
+  Store.set(LS.shiftSchedules, schedules);
 }
 
 // 特定ユーザー・日付のシフトを取得

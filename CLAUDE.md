@@ -2,7 +2,7 @@
 
 ## プロジェクト概要
 社内向けWebアプリ（Teamsの代替）。モバイル事業部を中心とした実績管理システム。
-バックエンドなし・localStorageのみのプロトタイプ。将来的にFirebase移行予定。
+バックエンドなし・localStorageのみのプロトタイプ。将来的に Azure (Cosmos DB + Entra ID) 移行予定。
 
 ---
 

@@ -436,13 +436,20 @@ td { padding: 12px 16px; vertical-align: middle; }
 .splan-row.is-today-row > .splan-day-col { box-shadow: inset 3px 0 0 var(--accent); }
 /* 現場バッジ（ページ上部） */
 .splan-venue-pill {
+  appearance: none;
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
   gap: 2px;
   padding: 6px 12px;
   border-radius: 8px;
   border: 1px solid;
   min-width: 100px;
+  cursor: pointer;
+  text-align: left;
+}
+.splan-venue-pill.is-selected {
+  box-shadow: inset 0 0 0 2px var(--accent);
 }
 /* サイドバーのシフト作成専用サブアイテム */
 .nav-subitem-admin {

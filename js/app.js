@@ -11,6 +11,7 @@ let shiftMonthCursor = null; // Date (月初)
 let shiftMonthUserId = '';   // 表示対象ユーザーID
 let shiftMenuExpanded = false;
 let shiftPlanMonth = null;   // 'YYYY-MM'（シフト作成ページ）
+let shiftPlanBrushSite = null; // シフト作成で選択中の入力ブラシ（現場/休み）
 
 // ─── INIT ───
 window.addEventListener('DOMContentLoaded', () => {
@@ -1574,11 +1575,22 @@ function renderShiftsPlan() {
   const today       = todayStr();
   const dayNames    = ['日', '月', '火', '水', '木', '金', '土'];
 
-  // コマ数が設定されている現場（右端サマリ用）
-  const activeVenues = sites.filter(s => (plan[s]?.slots || 0) > 0);
-
   // 全日付 × 全メンバーのシフトをまとめて取得しておく（アクセス数削減）
   const schedules = getShiftSchedules();
+  const monthVenueCounts = {};
+  sites.forEach(s => { monthVenueCounts[s] = 0; });
+  let monthOffCount = 0;
+  mobileUsers.forEach(u => {
+    const userSchedules = schedules[u.id] || {};
+    Object.values(userSchedules).forEach(slot => {
+      if (!slot?.site) return;
+      if (slot.site === '休み') {
+        monthOffCount += 1;
+        return;
+      }
+      monthVenueCounts[slot.site] = (monthVenueCounts[slot.site] || 0) + 1;
+    });
+  });
 
   // ── ヘッダー列（メンバー名） ──
   const memberHeaders = mobileUsers.map(u => `
@@ -1598,16 +1610,6 @@ function renderShiftsPlan() {
     const isToday = ds === today;
     const dayColor = isSun ? 'var(--danger)' : isSat ? 'var(--warn)' : 'var(--text)';
 
-    // 各現場の配置人数カウント（この日）
-    const venueCounts = {};
-    sites.forEach(s => { venueCounts[s] = 0; });
-    mobileUsers.forEach(u => {
-      const slot = schedules[u.id]?.[ds];
-      if (slot?.site && slot.site !== '休み') {
-        venueCounts[slot.site] = (venueCounts[slot.site] || 0) + 1;
-      }
-    });
-
     // メンバーセル
     const cells = mobileUsers.map(u => {
       const slot  = schedules[u.id]?.[ds];
@@ -1620,22 +1622,9 @@ function renderShiftsPlan() {
           : 'background:transparent;color:var(--text-sub);border-color:var(--border)';
       const chipLabel = slot ? (isOff ? '休' : _shortSite(slot.site)) : '—';
       return `
-        <td class="splan-cell${isToday ? ' is-today' : ''}" onclick="openPlanCellModal('${u.id}','${ds}')">
+        <td class="splan-cell${isToday ? ' is-today' : ''}" onclick="onPlanCellClick(event,'${u.id}','${ds}')">
           <div class="shift-chip" style="${chipStyle};cursor:pointer;font-size:10px;padding:3px 5px">${chipLabel}</div>
         </td>`;
-    }).join('');
-
-    // コマ数サマリ
-    const summaryParts = activeVenues.map(v => {
-      const filled = venueCounts[v] || 0;
-      const total  = plan[v]?.slots || 0;
-      let color;
-      if (filled === 0)      color = 'var(--text-sub)';
-      else if (filled > total) color = 'var(--danger)';
-      else if (filled === total) color = 'var(--green)';
-      else                   color = 'var(--warn)';
-      const dot = filled === total ? '●' : filled > total ? '▲' : '○';
-      return `<span class="splan-summary-pill" style="color:${color}" title="${v}">${dot} ${_shortSite(v)} <b>${filled}/${total}</b></span>`;
     }).join('');
 
     rows.push(`
@@ -1645,26 +1634,52 @@ function renderShiftsPlan() {
           <span class="splan-day-name">${dayNames[wk]}</span>
         </td>
         ${cells}
-        <td class="splan-summary-col">${summaryParts || '<span style="color:var(--text-sub);font-size:10px">—</span>'}</td>
       </tr>`);
   }
 
   // 現場コマ数サマリバー（ページ上部）
-  const venueBarHtml = sites.map((s, i) => {
-    const slots = plan[s]?.slots || 0;
-    const c = SITE_COLORS[i % SITE_COLORS.length];
+  const venueBarHtml = [
+    { site: '休み', slots: null, color: { bg: 'rgba(122,130,153,.1)', border: 'rgba(122,130,153,.3)', text: 'var(--text-sub)' } },
+    ...sites.map((s, i) => ({
+      site: s,
+      slots: plan[s]?.slots || 0,
+      color: SITE_COLORS[i % SITE_COLORS.length],
+    })),
+  ].map(({ site, slots, color }) => {
+    const isSelected = shiftPlanBrushSite === site;
+    const subLabel = site === '休み' ? '休み入力' : (slots > 0 ? `${slots}コマ/日` : '未設定');
+    const monthFilled = site === '休み' ? monthOffCount : (monthVenueCounts[site] || 0);
+    const monthTotal = site === '休み' ? null : (slots > 0 ? slots * lastDay : 0);
+    const countLabel = site === '休み'
+      ? `月間 ${monthFilled}コマ`
+      : monthTotal > 0
+        ? `月間 ${monthFilled}/${monthTotal}`
+        : `月間 ${monthFilled}コマ`;
+    const countColor = site === '休み'
+      ? 'var(--text-sub)'
+      : (monthTotal > 0 && monthFilled > monthTotal)
+        ? 'var(--danger)'
+        : (monthTotal > 0 && monthFilled === monthTotal)
+          ? 'var(--green)'
+          : 'var(--warn)';
     return `
-      <div class="splan-venue-pill" style="background:${c.bg};border-color:${c.border}">
-        <span style="color:${c.text};font-weight:700">${s}</span>
-        <span style="color:${c.text};opacity:.7;font-size:11px">${slots > 0 ? `${slots}コマ/日` : '未設定'}</span>
-      </div>`;
+      <button type="button" class="splan-venue-pill ${isSelected ? 'is-selected' : ''}"
+        style="background:${color.bg};border-color:${color.border}"
+        onclick="setShiftPlanBrush('${site}')">
+        <span style="color:${color.text};font-weight:700">${site}</span>
+        <span style="color:${color.text};opacity:.7;font-size:11px">${subLabel}</span>
+        <span style="color:${countColor};font-size:11px;font-weight:700">${countLabel}</span>
+      </button>`;
   }).join('');
+  const brushStatus = shiftPlanBrushSite
+    ? `選択中：<b>${shiftPlanBrushSite}</b>（セルをクリックで連続入力）`
+    : '現場コマ数(/日)をクリックしてからセルをクリックすると、連続で割り当てできます。';
 
   document.getElementById('main').innerHTML = `
     <div class="page-header fade-in">
       <div>
         <div class="page-title">シフト作成</div>
-        <div class="page-sub">モバイル事業部の月次シフトを組みます — <span style="color:var(--green)">セルをクリックで割り当て</span></div>
+        <div class="page-sub">モバイル事業部の月次シフトを組みます — <span style="color:var(--green)">現場選択→セルクリックで連続入力</span></div>
       </div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <button class="btn btn-ghost" style="padding:6px 12px;font-size:16px" onclick="moveShiftPlanMonth(-1)">◀</button>
@@ -1679,13 +1694,9 @@ function renderShiftsPlan() {
       <span style="font-size:11px;color:var(--text-sub);font-weight:600;white-space:nowrap">現場コマ数(/日)：</span>
       ${venueBarHtml || '<span style="font-size:12px;color:var(--text-sub)">⚙ 現場・コマ数設定 から設定してください</span>'}
     </div>
-
-    <!-- サマリ凡例 -->
-    <div class="fade-in" style="display:flex;gap:16px;align-items:center;font-size:11px;color:var(--text-sub)">
-      <span><span style="color:var(--green)">● X/X</span> 充填完了</span>
-      <span><span style="color:var(--warn)">○ X/X</span> 途中</span>
-      <span><span style="color:var(--danger)">▲ X/X</span> 超過</span>
-      <span><span style="color:var(--text-sub)">○ 0/X</span> 未配置</span>
+    <div class="fade-in" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:-6px;font-size:12px;color:var(--text-sub)">
+      <span>${brushStatus}</span>
+      ${shiftPlanBrushSite ? '<button class="btn btn-ghost" style="padding:4px 10px;font-size:11px" onclick="clearShiftPlanBrush()">解除</button>' : ''}
     </div>
 
     <!-- シフト配置グリッド -->
@@ -1696,7 +1707,6 @@ function renderShiftsPlan() {
             <tr>
               <th class="splan-day-col splan-day-th">日付</th>
               ${memberHeaders}
-              <th class="splan-summary-col splan-summary-th">コマ数状況</th>
             </tr>
           </thead>
           <tbody>${rows.join('')}</tbody>
@@ -1710,6 +1720,34 @@ function moveShiftPlanMonth(dir) {
   const [y, m] = shiftPlanMonth.split('-').map(Number);
   const next = new Date(y, m - 1 + dir, 1);
   shiftPlanMonth = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}`;
+  renderShiftsPlan();
+}
+
+function setShiftPlanBrush(site) {
+  shiftPlanBrushSite = shiftPlanBrushSite === site ? null : site;
+  renderShiftsPlan();
+}
+
+function clearShiftPlanBrush() {
+  shiftPlanBrushSite = null;
+  renderShiftsPlan();
+}
+
+function onPlanCellClick(event, userId, dateStr) {
+  if (roleLevel(CU.role) < 4) return;
+  if (!shiftPlanBrushSite || event?.altKey) {
+    openPlanCellModal(userId, dateStr);
+    return;
+  }
+
+  const current = getShiftForUser(userId, dateStr);
+  if (current?.site === shiftPlanBrushSite) return;
+
+  setShiftForUser(userId, dateStr, {
+    site: shiftPlanBrushSite,
+    start: current?.start || '10:00',
+    end: current?.end || '19:00',
+  });
   renderShiftsPlan();
 }
 

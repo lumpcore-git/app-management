@@ -7,6 +7,8 @@ let rankItem  = '';
 
 // ─── SHIFT STATE ───
 let shiftWeekStart = null; // Date (月曜日)
+let shiftMonthCursor = null; // Date (月初)
+let shiftMonthUserId = '';   // 表示対象ユーザーID
 
 // ─── INIT ───
 window.addEventListener('DOMContentLoaded', () => {
@@ -55,10 +57,24 @@ function renderSidebar() {
   document.getElementById('sidebar').innerHTML = `
     <div class="nav-section">メニュー</div>
     ${items.map(n => `
-      <div class="nav-item" data-page="${n.id}" onclick="navigate('${n.id}')">
-        <span class="icon">${n.icon}</span>
-        <span>${n.label}</span>
-      </div>
+      ${n.id === 'shifts'
+        ? `
+          <div class="nav-item nav-item-parent" data-page="shifts">
+            <span class="icon">${n.icon}</span>
+            <span>${n.label}</span>
+          </div>
+          <div class="nav-submenu">
+            <div class="nav-subitem" data-page="shifts-week" onclick="navigate('shifts-week')">週次シフト</div>
+            <div class="nav-subitem" data-page="shifts-month" onclick="navigate('shifts-month')">月次シフト</div>
+          </div>
+        `
+        : `
+          <div class="nav-item" data-page="${n.id}" onclick="navigate('${n.id}')">
+            <span class="icon">${n.icon}</span>
+            <span>${n.label}</span>
+          </div>
+        `
+      }
     `).join('')}
     <div style="margin-top:auto;padding:12px">
       <div style="font-size:11px;color:var(--text-sub);padding:8px 0;border-top:1px solid var(--border)">
@@ -88,14 +104,19 @@ function route() {
     location.hash = 'dashboard'; return;
   }
 
-  document.querySelectorAll('.nav-item').forEach(el => {
-    el.classList.toggle('active', el.dataset.page === hash);
+  document.querySelectorAll('.nav-item, .nav-subitem').forEach(el => {
+    const page = el.dataset.page;
+    const isShift = hash === 'shifts-week' || hash === 'shifts-month';
+    const active = page === hash || (page === 'shifts' && isShift);
+    el.classList.toggle('active', active);
   });
 
   const titles = {
     dashboard: 'ダッシュボード',
     report:    '実績報告',
     shifts:    'シフト',
+    'shifts-week': '週次シフト',
+    'shifts-month': '月次シフト',
     team:      'チーム実績',
     ranking:   'ランキング',
     targets:   '目標設定',
@@ -107,6 +128,8 @@ function route() {
     dashboard: renderDashboard,
     report:    renderReportPage,
     shifts:    renderShifts,
+    'shifts-week': renderShifts,
+    'shifts-month': renderShiftsMonth,
     team:      renderTeam,
     ranking:   renderRanking,
     targets:   renderTargets,
@@ -115,7 +138,13 @@ function route() {
   (pages[hash] || renderDashboard)();
 }
 
-function navigate(page) { location.hash = page; }
+function navigate(page) {
+  if (page === 'shifts') {
+    location.hash = 'shifts-week';
+    return;
+  }
+  location.hash = page;
+}
 
 // ─── HELPERS ───
 function achieveColor(v) {
@@ -1315,6 +1344,137 @@ function renderShifts() {
       </div>
     </div>
   `;
+}
+
+function renderShiftsMonth() {
+  if (!shiftMonthCursor) {
+    const d = new Date();
+    shiftMonthCursor = new Date(d.getFullYear(), d.getMonth(), 1);
+  }
+  const viewableUsers = getShiftViewableUsers();
+  if (!shiftMonthUserId || !viewableUsers.some(u => u.id === shiftMonthUserId)) {
+    shiftMonthUserId = (viewableUsers.find(u => u.id === CU.id) || viewableUsers[0])?.id || '';
+  }
+  const selectedUser = getUserById(shiftMonthUserId);
+  const monthStr = `${shiftMonthCursor.getFullYear()}-${String(shiftMonthCursor.getMonth() + 1).padStart(2, '0')}`;
+  const monthLabelText = monthLabel(monthStr);
+  const workCount = selectedUser ? getWorkingDaysCount(selectedUser.id, monthStr) : 0;
+
+  const weeks = buildMonthMatrix(shiftMonthCursor);
+  const calendarHtml = weeks.map(week => `
+    <tr>
+      ${week.map(day => {
+        if (!day) return `<td class="month-cell is-empty"></td>`;
+        const ds = dateToStr(day);
+        const slot = selectedUser ? getShiftForUser(selectedUser.id, ds) : null;
+        const isToday = ds === todayStr();
+        const wk = day.getDay();
+        const isSun = wk === 0;
+        const isSat = wk === 6;
+        const isOff = slot?.site === '休み';
+        const c = slot && !isOff ? getSiteColor(slot.site) : null;
+        const chipStyle = c
+          ? `background:${c.bg};color:${c.text};border-color:${c.border}`
+          : isOff
+            ? 'background:rgba(122,130,153,.1);color:var(--text-sub);border-color:rgba(122,130,153,.2)'
+            : 'background:transparent;color:var(--text-sub);border-color:var(--border)';
+        return `
+          <td class="month-cell ${isToday ? 'is-today' : ''}">
+            <div class="month-day" style="color:${isSun ? 'var(--danger)' : isSat ? 'var(--warn)' : 'var(--text)'}">${day.getDate()}</div>
+            <div class="shift-chip" style="${chipStyle}">${slot ? (isOff ? '休' : _shortSite(slot.site)) : '—'}</div>
+            ${slot && !isOff && slot.start ? `<div class="month-time">${slot.start}〜</div>` : ''}
+          </td>
+        `;
+      }).join('')}
+    </tr>
+  `).join('');
+
+  document.getElementById('main').innerHTML = `
+    <div class="page-header fade-in">
+      <div>
+        <div class="page-title">月次シフト</div>
+        <div class="page-sub">1人ずつカレンダーで確認できます</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn btn-ghost" style="font-size:18px;padding:6px 12px" onclick="moveShiftMonth(-1)">◀</button>
+        <span style="font-size:13px;font-weight:600;min-width:140px;text-align:center">${monthLabelText}</span>
+        <button class="btn btn-ghost" style="font-size:18px;padding:6px 12px" onclick="moveShiftMonth(1)">▶</button>
+      </div>
+    </div>
+
+    <div class="card fade-in" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+      <div class="form-group" style="min-width:220px;margin:0">
+        <label class="form-label">表示メンバー</label>
+        <select class="form-select" onchange="changeShiftMonthUser(this.value)">
+          ${viewableUsers.map(u => `<option value="${u.id}" ${u.id === shiftMonthUserId ? 'selected' : ''}>${u.name}（${getUserDisplayRole(u)}）</option>`).join('')}
+        </select>
+      </div>
+      <div style="font-size:13px;color:var(--text-sub)">
+        <span style="color:var(--text)">${selectedUser?.name || '-'}</span> の ${shiftMonthCursor.getMonth() + 1}月出勤日数：
+        <span style="font-weight:700;color:${workCount >= 21 ? 'var(--green)' : 'var(--accent)'}">${workCount}日</span>
+      </div>
+    </div>
+
+    <div class="card fade-in" style="padding:0;overflow:hidden">
+      <table class="month-shift-calendar">
+        <thead>
+          <tr>
+            <th style="color:var(--danger)">日</th><th>月</th><th>火</th><th>水</th><th>木</th><th>金</th><th style="color:var(--warn)">土</th>
+          </tr>
+        </thead>
+        <tbody>${calendarHtml}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+// 現場名を短縮（長い名前が多いため）
+function _shortSite(site) {
+  if (!site) return '—';
+  // 10文字以上は末尾を省略
+  return site.length > 6 ? site.slice(0, 5) + '…' : site;
+}
+
+function moveWeek(dir) {
+  const d = new Date(shiftWeekStart);
+  d.setDate(d.getDate() + dir * 7);
+  shiftWeekStart = d;
+  renderShifts();
+}
+
+function moveShiftMonth(dir) {
+  const d = new Date(shiftMonthCursor);
+  d.setMonth(d.getMonth() + dir);
+  shiftMonthCursor = new Date(d.getFullYear(), d.getMonth(), 1);
+  renderShiftsMonth();
+}
+
+function changeShiftMonthUser(userId) {
+  shiftMonthUserId = userId;
+  renderShiftsMonth();
+}
+
+function getShiftViewableUsers() {
+  const level = roleLevel(CU.role);
+  if (level >= 5) return getUsers();
+  if (level >= 2 && CU.dept === 'mobile') {
+    return getUsers().filter(u => u.dept === 'mobile');
+  }
+  return [CU];
+}
+
+function buildMonthMatrix(monthStart) {
+  const y = monthStart.getFullYear();
+  const m = monthStart.getMonth();
+  const lastDay = new Date(y, m + 1, 0).getDate();
+  const firstWeekday = new Date(y, m, 1).getDay(); // 0:日
+  const cells = [];
+  for (let i = 0; i < firstWeekday; i++) cells.push(null);
+  for (let d = 1; d <= lastDay; d++) cells.push(new Date(y, m, d));
+  while (cells.length % 7 !== 0) cells.push(null);
+  const weeks = [];
+  for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
+  return weeks;
 }
 
 // 現場名を短縮（長い名前が多いため）

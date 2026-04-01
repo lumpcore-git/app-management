@@ -130,6 +130,18 @@ body {
 .nav-item:hover { background: var(--surface2); color: var(--text); }
 .nav-item.active { background: rgba(79,124,255,.15); color: var(--accent); }
 .nav-item .icon { font-size: 15px; width: 20px; text-align: center; }
+.nav-item-parent { cursor: default; }
+.nav-submenu { margin: -2px 0 6px 24px; display: flex; flex-direction: column; gap: 2px; }
+.nav-subitem {
+  font-size: 12px;
+  color: var(--text-sub);
+  padding: 7px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all .15s;
+}
+.nav-subitem:hover { background: var(--surface2); color: var(--text); }
+.nav-subitem.active { background: rgba(79,124,255,.15); color: var(--accent); }
 
 /* ─── MAIN ─── */
 .main {

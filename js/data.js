@@ -69,6 +69,7 @@ const LS = {
   targets:        'lc_targets',
   shiftSites:     'lc_shift_sites',
   shiftSchedules: 'lc_shift_schedules',
+  shiftVenuePlans:'lc_venue_plans',
   session:        'lc_session',
   version:        'lc_version',
 };
@@ -110,8 +111,9 @@ function initData() {
 
   if (!Store.get(LS.reports))        Store.set(LS.reports, []);
   if (!Store.get(LS.targets))        Store.set(LS.targets, []);
-  if (!Store.get(LS.shiftSites))     Store.set(LS.shiftSites, DEFAULT_SHIFT_SITES);
-  if (!Store.get(LS.shiftSchedules)) Store.set(LS.shiftSchedules, buildInitialShiftSchedules());
+  if (!Store.get(LS.shiftSites))      Store.set(LS.shiftSites, DEFAULT_SHIFT_SITES);
+  if (!Store.get(LS.shiftSchedules))  Store.set(LS.shiftSchedules, buildInitialShiftSchedules());
+  if (!Store.get(LS.shiftVenuePlans)) Store.set(LS.shiftVenuePlans, {});
 }
 
 function _migrate() {
@@ -289,6 +291,24 @@ function getWeekDates(monday) {
     d.setDate(d.getDate() + i);
     return d;
   });
+}
+
+// ─── VENUE PLANS (現場コマ数設定) ───
+// 月ごとに各現場の1日あたりコマ数（配置人数）を管理する
+// lc_venue_plans: { [month: 'YYYY-MM']: { [venue: string]: { slots: number } } }
+function getVenuePlans() {
+  return Store.get(LS.shiftVenuePlans, {});
+}
+function saveVenuePlans(plans) {
+  Store.set(LS.shiftVenuePlans, plans);
+}
+function getVenuePlanForMonth(month) {
+  return getVenuePlans()[month] || {};
+}
+function setVenuePlanForMonth(month, plan) {
+  const plans = getVenuePlans();
+  plans[month] = plan;
+  saveVenuePlans(plans);
 }
 
 // ─── PRODUCTS & POINTS (モバイル事業部) ───

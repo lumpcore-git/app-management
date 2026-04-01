@@ -9,6 +9,8 @@ let rankItem  = '';
 let shiftWeekStart = null; // Date (月曜日)
 let shiftMonthCursor = null; // Date (月初)
 let shiftMonthUserId = '';   // 表示対象ユーザーID
+let shiftMenuExpanded = false;
+let shiftPlanMonth = null;   // 'YYYY-MM'（シフト作成ページ）
 
 // ─── INIT ───
 window.addEventListener('DOMContentLoaded', () => {
@@ -42,6 +44,10 @@ function renderSidebar() {
   const hasReport = !!CU.reportType;
   const canSeeTeam = (level >= 2 && CU.dept === 'mobile') || level >= 5;
   const canSetTargets = (level >= 4 && CU.dept === 'mobile') || level >= 5;
+  const hash = location.hash.replace('#', '') || 'dashboard';
+  const isShiftPage = hash === 'shifts-week' || hash === 'shifts-month' || hash === 'shifts-plan';
+
+  if (isShiftPage) shiftMenuExpanded = true;
 
   const nav = [
     { id: 'dashboard', icon: '🏠', label: 'ダッシュボード', show: true },
@@ -59,13 +65,15 @@ function renderSidebar() {
     ${items.map(n => `
       ${n.id === 'shifts'
         ? `
-          <div class="nav-item nav-item-parent" data-page="shifts">
+          <div class="nav-item nav-item-parent" data-page="shifts" onclick="toggleShiftMenu()">
             <span class="icon">${n.icon}</span>
             <span>${n.label}</span>
+            <span class="nav-caret ${shiftMenuExpanded ? 'open' : ''}">▾</span>
           </div>
-          <div class="nav-submenu">
+          <div class="nav-submenu ${shiftMenuExpanded ? '' : 'hidden'}" id="shiftSubmenu">
             <div class="nav-subitem" data-page="shifts-week" onclick="navigate('shifts-week')">週次シフト</div>
             <div class="nav-subitem" data-page="shifts-month" onclick="navigate('shifts-month')">月次シフト</div>
+            ${level >= 4 ? `<div class="nav-subitem nav-subitem-admin" data-page="shifts-plan" onclick="navigate('shifts-plan')">シフト作成</div>` : ''}
           </div>
         `
         : `
@@ -111,12 +119,21 @@ function route() {
     el.classList.toggle('active', active);
   });
 
+  const isShift = hash === 'shifts-week' || hash === 'shifts-month' || hash === 'shifts-plan';
+  if (isShift) shiftMenuExpanded = true;
+  syncShiftMenu();
+
+  if (hash === 'shifts-plan' && level < 4) {
+    location.hash = 'dashboard'; return;
+  }
+
   const titles = {
     dashboard: 'ダッシュボード',
     report:    '実績報告',
     shifts:    'シフト',
     'shifts-week': '週次シフト',
     'shifts-month': '月次シフト',
+    'shifts-plan': 'シフト作成',
     team:      'チーム実績',
     ranking:   'ランキング',
     targets:   '目標設定',
@@ -130,12 +147,29 @@ function route() {
     shifts:    renderShifts,
     'shifts-week': renderShifts,
     'shifts-month': renderShiftsMonth,
+    'shifts-plan': renderShiftsPlan,
     team:      renderTeam,
     ranking:   renderRanking,
     targets:   renderTargets,
     members:   renderMembers,
   };
   (pages[hash] || renderDashboard)();
+}
+
+function toggleShiftMenu() {
+  shiftMenuExpanded = !shiftMenuExpanded;
+  syncShiftMenu();
+}
+
+function syncShiftMenu() {
+  const submenu = document.getElementById('shiftSubmenu');
+  const caret = document.querySelector('.nav-caret');
+  if (submenu) {
+    submenu.classList.toggle('hidden', !shiftMenuExpanded);
+  }
+  if (caret) {
+    caret.classList.toggle('open', shiftMenuExpanded);
+  }
 }
 
 function navigate(page) {
@@ -1477,20 +1511,6 @@ function buildMonthMatrix(monthStart) {
   return weeks;
 }
 
-// 現場名を短縮（長い名前が多いため）
-function _shortSite(site) {
-  if (!site) return '—';
-  // 10文字以上は末尾を省略
-  return site.length > 6 ? site.slice(0, 5) + '…' : site;
-}
-
-function moveWeek(dir) {
-  const d = new Date(shiftWeekStart);
-  d.setDate(d.getDate() + dir * 7);
-  shiftWeekStart = d;
-  renderShifts();
-}
-
 function openShiftModal(userId, dateStr) {
   if (roleLevel(CU.role) < 4) return;
   const u     = getUserById(userId);
@@ -1538,6 +1558,303 @@ function saveShiftFromModal(userId, dateStr) {
   closeModal();
   showToast('シフトを保存しました');
   renderShifts();
+}
+
+// ═══════════════════════════════════════════════════════
+// ─── PAGE: シフト作成（level >= 4） ───
+// ═══════════════════════════════════════════════════════
+function renderShiftsPlan() {
+  if (!shiftPlanMonth) shiftPlanMonth = currentMonth();
+
+  const mobileUsers = getUsers().filter(u => u.dept === 'mobile');
+  const sites       = getShiftSites();
+  const plan        = getVenuePlanForMonth(shiftPlanMonth);
+  const [planY, planM] = shiftPlanMonth.split('-').map(Number);
+  const lastDay     = new Date(planY, planM, 0).getDate();
+  const today       = todayStr();
+  const dayNames    = ['日', '月', '火', '水', '木', '金', '土'];
+
+  // コマ数が設定されている現場（右端サマリ用）
+  const activeVenues = sites.filter(s => (plan[s]?.slots || 0) > 0);
+
+  // 全日付 × 全メンバーのシフトをまとめて取得しておく（アクセス数削減）
+  const schedules = getShiftSchedules();
+
+  // ── ヘッダー列（メンバー名） ──
+  const memberHeaders = mobileUsers.map(u => `
+    <th class="splan-member-th">
+      <div class="avatar" style="width:26px;height:26px;font-size:10px;margin:0 auto 3px;background:${roleColor(u.role)}">${u.name[0]}</div>
+      <div style="font-size:10px;font-weight:600;line-height:1.2">${u.name}</div>
+    </th>`).join('');
+
+  // ── 行（日付ごと） ──
+  const rows = [];
+  for (let d = 1; d <= lastDay; d++) {
+    const dateObj = new Date(planY, planM - 1, d);
+    const ds      = dateToStr(dateObj);
+    const wk      = dateObj.getDay();
+    const isSun   = wk === 0;
+    const isSat   = wk === 6;
+    const isToday = ds === today;
+    const dayColor = isSun ? 'var(--danger)' : isSat ? 'var(--warn)' : 'var(--text)';
+
+    // 各現場の配置人数カウント（この日）
+    const venueCounts = {};
+    sites.forEach(s => { venueCounts[s] = 0; });
+    mobileUsers.forEach(u => {
+      const slot = schedules[u.id]?.[ds];
+      if (slot?.site && slot.site !== '休み') {
+        venueCounts[slot.site] = (venueCounts[slot.site] || 0) + 1;
+      }
+    });
+
+    // メンバーセル
+    const cells = mobileUsers.map(u => {
+      const slot  = schedules[u.id]?.[ds];
+      const isOff = slot?.site === '休み';
+      const c     = slot && !isOff ? getSiteColor(slot.site) : null;
+      const chipStyle = c
+        ? `background:${c.bg};color:${c.text};border-color:${c.border}`
+        : isOff
+          ? 'background:rgba(122,130,153,.1);color:var(--text-sub);border-color:rgba(122,130,153,.2)'
+          : 'background:transparent;color:var(--text-sub);border-color:var(--border)';
+      const chipLabel = slot ? (isOff ? '休' : _shortSite(slot.site)) : '—';
+      return `
+        <td class="splan-cell${isToday ? ' is-today' : ''}" onclick="openPlanCellModal('${u.id}','${ds}')">
+          <div class="shift-chip" style="${chipStyle};cursor:pointer;font-size:10px;padding:3px 5px">${chipLabel}</div>
+        </td>`;
+    }).join('');
+
+    // コマ数サマリ
+    const summaryParts = activeVenues.map(v => {
+      const filled = venueCounts[v] || 0;
+      const total  = plan[v]?.slots || 0;
+      let color;
+      if (filled === 0)      color = 'var(--text-sub)';
+      else if (filled > total) color = 'var(--danger)';
+      else if (filled === total) color = 'var(--green)';
+      else                   color = 'var(--warn)';
+      const dot = filled === total ? '●' : filled > total ? '▲' : '○';
+      return `<span class="splan-summary-pill" style="color:${color}" title="${v}">${dot} ${_shortSite(v)} <b>${filled}/${total}</b></span>`;
+    }).join('');
+
+    rows.push(`
+      <tr class="splan-row${isToday ? ' is-today-row' : ''}">
+        <td class="splan-day-col" style="color:${dayColor}">
+          <span class="splan-day-num">${d}</span>
+          <span class="splan-day-name">${dayNames[wk]}</span>
+        </td>
+        ${cells}
+        <td class="splan-summary-col">${summaryParts || '<span style="color:var(--text-sub);font-size:10px">—</span>'}</td>
+      </tr>`);
+  }
+
+  // 現場コマ数サマリバー（ページ上部）
+  const venueBarHtml = sites.map((s, i) => {
+    const slots = plan[s]?.slots || 0;
+    const c = SITE_COLORS[i % SITE_COLORS.length];
+    return `
+      <div class="splan-venue-pill" style="background:${c.bg};border-color:${c.border}">
+        <span style="color:${c.text};font-weight:700">${s}</span>
+        <span style="color:${c.text};opacity:.7;font-size:11px">${slots > 0 ? `${slots}コマ/日` : '未設定'}</span>
+      </div>`;
+  }).join('');
+
+  document.getElementById('main').innerHTML = `
+    <div class="page-header fade-in">
+      <div>
+        <div class="page-title">シフト作成</div>
+        <div class="page-sub">モバイル事業部の月次シフトを組みます — <span style="color:var(--green)">セルをクリックで割り当て</span></div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <button class="btn btn-ghost" style="padding:6px 12px;font-size:16px" onclick="moveShiftPlanMonth(-1)">◀</button>
+        <span style="font-weight:700;min-width:100px;text-align:center;font-size:14px">${monthLabel(shiftPlanMonth)}</span>
+        <button class="btn btn-ghost" style="padding:6px 12px;font-size:16px" onclick="moveShiftPlanMonth(1)">▶</button>
+        <button class="btn btn-outline" onclick="openVenuePlanModal()" style="font-size:12px">⚙ 現場・コマ数設定</button>
+      </div>
+    </div>
+
+    <!-- 現場コマ数バー -->
+    <div class="card fade-in" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:12px 16px">
+      <span style="font-size:11px;color:var(--text-sub);font-weight:600;white-space:nowrap">現場コマ数(/日)：</span>
+      ${venueBarHtml || '<span style="font-size:12px;color:var(--text-sub)">⚙ 現場・コマ数設定 から設定してください</span>'}
+    </div>
+
+    <!-- サマリ凡例 -->
+    <div class="fade-in" style="display:flex;gap:16px;align-items:center;font-size:11px;color:var(--text-sub)">
+      <span><span style="color:var(--green)">● X/X</span> 充填完了</span>
+      <span><span style="color:var(--warn)">○ X/X</span> 途中</span>
+      <span><span style="color:var(--danger)">▲ X/X</span> 超過</span>
+      <span><span style="color:var(--text-sub)">○ 0/X</span> 未配置</span>
+    </div>
+
+    <!-- シフト配置グリッド -->
+    <div class="card fade-in" style="padding:0;overflow:hidden">
+      <div class="splan-scroll-wrap">
+        <table class="splan-table">
+          <thead>
+            <tr>
+              <th class="splan-day-col splan-day-th">日付</th>
+              ${memberHeaders}
+              <th class="splan-summary-col splan-summary-th">コマ数状況</th>
+            </tr>
+          </thead>
+          <tbody>${rows.join('')}</tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+function moveShiftPlanMonth(dir) {
+  const [y, m] = shiftPlanMonth.split('-').map(Number);
+  const next = new Date(y, m - 1 + dir, 1);
+  shiftPlanMonth = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}`;
+  renderShiftsPlan();
+}
+
+// 現場・コマ数設定モーダル
+function openVenuePlanModal() {
+  const sites = getShiftSites();
+  const plan  = getVenuePlanForMonth(shiftPlanMonth);
+
+  const rows = sites.map((s, i) => {
+    const c = SITE_COLORS[i % SITE_COLORS.length];
+    const slots = plan[s]?.slots || 0;
+    return `
+      <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
+        <span class="shift-chip" style="background:${c.bg};color:${c.text};border-color:${c.border};flex:1;max-width:none;text-align:center">${s}</span>
+        <div style="display:flex;align-items:center;gap:6px">
+          <button class="btn btn-ghost" style="padding:2px 8px;font-size:16px"
+            onclick="adjustVenueSlots('${s}', -1)">−</button>
+          <input type="number" class="form-input" id="vp_${i}"
+            value="${slots}" min="0" max="30"
+            style="width:60px;text-align:center;font-size:16px;font-weight:700;padding:4px"
+            oninput="syncVenueSlotLabel(${i})">
+          <button class="btn btn-ghost" style="padding:2px 8px;font-size:16px"
+            onclick="adjustVenueSlots('${s}', 1)">＋</button>
+          <span style="font-size:12px;color:var(--text-sub);min-width:44px">コマ/日</span>
+        </div>
+      </div>`;
+  }).join('');
+
+  showModal(`
+    <div class="modal-header">
+      <div class="modal-title">現場・コマ数設定</div>
+      <div style="font-size:12px;color:var(--text-sub)">${monthLabel(shiftPlanMonth)}</div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:12px;color:var(--text-sub);margin-bottom:4px">
+        各現場に1日あたり何名（コマ）配置するかを設定します。0 = この月は使わない。
+      </p>
+      <div>${rows}</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">キャンセル</button>
+      <button class="btn btn-primary" onclick="saveVenuePlan()">保存</button>
+    </div>
+  `);
+
+  // − / ＋ボタン用のグローバル参照を保持
+  window._vpSites = sites;
+}
+
+function adjustVenueSlots(site, delta) {
+  const sites = window._vpSites || getShiftSites();
+  const idx = sites.indexOf(site);
+  if (idx < 0) return;
+  const input = document.getElementById(`vp_${idx}`);
+  if (!input) return;
+  const newVal = Math.max(0, Math.min(30, parseInt(input.value || 0) + delta));
+  input.value = newVal;
+}
+
+function saveVenuePlan() {
+  const sites = window._vpSites || getShiftSites();
+  const plan  = {};
+  sites.forEach((s, i) => {
+    const el    = document.getElementById(`vp_${i}`);
+    const slots = el ? parseInt(el.value) || 0 : 0;
+    if (slots > 0) plan[s] = { slots };
+  });
+  setVenuePlanForMonth(shiftPlanMonth, plan);
+  closeModal();
+  showToast('コマ数設定を保存しました');
+  renderShiftsPlan();
+}
+
+// セルクリック → シフト割り当てモーダル
+function openPlanCellModal(userId, dateStr) {
+  if (roleLevel(CU.role) < 4) return;
+  const u     = getUserById(userId);
+  const sites = getShiftSites();
+  const plan  = getVenuePlanForMonth(shiftPlanMonth || dateStr.substring(0, 7));
+  const slot  = getShiftForUser(userId, dateStr);
+  const [, mm, dd] = dateStr.split('-');
+
+  // この日の各現場の配置人数（自分を除く）
+  const mobileUsers = getUsers().filter(x => x.dept === 'mobile');
+  const schedules   = getShiftSchedules();
+  const venueCounts = {};
+  sites.forEach(s => { venueCounts[s] = 0; });
+  mobileUsers.forEach(u2 => {
+    if (u2.id === userId) return;
+    const s2 = schedules[u2.id]?.[dateStr];
+    if (s2?.site && s2.site !== '休み') {
+      venueCounts[s2.site] = (venueCounts[s2.site] || 0) + 1;
+    }
+  });
+
+  const siteOptions = sites.map(s => {
+    const filled = venueCounts[s] + (slot?.site === s ? 1 : 0);
+    const total  = plan[s]?.slots || 0;
+    const label  = total > 0
+      ? `${s}（${filled}/${total}コマ${filled > total ? ' ⚠' : filled === total ? ' ✓' : ''}）`
+      : s;
+    return `<option value="${s}" ${slot?.site === s ? 'selected' : ''}>${label}</option>`;
+  }).join('');
+
+  showModal(`
+    <div class="modal-header">
+      <div class="avatar" style="background:${roleColor(u.role)};width:32px;height:32px;font-size:12px">${u.name[0]}</div>
+      <div class="modal-title">${u.name} — ${parseInt(mm)}/${parseInt(dd)}</div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">現場</label>
+        <select class="form-select" id="pc_site">
+          <option value="休み" ${slot?.site === '休み' || !slot ? 'selected' : ''}>🗓 休み / 未設定</option>
+          ${siteOptions}
+        </select>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">開始時間</label>
+          <input type="time" class="form-input" id="pc_start" value="${slot?.start || '10:00'}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">終了時間</label>
+          <input type="time" class="form-input" id="pc_end" value="${slot?.end || '19:00'}">
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">キャンセル</button>
+      <button class="btn btn-primary" onclick="savePlanCell('${userId}','${dateStr}')">保存</button>
+    </div>
+  `);
+}
+
+function savePlanCell(userId, dateStr) {
+  const site  = document.getElementById('pc_site').value;
+  const start = document.getElementById('pc_start').value;
+  const end   = document.getElementById('pc_end').value;
+  setShiftForUser(userId, dateStr, { site, start, end });
+  closeModal();
+  showToast('シフトを保存しました');
+  renderShiftsPlan();
 }
 
 // ═══════════════════════════════════════════════════════

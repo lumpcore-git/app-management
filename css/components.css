@@ -333,6 +333,126 @@ td { padding: 12px 16px; vertical-align: middle; }
 }
 .shift-chip:hover { opacity: .85; }
 
+/* ─── SHIFT PLAN TABLE（シフト作成ページ） ─── */
+.splan-scroll-wrap {
+  overflow-x: auto;
+  overflow-y: auto;
+  max-height: 72vh;
+}
+.splan-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.splan-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: var(--surface2);
+  border-bottom: 2px solid var(--border);
+}
+.splan-day-th, .splan-summary-th {
+  padding: 10px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-sub);
+  white-space: nowrap;
+}
+.splan-member-th {
+  padding: 8px 4px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  min-width: 64px;
+  max-width: 80px;
+  color: var(--text-sub);
+}
+/* 日付列（左固定） */
+.splan-day-col {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  padding: 6px 10px;
+  white-space: nowrap;
+  min-width: 60px;
+}
+.splan-table thead .splan-day-col {
+  background: var(--surface2);
+  z-index: 4;
+}
+.splan-table tbody tr:hover .splan-day-col { background: var(--surface2); }
+.splan-day-num {
+  font-size: 16px;
+  font-weight: 700;
+  font-family: 'Space Grotesk', sans-serif;
+  margin-right: 3px;
+}
+.splan-day-name {
+  font-size: 10px;
+  opacity: .7;
+}
+/* 各セル */
+.splan-cell {
+  padding: 4px 3px;
+  text-align: center;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--border);
+  border-right: 1px solid rgba(255,255,255,.04);
+  transition: background .1s;
+}
+.splan-cell:hover { background: rgba(79,124,255,.08) !important; }
+.splan-cell.is-today { background: rgba(79,124,255,.05); }
+/* サマリ列（右固定） */
+.splan-summary-col {
+  position: sticky;
+  right: 0;
+  z-index: 2;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  padding: 4px 10px;
+  min-width: 160px;
+  vertical-align: middle;
+}
+.splan-table thead .splan-summary-col {
+  background: var(--surface2);
+  z-index: 4;
+}
+.splan-table tbody tr:hover .splan-summary-col { background: var(--surface2); }
+.splan-summary-pill {
+  display: inline-block;
+  font-size: 11px;
+  white-space: nowrap;
+  margin-right: 6px;
+}
+/* 行全体 */
+.splan-row {
+  border-bottom: 1px solid var(--border);
+  transition: background .1s;
+}
+.splan-row:last-child { border-bottom: none; }
+.splan-row:hover { background: var(--surface2); }
+.splan-row.is-today-row > .splan-day-col { box-shadow: inset 3px 0 0 var(--accent); }
+/* 現場バッジ（ページ上部） */
+.splan-venue-pill {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid;
+  min-width: 100px;
+}
+/* サイドバーのシフト作成専用サブアイテム */
+.nav-subitem-admin {
+  border-left: 2px solid var(--accent);
+  color: var(--accent) !important;
+  opacity: .9;
+}
+.nav-subitem-admin:hover { opacity: 1; }
+.nav-subitem-admin.active { opacity: 1; }
+
 .month-shift-calendar {
   width: 100%;
   border-collapse: collapse;

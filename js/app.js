@@ -11,7 +11,8 @@ let shiftMonthCursor = null; // Date (月初)
 let shiftMonthUserId = '';   // 表示対象ユーザーID
 let shiftMenuExpanded = false;
 let shiftPlanMonth = null;   // 'YYYY-MM'（シフト作成ページ）
-let shiftPlanBrushSite = null; // シフト作成で選択中の入力ブラシ（現場/休み）
+let shiftPlanBrushSite    = null;  // シフト作成で選択中の入力ブラシ（現場/休み）
+let shiftPlanWeekdayOnly = false;  // 土日非表示トグル
 
 // ─── INIT ───
 window.addEventListener('DOMContentLoaded', () => {
@@ -1574,20 +1575,19 @@ function renderShiftsPlan() {
   const lastDay     = new Date(planY, planM, 0).getDate();
   const today       = todayStr();
   const dayNames    = ['日', '月', '火', '水', '木', '金', '土'];
+  const hiddenDates = getPlanHiddenDates(shiftPlanMonth);
 
-  // 全日付 × 全メンバーのシフトをまとめて取得しておく（アクセス数削減）
+  // 全スケジュールを一括取得
   const schedules = getShiftSchedules();
+
+  // 月間集計（現場コマ数バー用）
   const monthVenueCounts = {};
   sites.forEach(s => { monthVenueCounts[s] = 0; });
   let monthOffCount = 0;
   mobileUsers.forEach(u => {
-    const userSchedules = schedules[u.id] || {};
-    Object.values(userSchedules).forEach(slot => {
-      if (!slot?.site) return;
-      if (slot.site === '休み') {
-        monthOffCount += 1;
-        return;
-      }
+    Object.entries(schedules[u.id] || {}).forEach(([date, slot]) => {
+      if (!slot?.site || !date.startsWith(shiftPlanMonth)) return;
+      if (slot.site === '休み') { monthOffCount++; return; }
       monthVenueCounts[slot.site] = (monthVenueCounts[slot.site] || 0) + 1;
     });
   });
@@ -1599,18 +1599,22 @@ function renderShiftsPlan() {
       <div style="font-size:10px;font-weight:600;line-height:1.2">${u.name}</div>
     </th>`).join('');
 
-  // ── 行（日付ごと） ──
-  const rows = [];
+  // ── 行（日付ごと）を構築 ──
+  const tableRows = [];
   for (let d = 1; d <= lastDay; d++) {
-    const dateObj = new Date(planY, planM - 1, d);
-    const ds      = dateToStr(dateObj);
-    const wk      = dateObj.getDay();
-    const isSun   = wk === 0;
-    const isSat   = wk === 6;
-    const isToday = ds === today;
-    const dayColor = isSun ? 'var(--danger)' : isSat ? 'var(--warn)' : 'var(--text)';
+    const dateObj  = new Date(planY, planM - 1, d);
+    const ds       = dateToStr(dateObj);
+    const wk       = dateObj.getDay();
+    const isWeekend = wk === 0 || wk === 6;
+    const isToday  = ds === today;
 
-    // メンバーセル
+    // 土日トグルでスキップ
+    if (shiftPlanWeekdayOnly && isWeekend) continue;
+    // 非表示日はスキップ
+    if (hiddenDates.has(ds)) continue;
+
+    const dayColor = wk === 0 ? 'var(--danger)' : wk === 6 ? 'var(--warn)' : 'var(--text)';
+
     const cells = mobileUsers.map(u => {
       const slot  = schedules[u.id]?.[ds];
       const isOff = slot?.site === '休み';
@@ -1627,43 +1631,32 @@ function renderShiftsPlan() {
         </td>`;
     }).join('');
 
-    rows.push(`
-      <tr class="splan-row${isToday ? ' is-today-row' : ''}">
+    tableRows.push(`
+      <tr class="splan-row${isToday ? ' is-today-row' : ''}${isWeekend ? ' is-weekend' : ''}">
         <td class="splan-day-col" style="color:${dayColor}">
           <span class="splan-day-num">${d}</span>
           <span class="splan-day-name">${dayNames[wk]}</span>
+          <button class="splan-hide-btn" onclick="onPlanHideDate(event,'${ds}')" title="この日を非表示にする">×</button>
         </td>
         ${cells}
       </tr>`);
   }
 
-  // 現場コマ数サマリバー（ページ上部）
+  // ── 現場コマ数バー ──
   const venueBarHtml = [
     { site: '休み', slots: null, color: { bg: 'rgba(122,130,153,.1)', border: 'rgba(122,130,153,.3)', text: 'var(--text-sub)' } },
-    ...sites.map((s, i) => ({
-      site: s,
-      slots: plan[s]?.slots || 0,
-      color: SITE_COLORS[i % SITE_COLORS.length],
-    })),
+    ...sites.map((s, i) => ({ site: s, slots: plan[s]?.slots || 0, color: SITE_COLORS[i % SITE_COLORS.length] })),
   ].map(({ site, slots, color }) => {
-    const isSelected = shiftPlanBrushSite === site;
-    const subLabel = site === '休み' ? '休み入力' : (slots > 0 ? `${slots}コマ/日` : '未設定');
+    const isSelected  = shiftPlanBrushSite === site;
+    const subLabel    = site === '休み' ? '休み入力' : (slots > 0 ? `${slots}名/月` : '未設定');
     const monthFilled = site === '休み' ? monthOffCount : (monthVenueCounts[site] || 0);
-    const monthTotal = site === '休み' ? null : (slots > 0 ? slots * lastDay : 0);
-    const countLabel = site === '休み'
-      ? `月間 ${monthFilled}コマ`
-      : monthTotal > 0
-        ? `月間 ${monthFilled}/${monthTotal}`
-        : `月間 ${monthFilled}コマ`;
-    const countColor = site === '休み'
-      ? 'var(--text-sub)'
-      : (monthTotal > 0 && monthFilled > monthTotal)
-        ? 'var(--danger)'
-        : (monthTotal > 0 && monthFilled === monthTotal)
-          ? 'var(--green)'
-          : 'var(--warn)';
+    const monthTotal  = site === '休み' ? null : slots;
+    const countLabel  = monthTotal > 0 ? `月間 ${monthFilled}/${monthTotal}` : `月間 ${monthFilled}コマ`;
+    const countColor  = !monthTotal ? 'var(--text-sub)'
+      : monthFilled > monthTotal ? 'var(--danger)'
+      : monthFilled === monthTotal ? 'var(--green)' : 'var(--warn)';
     return `
-      <button type="button" class="splan-venue-pill ${isSelected ? 'is-selected' : ''}"
+      <button type="button" class="splan-venue-pill${isSelected ? ' is-selected' : ''}"
         style="background:${color.bg};border-color:${color.border}"
         onclick="setShiftPlanBrush('${site}')">
         <span style="color:${color.text};font-weight:700">${site}</span>
@@ -1671,9 +1664,12 @@ function renderShiftsPlan() {
         <span style="color:${countColor};font-size:11px;font-weight:700">${countLabel}</span>
       </button>`;
   }).join('');
+
   const brushStatus = shiftPlanBrushSite
     ? `選択中：<b>${shiftPlanBrushSite}</b>（セルをクリックで連続入力）`
-    : '現場コマ数(/日)をクリックしてからセルをクリックすると、連続で割り当てできます。';
+    : '現場をクリックしてからセルをクリックすると連続入力できます。';
+
+  const hiddenCount = hiddenDates.size;
 
   document.getElementById('main').innerHTML = `
     <div class="page-header fade-in">
@@ -1691,12 +1687,21 @@ function renderShiftsPlan() {
 
     <!-- 現場コマ数バー -->
     <div class="card fade-in" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:12px 16px">
-      <span style="font-size:11px;color:var(--text-sub);font-weight:600;white-space:nowrap">現場コマ数(/日)：</span>
+      <span style="font-size:11px;color:var(--text-sub);font-weight:600;white-space:nowrap">現場コマ数(/月)：</span>
       ${venueBarHtml || '<span style="font-size:12px;color:var(--text-sub)">⚙ 現場・コマ数設定 から設定してください</span>'}
     </div>
-    <div class="fade-in" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:-6px;font-size:12px;color:var(--text-sub)">
-      <span>${brushStatus}</span>
-      ${shiftPlanBrushSite ? '<button class="btn btn-ghost" style="padding:4px 10px;font-size:11px" onclick="clearShiftPlanBrush()">解除</button>' : ''}
+
+    <!-- ツールバー（ブラシ状況 + トグル群） -->
+    <div class="fade-in" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:-4px">
+      <span style="font-size:12px;color:var(--text-sub);flex:1">${brushStatus}</span>
+      ${shiftPlanBrushSite ? `<button class="btn btn-ghost" style="padding:3px 10px;font-size:11px" onclick="clearShiftPlanBrush()">ブラシ解除</button>` : ''}
+      <button class="splan-toggle-btn${shiftPlanWeekdayOnly ? ' is-active' : ''}" onclick="toggleShiftPlanWeekdayOnly()">
+        土日を非表示
+      </button>
+      ${hiddenCount > 0 ? `
+        <button class="splan-toggle-btn is-warn" onclick="openHiddenDatesModal()">
+          非表示の日 ${hiddenCount}件
+        </button>` : ''}
     </div>
 
     <!-- シフト配置グリッド -->
@@ -1709,7 +1714,9 @@ function renderShiftsPlan() {
               ${memberHeaders}
             </tr>
           </thead>
-          <tbody>${rows.join('')}</tbody>
+          <tbody>
+            ${tableRows.join('') || `<tr><td colspan="${mobileUsers.length + 1}" style="padding:20px;text-align:center;color:var(--text-sub)">表示できる日付がありません</td></tr>`}
+          </tbody>
         </table>
       </div>
     </div>
@@ -1720,6 +1727,67 @@ function moveShiftPlanMonth(dir) {
   const [y, m] = shiftPlanMonth.split('-').map(Number);
   const next = new Date(y, m - 1 + dir, 1);
   shiftPlanMonth = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}`;
+  renderShiftsPlan();
+}
+
+function toggleShiftPlanWeekdayOnly() {
+  shiftPlanWeekdayOnly = !shiftPlanWeekdayOnly;
+  renderShiftsPlan();
+}
+
+// 行の「×」クリック → その日を非表示
+function onPlanHideDate(event, dateStr) {
+  event.stopPropagation();
+  hidePlanDate(shiftPlanMonth, dateStr);
+  renderShiftsPlan();
+}
+
+// 非表示日の管理モーダル
+function openHiddenDatesModal() {
+  const hidden = [...getPlanHiddenDates(shiftPlanMonth)].sort();
+  const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
+  const rows = hidden.map(ds => {
+    const d = new Date(ds);
+    const wk = d.getDay();
+    const dayColor = wk === 0 ? 'var(--danger)' : wk === 6 ? 'var(--warn)' : 'var(--text)';
+    return `
+      <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
+        <span style="font-weight:700;color:${dayColor};min-width:70px">
+          ${parseInt(ds.slice(5, 7))}/${parseInt(ds.slice(8))}（${dayNames[wk]}）
+        </span>
+        <button class="btn btn-ghost" style="margin-left:auto;padding:3px 10px;font-size:11px"
+          onclick="onRestorePlanDate('${ds}')">表示に戻す</button>
+      </div>`;
+  }).join('');
+
+  showModal(`
+    <div class="modal-header">
+      <div class="modal-title">非表示の日付</div>
+      <div style="font-size:12px;color:var(--text-sub)">${monthLabel(shiftPlanMonth)}</div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:12px;color:var(--text-sub);margin-bottom:8px">
+        非表示にした日付の一覧です。「表示に戻す」でグリッドに再表示されます。
+      </p>
+      ${rows || '<p style="color:var(--text-sub);text-align:center;padding:16px">非表示の日付はありません</p>'}
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">閉じる</button>
+      <button class="btn btn-outline" style="color:var(--warn)" onclick="onClearAllHiddenDates()">全て表示に戻す</button>
+    </div>
+  `);
+}
+
+function onRestorePlanDate(dateStr) {
+  restorePlanDate(shiftPlanMonth, dateStr);
+  closeModal();
+  renderShiftsPlan();
+}
+
+function onClearAllHiddenDates() {
+  clearPlanHiddenDates(shiftPlanMonth);
+  closeModal();
   renderShiftsPlan();
 }
 
@@ -1771,7 +1839,7 @@ function openVenuePlanModal() {
             oninput="syncVenueSlotLabel(${i})">
           <button class="btn btn-ghost" style="padding:2px 8px;font-size:16px"
             onclick="adjustVenueSlots('${s}', 1)">＋</button>
-          <span style="font-size:12px;color:var(--text-sub);min-width:44px">コマ/日</span>
+          <span style="font-size:12px;color:var(--text-sub);min-width:44px">名/月</span>
         </div>
       </div>`;
   }).join('');
@@ -1784,7 +1852,7 @@ function openVenuePlanModal() {
     </div>
     <div class="modal-body">
       <p style="font-size:12px;color:var(--text-sub);margin-bottom:4px">
-        各現場に1日あたり何名（コマ）配置するかを設定します。0 = この月は使わない。
+        各現場に1か月あたり何名配置するかを設定します。0 = この月は使わない。
       </p>
       <div>${rows}</div>
     </div>

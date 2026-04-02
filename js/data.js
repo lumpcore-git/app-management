@@ -274,6 +274,72 @@ function getSiteColor(site) {
 function dateToStr(d) {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
+function nthWeekdayOfMonth(year, month, weekday, nth) {
+  const firstDay = new Date(year, month - 1, 1).getDay();
+  const offset = (weekday - firstDay + 7) % 7;
+  return 1 + offset + (nth - 1) * 7;
+}
+
+function calcVernalEquinoxDay(year) {
+  return Math.floor(20.8431 + 0.242194 * (year - 1980) - Math.floor((year - 1980) / 4));
+}
+
+function calcAutumnalEquinoxDay(year) {
+  return Math.floor(23.2488 + 0.242194 * (year - 1980) - Math.floor((year - 1980) / 4));
+}
+
+function isJapaneseHoliday(date) {
+  const y = date.getFullYear();
+  const m = date.getMonth() + 1;
+  const d = date.getDate();
+
+  if (y < 1948) return false;
+
+  const fixed = new Set([
+    '01-01', // 元日
+    '02-11', // 建国記念の日
+    '02-23', // 天皇誕生日
+    '04-29', // 昭和の日
+    '05-03', // 憲法記念日
+    '05-04', // みどりの日
+    '05-05', // こどもの日
+    '08-11', // 山の日
+    '11-03', // 文化の日
+    '11-23', // 勤労感謝の日
+  ]);
+  if (fixed.has(`${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`)) return true;
+
+  // ハッピーマンデー制度
+  if (m === 1 && d === nthWeekdayOfMonth(y, 1, 1, 2)) return true;  // 成人の日
+  if (m === 7 && d === nthWeekdayOfMonth(y, 7, 1, 3)) return true;  // 海の日
+  if (m === 9 && d === nthWeekdayOfMonth(y, 9, 1, 3)) return true;  // 敬老の日
+  if (m === 10 && d === nthWeekdayOfMonth(y, 10, 1, 2)) return true; // スポーツの日
+
+  // 春分・秋分
+  if (m === 3 && d === calcVernalEquinoxDay(y)) return true;
+  if (m === 9 && d === calcAutumnalEquinoxDay(y)) return true;
+
+  // 振替休日（簡易）
+  if (date.getDay() === 1) {
+    const prev = new Date(y, m - 1, d - 1);
+    if (isJapaneseHoliday(prev)) return true;
+  }
+
+  // 国民の休日（簡易）
+  const prev = new Date(y, m - 1, d - 1);
+  const next = new Date(y, m - 1, d + 1);
+  if (prev.getDay() !== 0 && next.getDay() !== 0 && isJapaneseHoliday(prev) && isJapaneseHoliday(next)) {
+    return true;
+  }
+
+  return false;
+}
+
+function isBusinessDay(date) {
+  const wk = date.getDay();
+  if (wk === 0 || wk === 6) return false;
+  return !isJapaneseHoliday(date);
+}
 
 // 任意の日付が属する週の月曜日を返す
 function getMondayOf(date) {
@@ -294,7 +360,7 @@ function getWeekDates(monday) {
 }
 
 // ─── VENUE PLANS (現場コマ数設定) ───
-// 月ごとに各現場の1日あたりコマ数（配置人数）を管理する
+// 月ごとに各現場の1か月あたり配置人数を管理する
 // lc_venue_plans: { [month: 'YYYY-MM']: { [venue: string]: { slots: number } } }
 function getVenuePlans() {
   return Store.get(LS.shiftVenuePlans, {});
@@ -309,6 +375,33 @@ function setVenuePlanForMonth(month, plan) {
   const plans = getVenuePlans();
   plans[month] = plan;
   saveVenuePlans(plans);
+}
+
+// ─── SHIFT PLAN HIDDEN DATES（非表示日付）───
+// lc_shift_plan_hidden: { [month: 'YYYY-MM']: ['YYYY-MM-DD', ...] }
+function getPlanHiddenDates(month) {
+  const all = Store.get('lc_shift_plan_hidden', {});
+  return new Set(all[month] || []);
+}
+function setPlanHiddenDates(month, dateSet) {
+  const all = Store.get('lc_shift_plan_hidden', {});
+  all[month] = [...dateSet].sort();
+  Store.set('lc_shift_plan_hidden', all);
+}
+function hidePlanDate(month, dateStr) {
+  const hidden = getPlanHiddenDates(month);
+  hidden.add(dateStr);
+  setPlanHiddenDates(month, hidden);
+}
+function restorePlanDate(month, dateStr) {
+  const hidden = getPlanHiddenDates(month);
+  hidden.delete(dateStr);
+  setPlanHiddenDates(month, hidden);
+}
+function clearPlanHiddenDates(month) {
+  const all = Store.get('lc_shift_plan_hidden', {});
+  delete all[month];
+  Store.set('lc_shift_plan_hidden', all);
 }
 
 // ─── PRODUCTS & POINTS (モバイル事業部) ───

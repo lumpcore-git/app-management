@@ -1684,40 +1684,27 @@ function renderShiftsPlan() {
   const hiddenCount = hiddenDates.size;
 
   document.getElementById('main').innerHTML = `
-    <div class="page-header fade-in">
-      <div>
-        <div class="page-title">シフト作成</div>
-        <div class="page-sub">モバイル事業部の月次シフトを組みます — <span style="color:var(--green)">現場選択→セルクリックで連続入力</span></div>
-      </div>
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        <button class="btn btn-ghost" style="padding:6px 12px;font-size:16px" onclick="moveShiftPlanMonth(-1)">◀</button>
-        <span style="font-weight:700;min-width:100px;text-align:center;font-size:14px">${monthLabel(shiftPlanMonth)}</span>
-        <button class="btn btn-ghost" style="padding:6px 12px;font-size:16px" onclick="moveShiftPlanMonth(1)">▶</button>
-        <button class="btn btn-outline" onclick="openVenuePlanModal()" style="font-size:12px">⚙ 現場・コマ数設定</button>
-      </div>
-    </div>
-
-    <!-- 現場コマ数バー -->
-    <div class="card fade-in" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:12px 16px">
-      <span style="font-size:11px;color:var(--text-sub);font-weight:600;white-space:nowrap">現場コマ数(/月)：</span>
-      ${venueBarHtml || '<span style="font-size:12px;color:var(--text-sub)">⚙ 現場・コマ数設定 から設定してください</span>'}
-    </div>
-
-    <!-- ツールバー（ブラシ状況 + トグル群） -->
-    <div class="fade-in" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:-4px">
-      <span style="font-size:12px;color:var(--text-sub);flex:1">${brushStatus}</span>
-      ${shiftPlanBrushSite ? `<button class="btn btn-ghost" style="padding:3px 10px;font-size:11px" onclick="clearShiftPlanBrush()">ブラシ解除</button>` : ''}
-      <button class="splan-toggle-btn${shiftPlanWeekdayOnly ? ' is-active' : ''}" onclick="toggleShiftPlanWeekdayOnly()">
-        土日を非表示
-      </button>
-      ${hiddenCount > 0 ? `
-        <button class="splan-toggle-btn is-warn" onclick="openHiddenDatesModal()">
-          非表示の日 ${hiddenCount}件
-        </button>` : ''}
-    </div>
-
     <!-- シフト配置グリッド -->
     <div class="card fade-in" style="padding:0;overflow:hidden">
+      <div class="splan-table-info">
+        <div>
+          <div class="splan-table-info-title">シフト作成</div>
+          <div class="splan-table-info-sub">モバイル事業部の月次シフトを組みます — <span style="color:var(--green)">現場選択→セルクリックで連続入力</span></div>
+        </div>
+        <div class="splan-table-info-actions">
+          <button class="splan-toggle-btn${shiftPlanWeekdayOnly ? ' is-active' : ''}" onclick="toggleShiftPlanWeekdayOnly()">
+            土日を非表示
+          </button>
+          ${hiddenCount > 0 ? `
+            <button class="splan-toggle-btn is-warn" onclick="openHiddenDatesModal()">
+              非表示の日 ${hiddenCount}件
+            </button>` : ''}
+          <button class="btn btn-ghost" style="padding:6px 12px;font-size:16px" onclick="moveShiftPlanMonth(-1)">◀</button>
+          <span style="font-weight:700;min-width:100px;text-align:center;font-size:14px">${monthLabel(shiftPlanMonth)}</span>
+          <button class="btn btn-ghost" style="padding:6px 12px;font-size:16px" onclick="moveShiftPlanMonth(1)">▶</button>
+          <button class="btn btn-outline" onclick="openVenuePlanModal()" style="font-size:12px">⚙ 現場・コマ数設定</button>
+        </div>
+      </div>
       <div class="splan-scroll-wrap">
         <table class="splan-table">
           <thead>
@@ -1731,6 +1718,18 @@ function renderShiftsPlan() {
           </tbody>
         </table>
       </div>
+    </div>
+
+    <!-- ツールバー（ブラシ状況 + トグル群） -->
+    <div class="fade-in" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:-4px">
+      <span style="font-size:12px;color:var(--text-sub);flex:1">${brushStatus}</span>
+      ${shiftPlanBrushSite ? `<button class="btn btn-ghost" style="padding:3px 10px;font-size:11px" onclick="clearShiftPlanBrush()">ブラシ解除</button>` : ''}
+    </div>
+
+    <!-- 現場コマ数バー -->
+    <div class="card fade-in" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:12px 16px">
+      <span style="font-size:11px;color:var(--text-sub);font-weight:600;white-space:nowrap">現場コマ数(/月)：</span>
+      ${venueBarHtml || '<span style="font-size:12px;color:var(--text-sub)">⚙ 現場・コマ数設定 から設定してください</span>'}
     </div>
   `;
 }

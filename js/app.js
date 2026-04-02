@@ -196,6 +196,18 @@ function calcAchieve(actual, target) {
 }
 function roleColor(role) { return ROLES[role]?.color || '#4f7cff'; }
 function deptLabel(dept) { return DEPTS[dept]?.label || dept; }
+function getShiftDayTone(day) {
+  const toneMap = {
+    0: { textColor: '#ffb347', cellBg: 'rgba(255,179,71,.08)',  headBg: 'rgba(255,179,71,.12)'  }, // 日: オレンジ
+    1: { textColor: '#ffffff', cellBg: 'rgba(255,255,255,.04)', headBg: 'rgba(255,255,255,.08)' }, // 月: 白
+    2: { textColor: '#ff6b6b', cellBg: 'rgba(255,107,107,.08)', headBg: 'rgba(255,107,107,.12)' }, // 火: 赤
+    3: { textColor: '#6db6ff', cellBg: 'rgba(109,182,255,.08)', headBg: 'rgba(109,182,255,.12)' }, // 水: 青
+    4: { textColor: '#6de08f', cellBg: 'rgba(109,224,143,.08)', headBg: 'rgba(109,224,143,.12)' }, // 木: 緑
+    5: { textColor: '#ffd700', cellBg: 'rgba(255,215,0,.08)',   headBg: 'rgba(255,215,0,.12)'   }, // 金: 金
+    6: { textColor: '#c58a5c', cellBg: 'rgba(197,138,92,.08)',  headBg: 'rgba(197,138,92,.12)'  }, // 土: 茶
+  };
+  return toneMap[day] || { textColor: 'var(--text-sub)', cellBg: 'transparent', headBg: 'transparent' };
+}
 
 // ─── TOAST ───
 function showToast(msg, type = 'success') {
@@ -1286,8 +1298,7 @@ function renderShifts() {
       const isToday = ds === today;
       const isOff   = slot?.site === '休み';
       const c     = slot && !isOff ? getSiteColor(slot.site) : null;
-      const isSat = di === 5;
-      const isSun = di === 6;
+      const tone  = getShiftDayTone(d.getDay());
 
       const chipStyle = c
         ? `background:${c.bg};color:${c.text};border-color:${c.border}`
@@ -1303,7 +1314,9 @@ function renderShifts() {
         ? `<div style="font-size:10px;color:var(--text-sub);margin-top:2px">${slot.start}〜</div>`
         : '';
 
-      const cellBg = isToday ? 'background:rgba(79,124,255,.06);' : (isSun ? 'background:rgba(255,79,106,.03);' : isSat ? 'background:rgba(255,179,71,.03);' : '');
+      const cellBg = isToday
+        ? 'background:rgba(79,124,255,.1);'
+        : `background:${tone.cellBg};`;
 
       if (canEdit) {
         return `
@@ -1364,12 +1377,10 @@ function renderShifts() {
               ${weekDates.map((d, i) => {
                 const ds = dateToStr(d);
                 const isToday = ds === today;
-                const isSat = i === 5;
-                const isSun = i === 6;
-                const dayColor = isSun ? 'var(--danger)' : isSat ? 'var(--warn)' : 'var(--text-sub)';
+                const tone = getShiftDayTone(d.getDay());
                 return `
-                  <th style="text-align:center;${isToday ? 'background:rgba(79,124,255,.1);' : ''}">
-                    <div style="color:${dayColor};font-weight:700">${dayNames[i]}</div>
+                  <th style="text-align:center;background:${isToday ? 'rgba(79,124,255,.16)' : tone.headBg}">
+                    <div style="color:${tone.textColor};font-weight:700">${dayNames[i]}</div>
                     <div style="font-size:16px;font-weight:700;color:${isToday ? 'var(--accent)' : 'var(--text)'}">${d.getDate()}</div>
                   </th>`;
               }).join('')}
@@ -1405,8 +1416,7 @@ function renderShiftsMonth() {
         const slot = selectedUser ? getShiftForUser(selectedUser.id, ds) : null;
         const isToday = ds === todayStr();
         const wk = day.getDay();
-        const isSun = wk === 0;
-        const isSat = wk === 6;
+        const tone = getShiftDayTone(wk);
         const isOff = slot?.site === '休み';
         const c = slot && !isOff ? getSiteColor(slot.site) : null;
         const chipStyle = c
@@ -1415,8 +1425,8 @@ function renderShiftsMonth() {
             ? 'background:rgba(122,130,153,.1);color:var(--text-sub);border-color:rgba(122,130,153,.2)'
             : 'background:transparent;color:var(--text-sub);border-color:var(--border)';
         return `
-          <td class="month-cell ${isToday ? 'is-today' : ''}">
-            <div class="month-day" style="color:${isSun ? 'var(--danger)' : isSat ? 'var(--warn)' : 'var(--text)'}">${day.getDate()}</div>
+          <td class="month-cell ${isToday ? 'is-today' : ''}" style="${isToday ? '' : `background:${tone.cellBg};`}">
+            <div class="month-day" style="color:${tone.textColor}">${day.getDate()}</div>
             <div class="shift-chip" style="${chipStyle}">${slot ? (isOff ? '休' : _shortSite(slot.site)) : '—'}</div>
             ${slot && !isOff && slot.start ? `<div class="month-time">${slot.start}〜</div>` : ''}
           </td>
@@ -1455,7 +1465,10 @@ function renderShiftsMonth() {
       <table class="month-shift-calendar">
         <thead>
           <tr>
-            <th style="color:var(--danger)">日</th><th>月</th><th>火</th><th>水</th><th>木</th><th>金</th><th style="color:var(--warn)">土</th>
+            ${['日', '月', '火', '水', '木', '金', '土'].map((name, i) => {
+              const tone = getShiftDayTone(i);
+              return `<th style="color:${tone.textColor};background:${tone.headBg}">${name}</th>`;
+            }).join('')}
           </tr>
         </thead>
         <tbody>${calendarHtml}</tbody>
@@ -1605,6 +1618,7 @@ function renderShiftsPlan() {
     const dateObj  = new Date(planY, planM - 1, d);
     const ds       = dateToStr(dateObj);
     const wk       = dateObj.getDay();
+    const tone     = getShiftDayTone(wk);
     const isWeekend = wk === 0 || wk === 6;
     const isToday  = ds === today;
 
@@ -1612,8 +1626,6 @@ function renderShiftsPlan() {
     if (shiftPlanWeekdayOnly && isWeekend) continue;
     // 非表示日はスキップ
     if (hiddenDates.has(ds)) continue;
-
-    const dayColor = wk === 0 ? 'var(--danger)' : wk === 6 ? 'var(--warn)' : 'var(--text)';
 
     const cells = mobileUsers.map(u => {
       const slot  = schedules[u.id]?.[ds];
@@ -1626,14 +1638,14 @@ function renderShiftsPlan() {
           : 'background:transparent;color:var(--text-sub);border-color:var(--border)';
       const chipLabel = slot ? (isOff ? '休' : _shortSite(slot.site)) : '—';
       return `
-        <td class="splan-cell${isToday ? ' is-today' : ''}" onclick="onPlanCellClick(event,'${u.id}','${ds}')">
+        <td class="splan-cell${isToday ? ' is-today' : ''}" style="${isToday ? '' : `background:${tone.cellBg};`}" onclick="onPlanCellClick(event,'${u.id}','${ds}')">
           <div class="shift-chip" style="${chipStyle};cursor:pointer;font-size:10px;padding:3px 5px">${chipLabel}</div>
         </td>`;
     }).join('');
 
     tableRows.push(`
       <tr class="splan-row${isToday ? ' is-today-row' : ''}${isWeekend ? ' is-weekend' : ''}">
-        <td class="splan-day-col" style="color:${dayColor}">
+        <td class="splan-day-col" style="color:${tone.textColor};${isToday ? '' : `background:${tone.headBg};`}">
           <span class="splan-day-num">${d}</span>
           <span class="splan-day-name">${dayNames[wk]}</span>
           <button class="splan-hide-btn" onclick="onPlanHideDate(event,'${ds}')" title="この日を非表示にする">×</button>

@@ -261,8 +261,8 @@ function renderAdminDashboard() {
     const u = users.find(x => x.id === r.userId);
     return u?.dept === 'mobile';
   });
-  const totalMnp    = mobileReports.reduce((s, r) => s + (r.mnp    || 0), 0);
-  const totalShinki = mobileReports.reduce((s, r) => s + (r.shinki || 0), 0);
+  const totalMnp    = mobileReports.reduce((s, r) => s + (Number(r.sbmnp || 0) + Number(r.ymnp || 0)), 0);
+  const totalShinki = mobileReports.reduce((s, r) => s + (Number(r.sb_shinki || 0) + Number(r.ym_shinki || 0)), 0);
 
   // Refa集計
   const refaReports = allReports.filter(r => r.type === 'refa');
@@ -2297,7 +2297,7 @@ function _tcCardHTML(user, canEdit) {
   const skillHTML = `
     <div class="tc-metric">
       <div class="tc-mlabel">スキル達成</div>
-      <div class="tc-mval" style="font-size:18px;color:var(--green)">${skill.total > 0 ? skillPct + '%' : '—'}</div>
+      <div class="tc-mval" style="font-size:21px;color:var(--green)">${skill.total > 0 ? skillPct + '%' : '—'}</div>
       <div class="tc-skill-bar-wrap"><div class="tc-skill-bar-fill" style="width:${skillPct}%"></div></div>
       <div class="tc-skill-count">${skill.checked} / ${skill.total} 項目</div>
     </div>`;

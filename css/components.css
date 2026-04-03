@@ -663,3 +663,133 @@ td { padding: 12px 16px; vertical-align: middle; }
   background: rgba(79,124,255,.06);
   border-radius: 8px;
 }
+
+/* ─── TALENT CARDS (人材カルテ) ─── */
+
+/* ワイドモーダル */
+.modal.modal-wide { max-width: 680px; }
+
+/* フィルターバー */
+.talent-filter-bar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
+.talent-filter-btn {
+  padding: 6px 16px; border-radius: 20px; font-size: 12px; font-weight: 600;
+  border: 1px solid var(--border); background: transparent; color: var(--text-sub);
+  cursor: pointer; transition: all .15s; font-family: inherit;
+}
+.talent-filter-btn:hover { border-color: var(--accent); color: var(--accent); }
+.talent-filter-btn.active { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+
+/* カードグリッド（2列） */
+.talent-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
+
+/* ─ カード本体 ─ */
+.tc {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); overflow: hidden; cursor: pointer;
+  display: flex; flex-direction: column;
+  transition: border-color .2s, transform .15s, box-shadow .15s;
+}
+.tc:hover { border-color: var(--accent); transform: translateY(-2px); box-shadow: 0 8px 28px rgba(0,0,0,.28); }
+
+/* ヘッダー: 写真 + 基本情報 */
+.tc-head { display: flex; gap: 16px; padding: 20px 20px 16px; border-bottom: 1px solid var(--border); }
+.tc-photo {
+  width: 72px; height: 72px; border-radius: 50%; overflow: hidden; flex-shrink: 0;
+  border: 2px solid var(--border); background: var(--surface2);
+}
+.tc-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.tc-photo-av {
+  width: 100%; height: 100%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 26px; font-weight: 700; color: #fff;
+}
+.tc-info { flex: 1; min-width: 0; }
+.tc-name { font-size: 16px; font-weight: 700; margin-bottom: 3px; }
+.tc-dept { font-size: 11px; font-weight: 600; letter-spacing: .3px; margin-bottom: 2px; }
+.tc-role-line { font-size: 11px; color: var(--text-sub); margin-bottom: 6px; }
+.tc-job { font-size: 12px; line-height: 1.4; }
+.tc-join { font-size: 11px; color: var(--text-sub); margin-top: 4px; }
+
+/* メトリクス行: 生産性 | スキル達成 */
+.tc-metrics { display: flex; border-bottom: 1px solid var(--border); }
+.tc-metric { flex: 1; padding: 14px 18px; border-right: 1px solid var(--border); }
+.tc-metric:last-child { border-right: none; }
+.tc-mlabel { font-size: 10px; font-weight: 700; color: var(--text-sub); letter-spacing: .6px; text-transform: uppercase; margin-bottom: 6px; }
+.tc-mval { font-family: 'Space Grotesk', sans-serif; font-size: 20px; font-weight: 700; color: var(--accent); line-height: 1; margin-bottom: 8px; }
+.tc-mval.muted { font-size: 13px; color: var(--text-sub); font-family: inherit; }
+
+/* トレンドミニバー */
+.tc-trend { display: flex; align-items: flex-end; gap: 2px; height: 28px; }
+.tc-trend-bar { flex: 1; border-radius: 2px 2px 0 0; min-height: 2px; background: var(--accent); opacity: .3; }
+.tc-trend-bar.cur { opacity: 1; }
+
+/* スキルバー */
+.tc-skill-bar-wrap { height: 5px; background: var(--border); border-radius: 3px; overflow: hidden; margin-bottom: 5px; }
+.tc-skill-bar-fill { height: 100%; border-radius: 3px; background: var(--green); transition: width .4s; }
+.tc-skill-count { font-size: 11px; color: var(--text-sub); }
+
+/* コメント欄 */
+.tc-body { padding: 12px 20px; flex: 1; border-bottom: 1px solid var(--border); }
+.tc-body-label { font-size: 10px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; color: var(--text-sub); margin-bottom: 4px; }
+.tc-body-text { font-size: 12px; line-height: 1.6; color: var(--text-sub); }
+
+/* フッター */
+.tc-foot { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 10px 16px; min-height: 40px; }
+.tc-tag { background: var(--surface2); border: 1px solid var(--border); border-radius: 20px; padding: 2px 10px; font-size: 11px; color: var(--text-sub); white-space: nowrap; }
+.tc-tag.warn { border-color: var(--warn); color: var(--warn); }
+.tc-tag.accent { border-color: var(--accent); color: var(--accent); }
+.tc-foot-gap { flex: 1; }
+
+/* ─ 人材カルテ モーダル ─ */
+.tm-tabs { display: flex; border-bottom: 1px solid var(--border); padding: 0 20px; overflow-x: auto; flex-shrink: 0; }
+.tm-tab {
+  padding: 11px 14px; font-size: 12px; font-weight: 600; color: var(--text-sub); cursor: pointer;
+  border-bottom: 2px solid transparent; white-space: nowrap; transition: all .15s; margin-bottom: -1px;
+  font-family: inherit; background: none; border-top: none; border-left: none; border-right: none;
+}
+.tm-tab:hover { color: var(--text); }
+.tm-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.tm-panel { display: flex; flex-direction: column; gap: 16px; padding: 20px 24px; }
+.tm-panel.hidden { display: none; }
+
+/* 写真ブロック */
+.tm-photo-row { display: flex; align-items: center; gap: 20px; }
+.tm-photo { width: 88px; height: 88px; border-radius: 50%; overflow: hidden; flex-shrink: 0; border: 2px solid var(--border); background: var(--surface2); }
+.tm-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.tm-photo-av { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 34px; font-weight: 700; color: #fff; }
+.tm-photo-btns { display: flex; flex-direction: column; gap: 8px; }
+
+/* スコア表示ボックス */
+.tm-score-box {
+  display: flex; align-items: center; gap: 20px;
+  background: rgba(171,160,255,.08); border: 1px solid rgba(171,160,255,.22);
+  border-radius: 10px; padding: 16px 20px;
+}
+.tm-score-num { font-family: 'Space Grotesk', sans-serif; font-size: 40px; font-weight: 700; color: var(--accent); line-height: 1; }
+.tm-score-unit { font-size: 12px; color: var(--text-sub); margin-top: 4px; }
+.tm-trend-area { flex: 1; }
+.tm-trend-label { font-size: 11px; color: var(--text-sub); margin-bottom: 8px; }
+.tm-trend-bars { display: flex; align-items: flex-end; gap: 4px; height: 52px; }
+.tm-trend-col { display: flex; flex-direction: column; align-items: center; flex: 1; gap: 3px; }
+.tm-trend-bar { width: 100%; border-radius: 2px 2px 0 0; min-height: 2px; background: var(--accent); opacity: .35; }
+.tm-trend-bar.cur { opacity: 1; }
+.tm-trend-tick { font-size: 9px; color: var(--text-sub); white-space: nowrap; }
+
+/* スキルシート チェックリスト */
+.sk-cat { margin-bottom: 20px; }
+.sk-cat-name { font-size: 11px; font-weight: 700; color: var(--accent); letter-spacing: .6px; text-transform: uppercase; padding-bottom: 8px; border-bottom: 1px solid var(--border); margin-bottom: 8px; }
+.sk-item { display: flex; align-items: flex-start; gap: 12px; padding: 9px 4px; border-bottom: 1px solid rgba(106,128,186,.18); }
+.sk-item:last-child { border-bottom: none; }
+.sk-checkbox { width: 18px; height: 18px; accent-color: var(--green); cursor: pointer; flex-shrink: 0; margin-top: 2px; }
+.sk-item-text { font-size: 13px; line-height: 1.5; }
+.sk-item-text.ok { color: var(--green); }
+
+/* スキルシート テンプレート編集 */
+.ste-wrap { display: flex; flex-direction: column; gap: 12px; }
+.ste-cat { background: var(--surface2); border-radius: 8px; padding: 14px; border: 1px solid var(--border); }
+.ste-cat-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.ste-cat-name { flex: 1; }
+.ste-items { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+.ste-item-row { display: flex; align-items: center; gap: 8px; }
+.ste-item-text { flex: 1; }
+

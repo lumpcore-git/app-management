@@ -58,6 +58,7 @@ function renderSidebar() {
     { id: 'team',      icon: '👥', label: 'チーム実績',     show: canSeeTeam },
     { id: 'ranking',   icon: '🏆', label: 'ランキング',     show: canSeeTeam },
     { id: 'targets',   icon: '🎯', label: '目標設定',       show: canSetTargets },
+    { id: 'talent',    icon: '📋', label: '人財カルテ',     show: level >= 4 },
     { id: 'members',   icon: '⚙️', label: 'メンバー管理',  show: level >= 5 },
   ];
 
@@ -110,6 +111,9 @@ function route() {
   if (hash === 'targets' && !canSetTargets) {
     location.hash = 'dashboard'; return;
   }
+  if (hash === 'talent' && level < 4) {
+    location.hash = 'dashboard'; return;
+  }
   if (hash === 'members' && level < 5) {
     location.hash = 'dashboard'; return;
   }
@@ -139,6 +143,7 @@ function route() {
     team:      'チーム実績',
     ranking:   'ランキング',
     targets:   '目標設定',
+    talent:    '人財カルテ',
     members:   'メンバー管理',
   };
   document.getElementById('topbarTitle').textContent = titles[hash] || '';
@@ -153,6 +158,7 @@ function route() {
     team:      renderTeam,
     ranking:   renderRanking,
     targets:   renderTargets,
+    talent:    renderTalent,
     members:   renderMembers,
   };
   (pages[hash] || renderDashboard)();
@@ -219,11 +225,18 @@ function showToast(msg, type = 'success') {
 
 // ─── MODAL ───
 function showModal(html) {
-  document.getElementById('modal').innerHTML = html;
+  const m = document.getElementById('modal');
+  m.innerHTML = html;
+  m.classList.remove('modal-wide');
   document.getElementById('modalOverlay').classList.remove('hidden');
+}
+function showWideModal(html) {
+  showModal(html);
+  document.getElementById('modal').classList.add('modal-wide');
 }
 function closeModal() {
   document.getElementById('modalOverlay').classList.add('hidden');
+  document.getElementById('modal').classList.remove('modal-wide');
 }
 
 // ═══════════════════════════════════════════════════════
@@ -2195,4 +2208,521 @@ function execDeleteMember(userId) {
   closeModal();
   showToast(`${u?.name || 'メンバー'} を削除しました`);
   renderMembers();
+}
+
+// ════════════════════════════════════════════
+// 人財カルテ（Talent Management）
+// ════════════════════════════════════════════
+
+let talentFilterDept = 'all';
+let _talentSkillDraft = null; // スキルシート編集中のドラフト
+
+// ─── 一覧ページ ───
+function renderTalent() {
+  const level = roleLevel(CU.role);
+  const users = getUsers().filter(u =>
+    talentFilterDept === 'all' ? true : u.dept === talentFilterDept
+  );
+  const deptFilters = [
+    { key: 'all', label: 'すべて' },
+    ...Object.entries(DEPTS).map(([k, v]) => ({ key: k, label: v.label })),
+  ];
+
+  document.getElementById('main').innerHTML = `
+    <div class="page-header fade-in">
+      <div>
+        <div class="page-title">人財カルテ</div>
+        <div class="page-sub">生産性指標 × ジョブ面談を中核にした1人1カード（${users.length}名）</div>
+      </div>
+      ${level >= 5 ? `<button class="btn btn-ghost" onclick="openSkillTemplateEditor()">📋 スキルシート設定</button>` : ''}
+    </div>
+    <div class="talent-filter-bar fade-in">
+      ${deptFilters.map(f => `
+        <button class="talent-filter-btn ${talentFilterDept === f.key ? 'active' : ''}"
+          onclick="setTalentFilter('${f.key}')">${f.label}</button>
+      `).join('')}
+    </div>
+    <div class="talent-grid fade-in">
+      ${users.map(u => _tcCardHTML(u, level >= 4)).join('')}
+    </div>
+  `;
+}
+
+function setTalentFilter(dept) {
+  talentFilterDept = dept;
+  renderTalent();
+}
+
+// ─── カード HTML ───
+function _tcCardHTML(user, canEdit) {
+  const card  = getTalentCard(user.id);
+  const trend = getTalentProductivityTrend(user.id, 6);
+  const skill = getSkillScore(user.id);
+  const photo = getPhoto(user.id);
+  const isRefa = user.reportType === 'refa';
+
+  // 写真 or アバター
+  const photoHTML = photo
+    ? `<div class="tc-photo"><img src="${photo}" alt="${user.name}"></div>`
+    : `<div class="tc-photo"><div class="tc-photo-av" style="background:${roleColor(user.role)}">${user.name[0]}</div></div>`;
+
+  // 生産性スコア
+  let scoreHTML = '';
+  if (trend) {
+    const maxVal = Math.max(...trend.map(t => t.value), 1);
+    const latest = trend[trend.length - 1].value;
+    const scoreText = isRefa
+      ? (latest > 0 ? (latest / 10000).toFixed(1) + '万円' : '—')
+      : (latest > 0 ? latest.toFixed(1) + ' pt' : '—');
+    const barsHTML = trend.map((t, i) => {
+      const h = Math.max(Math.round((t.value / maxVal) * 26), 2);
+      return `<div class="tc-trend-bar${i === trend.length - 1 ? ' cur' : ''}" style="height:${h}px"></div>`;
+    }).join('');
+    scoreHTML = `
+      <div class="tc-metric">
+        <div class="tc-mlabel">今月の生産性</div>
+        <div class="tc-mval ${latest > 0 ? '' : 'muted'}">${scoreText}</div>
+        <div class="tc-trend">${barsHTML}</div>
+      </div>`;
+  } else {
+    scoreHTML = `
+      <div class="tc-metric">
+        <div class="tc-mlabel">生産性</div>
+        <div class="tc-mval muted">—</div>
+      </div>`;
+  }
+
+  // スキル達成率
+  const skillPct = skill.total > 0 ? Math.round((skill.checked / skill.total) * 100) : 0;
+  const skillHTML = `
+    <div class="tc-metric">
+      <div class="tc-mlabel">スキル達成</div>
+      <div class="tc-mval" style="font-size:18px;color:var(--green)">${skill.total > 0 ? skillPct + '%' : '—'}</div>
+      <div class="tc-skill-bar-wrap"><div class="tc-skill-bar-fill" style="width:${skillPct}%"></div></div>
+      <div class="tc-skill-count">${skill.checked} / ${skill.total} 項目</div>
+    </div>`;
+
+  // ボディ（上長コメントか育成アクション）
+  const bodyText = card.managerComment || card.devActions || '';
+  const bodyLabel = card.managerComment ? '上長コメント' : card.devActions ? '育成アクション' : '';
+  const bodyHTML = bodyText ? `
+    <div class="tc-body">
+      <div class="tc-body-label">${bodyLabel}</div>
+      <div class="tc-body-text">${bodyText.length > 80 ? bodyText.slice(0, 80) + '…' : bodyText}</div>
+    </div>` : '';
+
+  // フッタータグ
+  const tags = [];
+  if (card.lastInterviewDate) tags.push(`<span class="tc-tag">面談 ${formatDate(card.lastInterviewDate)}</span>`);
+  if (card.nextRoleCandidate) tags.push(`<span class="tc-tag accent">↑ ${card.nextRoleCandidate}</span>`);
+  if (card.nextReviewDate) {
+    const diff = (new Date(card.nextReviewDate) - new Date()) / 86400000;
+    tags.push(`<span class="tc-tag ${diff < 30 ? 'warn' : ''}">見直 ${formatDate(card.nextReviewDate)}</span>`);
+  }
+
+  return `
+    <div class="tc" onclick="openTalentCard('${user.id}')">
+      <div class="tc-head">
+        ${photoHTML}
+        <div class="tc-info">
+          <div class="tc-name">${user.name}</div>
+          <div class="tc-dept" style="color:${DEPTS[user.dept]?.color}">${deptLabel(user.dept)}</div>
+          <div class="tc-role-line">${getUserDisplayRole(user)}</div>
+          ${card.jobDescription ? `<div class="tc-job">${card.jobDescription}</div>` : ''}
+          ${card.joinMonth ? `<div class="tc-join">入社 ${card.joinMonth.replace('-', '年')}月</div>` : ''}
+        </div>
+        ${canEdit ? `<button class="btn btn-ghost" style="font-size:11px;padding:4px 10px;align-self:flex-start;flex-shrink:0"
+          onclick="event.stopPropagation();openTalentCard('${user.id}')">詳細 →</button>` : ''}
+      </div>
+      <div class="tc-metrics">${scoreHTML}${skillHTML}</div>
+      ${bodyHTML}
+      <div class="tc-foot">${tags.join('')}<div class="tc-foot-gap"></div></div>
+    </div>`;
+}
+
+// ─── 詳細/編集モーダル（タブ式） ───
+function openTalentCard(userId, activeTab = 'basic') {
+  const level = roleLevel(CU.role);
+  const canEdit = level >= 4;
+  const user = getUserById(userId);
+  if (!user) return;
+
+  const card  = getTalentCard(userId);
+  const trend = getTalentProductivityTrend(userId, 6);
+  const photo = getPhoto(userId);
+  const ev    = getSkillEval(userId);
+  const tmpl  = getSkillTemplate();
+  const isRefa = user.reportType === 'refa';
+
+  const tabs = [
+    { id: 'basic',     label: '基本情報' },
+    { id: 'eval',      label: '評価・能力' },
+    { id: 'interview', label: '面談情報' },
+    { id: 'memo',      label: '運用メモ' },
+    { id: 'skill',     label: 'スキルシート' },
+  ];
+
+  // ── 写真パネル ──
+  const photoBlock = photo
+    ? `<div class="tm-photo"><img src="${photo}" alt="${user.name}" id="tmPhotoImg_${userId}"></div>`
+    : `<div class="tm-photo"><div class="tm-photo-av" style="background:${roleColor(user.role)}" id="tmPhotoAv_${userId}">${user.name[0]}</div></div>`;
+
+  // ── 生産性グラフ ──
+  let trendBlock = '<div style="color:var(--text-sub);font-size:13px">実績報告なし（生産性データ未取得）</div>';
+  if (trend) {
+    const maxVal = Math.max(...trend.map(t => t.value), 1);
+    const latest = trend[trend.length - 1].value;
+    const numText = isRefa
+      ? (latest > 0 ? (latest / 10000).toFixed(1) : '—')
+      : (latest > 0 ? latest.toFixed(1) : '—');
+    const unitText = isRefa ? '万円（今月）' : 'pt（今月）';
+    const barsHTML = trend.map((t, i) => {
+      const h = Math.max(Math.round((t.value / maxVal) * 48), 2);
+      const mo = t.month.slice(5, 7) + '月';
+      return `<div class="tm-trend-col">
+        <div class="tm-trend-bar${i === trend.length - 1 ? ' cur' : ''}" style="height:${h}px"></div>
+        <div class="tm-trend-tick">${mo}</div>
+      </div>`;
+    }).join('');
+    trendBlock = `
+      <div class="tm-score-box">
+        <div>
+          <div class="tm-score-num">${numText}</div>
+          <div class="tm-score-unit">${unitText}</div>
+        </div>
+        <div class="tm-trend-area">
+          <div class="tm-trend-label">直近6か月の推移</div>
+          <div class="tm-trend-bars">${barsHTML}</div>
+        </div>
+      </div>`;
+  }
+
+  // ── スキルシートパネル ──
+  const skill = getSkillScore(userId);
+  const skillPanelHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <div>
+        <div style="font-size:18px;font-weight:700;color:var(--green)">${skill.checked} / ${skill.total} 項目達成</div>
+        <div style="font-size:12px;color:var(--text-sub);margin-top:2px">
+          ${skill.total > 0 ? Math.round(skill.checked / skill.total * 100) : 0}% 完了
+        </div>
+      </div>
+    </div>
+    ${tmpl.categories.map(cat => `
+      <div class="sk-cat">
+        <div class="sk-cat-name">${cat.name}</div>
+        ${cat.items.map(item => `
+          <div class="sk-item">
+            <input type="checkbox" class="sk-checkbox" id="sk_${item.id}" ${ev[item.id] ? 'checked' : ''}
+              ${canEdit ? '' : 'disabled'} onchange="this.parentElement.querySelector('.sk-item-text').classList.toggle('ok',this.checked)">
+            <label for="sk_${item.id}" class="sk-item-text ${ev[item.id] ? 'ok' : ''}">${item.text}</label>
+          </div>`).join('')}
+      </div>`).join('')}`;
+
+  // ─ フォームヘルパー ─
+  const inp  = (id, val, ph = '') => canEdit
+    ? `<input type="text" class="form-input" id="tc_${id}" value="${(val||'').replace(/"/g,'&quot;')}" placeholder="${ph}">`
+    : `<div style="font-size:13px;color:${val ? 'var(--text)' : 'var(--text-sub)'}">${val || '—'}</div>`;
+  const ta   = (id, val, ph = '') => canEdit
+    ? `<textarea class="form-input" id="tc_${id}" rows="3" placeholder="${ph}">${val || ''}</textarea>`
+    : `<div style="font-size:13px;color:${val ? 'var(--text)' : 'var(--text-sub)'};white-space:pre-wrap;line-height:1.6">${val || '—'}</div>`;
+  const date = (id, val) => canEdit
+    ? `<input type="date" class="form-input" id="tc_${id}" value="${val || ''}">`
+    : `<div style="font-size:13px">${val || '—'}</div>`;
+
+  showWideModal(`
+    <div class="modal-header" style="padding-bottom:0;border-bottom:none">
+      <div class="tm-photo" style="width:40px;height:40px;flex-shrink:0">
+        ${photo ? `<img src="${photo}" alt="">` : `<div class="tm-photo-av" style="background:${roleColor(user.role)};font-size:16px">${user.name[0]}</div>`}
+      </div>
+      <div class="modal-title">${user.name}<span style="font-size:12px;font-weight:400;color:var(--text-sub);margin-left:8px">${deptLabel(user.dept)} / ${getUserDisplayRole(user)}</span></div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+
+    <div class="tm-tabs">
+      ${tabs.map(t => `<button class="tm-tab${t.id === activeTab ? ' active' : ''}" onclick="switchTalentTab('${t.id}')">${t.label}</button>`).join('')}
+    </div>
+
+    <!-- 基本情報 -->
+    <div class="tm-panel${activeTab === 'basic' ? '' : ' hidden'}" id="tp_basic">
+      <div class="tm-photo-row">
+        <div class="tm-photo" id="tmPhotoWrap">
+          ${photo ? `<img src="${photo}" alt="${user.name}" id="tmPhotoImg">` : `<div class="tm-photo-av" style="background:${roleColor(user.role)}" id="tmPhotoAv">${user.name[0]}</div>`}
+        </div>
+        ${canEdit ? `
+        <div class="tm-photo-btns">
+          <button class="btn btn-ghost" style="font-size:12px" onclick="uploadTalentPhoto('${userId}')">写真をアップロード</button>
+          ${photo ? `<button class="btn btn-ghost" style="font-size:12px;color:var(--danger)" onclick="removeTalentPhoto('${userId}')">写真を削除</button>` : ''}
+        </div>` : ''}
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">入社年月</label>
+          ${canEdit ? `<input type="month" class="form-input" id="tc_joinMonth" value="${card.joinMonth || ''}">` : `<div style="font-size:13px">${card.joinMonth ? card.joinMonth.replace('-', '年') + '月' : '—'}</div>`}
+        </div>
+        <div class="form-group">
+          <label class="form-label">現在のジョブ（職務）</label>
+          ${inp('jobDescription', card.jobDescription, '例: モバイル販売 / チームリード')}
+        </div>
+      </div>
+      <div class="form-row">
+        <div>
+          <div class="form-label" style="margin-bottom:4px">所属</div>
+          <div style="font-size:13px;font-weight:600;color:${DEPTS[user.dept]?.color}">${deptLabel(user.dept)}</div>
+        </div>
+        <div>
+          <div class="form-label" style="margin-bottom:4px">役職</div>
+          <div style="font-size:13px;font-weight:600;color:${roleColor(user.role)}">${getUserDisplayRole(user)}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 評価・能力 -->
+    <div class="tm-panel${activeTab === 'eval' ? '' : ' hidden'}" id="tp_eval">
+      ${trendBlock}
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">強み（営業観点）</label>
+          ${ta('strengths', card.strengths, 'クロージング力、提案の幅 など')}
+        </div>
+        <div class="form-group">
+          <label class="form-label">課題（営業観点）</label>
+          ${ta('challenges', card.challenges, '見込み管理、後追い率 など')}
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">保有スキル・資格</label>
+        ${inp('skills', card.skills, '例: FP2級、SB認定資格 など')}
+      </div>
+    </div>
+
+    <!-- 面談情報 -->
+    <div class="tm-panel${activeTab === 'interview' ? '' : ' hidden'}" id="tp_interview">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">最終面談日</label>
+          ${date('lastInterviewDate', card.lastInterviewDate)}
+        </div>
+        <div class="form-group">
+          <label class="form-label">次回見直し予定日</label>
+          ${date('nextReviewDate', card.nextReviewDate)}
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">面談で合意した役割</label>
+        ${inp('agreedRole', card.agreedRole, '例: クローザーとして独立稼働')}
+      </div>
+      <div class="form-group">
+        <label class="form-label">次の役職候補</label>
+        ${inp('nextRoleCandidate', card.nextRoleCandidate, '例: イベントCL → チーフ候補')}
+      </div>
+    </div>
+
+    <!-- 運用メモ -->
+    <div class="tm-panel${activeTab === 'memo' ? '' : ' hidden'}" id="tp_memo">
+      <div class="form-group">
+        <label class="form-label">上長コメント</label>
+        ${ta('managerComment', card.managerComment, '現状評価・特記事項など')}
+      </div>
+      <div class="form-group">
+        <label class="form-label">本人希望（キャリア希望）</label>
+        ${ta('careerHope', card.careerHope, '例: チーフを目指したい、Refa専任でやっていきたい など')}
+      </div>
+      <div class="form-group">
+        <label class="form-label">育成アクション</label>
+        ${ta('devActions', card.devActions, '例: 提案力研修（5月）、同行OJT（毎週水曜）など')}
+      </div>
+    </div>
+
+    <!-- スキルシート -->
+    <div class="tm-panel${activeTab === 'skill' ? '' : ' hidden'}" id="tp_skill">
+      ${skillPanelHTML}
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">閉じる</button>
+      ${canEdit ? `<button class="btn btn-primary" onclick="saveTalentCard('${userId}')">保存する</button>` : ''}
+    </div>
+  `);
+}
+
+function switchTalentTab(tab) {
+  document.querySelectorAll('.tm-tab').forEach(b =>
+    b.classList.toggle('active', b.textContent === document.querySelector(`.tm-tab[onclick*="${tab}"]`)?.textContent)
+  );
+  // より確実な方法
+  document.querySelectorAll('.tm-tab').forEach(b => {
+    b.classList.toggle('active', b.getAttribute('onclick')?.includes(`'${tab}'`));
+  });
+  ['basic','eval','interview','memo','skill'].forEach(t => {
+    const p = document.getElementById('tp_' + t);
+    if (p) p.classList.toggle('hidden', t !== tab);
+  });
+}
+
+// ─── 写真アップロード ───
+function uploadTalentPhoto(userId) {
+  const inp = document.createElement('input');
+  inp.type = 'file';
+  inp.accept = 'image/*';
+  inp.onchange = e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const SIZE = 220;
+        canvas.width = SIZE; canvas.height = SIZE;
+        const ctx = canvas.getContext('2d');
+        const s = Math.min(img.width, img.height);
+        const sx = (img.width - s) / 2, sy = (img.height - s) / 2;
+        ctx.drawImage(img, sx, sy, s, s, 0, 0, SIZE, SIZE);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+        setPhoto(userId, dataUrl);
+        // モーダル内の写真を即時更新
+        const wrap = document.getElementById('tmPhotoWrap');
+        if (wrap) wrap.innerHTML = `<img src="${dataUrl}" alt="">`;
+        showToast('写真を更新しました');
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  };
+  inp.click();
+}
+
+function removeTalentPhoto(userId) {
+  removePhoto(userId);
+  const wrap = document.getElementById('tmPhotoWrap');
+  const user = getUserById(userId);
+  if (wrap && user) {
+    wrap.innerHTML = `<div class="tm-photo-av" style="background:${roleColor(user.role)}">${user.name[0]}</div>`;
+  }
+  showToast('写真を削除しました');
+}
+
+// ─── カルテ保存 ───
+function saveTalentCard(userId) {
+  const g = id => { const el = document.getElementById('tc_' + id); return el ? el.value.trim() : ''; };
+  setTalentCard(userId, {
+    joinMonth:         g('joinMonth'),
+    jobDescription:    g('jobDescription'),
+    strengths:         g('strengths'),
+    challenges:        g('challenges'),
+    skills:            g('skills'),
+    lastInterviewDate: g('lastInterviewDate'),
+    agreedRole:        g('agreedRole'),
+    nextRoleCandidate: g('nextRoleCandidate'),
+    nextReviewDate:    g('nextReviewDate'),
+    managerComment:    g('managerComment'),
+    careerHope:        g('careerHope'),
+    devActions:        g('devActions'),
+  });
+  // スキルシート評価を保存
+  const tmpl = getSkillTemplate();
+  const evalObj = {};
+  tmpl.categories.forEach(cat =>
+    cat.items.forEach(item => {
+      const el = document.getElementById('sk_' + item.id);
+      evalObj[item.id] = el ? el.checked : false;
+    })
+  );
+  setSkillEval(userId, evalObj);
+  closeModal();
+  showToast('カルテを保存しました');
+  renderTalent();
+}
+
+// ─── スキルシート テンプレート編集 ───
+function openSkillTemplateEditor() {
+  _talentSkillDraft = JSON.parse(JSON.stringify(getSkillTemplate()));
+  _renderSkillTemplateEditor();
+}
+
+function _renderSkillTemplateEditor() {
+  const tmpl = _talentSkillDraft;
+  const catsHTML = tmpl.categories.map((cat, ci) => `
+    <div class="ste-cat">
+      <div class="ste-cat-head">
+        <input class="form-input ste-cat-name" id="ste_cat_${ci}" value="${cat.name}" placeholder="カテゴリ名">
+        <button class="btn btn-danger" style="font-size:11px;padding:5px 10px;flex-shrink:0"
+          onclick="steDeleteCat(${ci})">削除</button>
+      </div>
+      <div class="ste-items">
+        ${cat.items.map((item, ii) => `
+          <div class="ste-item-row">
+            <input class="form-input ste-item-text" id="ste_item_${ci}_${ii}" value="${item.text}" placeholder="評価項目の文章">
+            <button class="btn btn-ghost" style="font-size:11px;padding:5px 10px;flex-shrink:0;color:var(--danger)"
+              onclick="steDeleteItem(${ci},${ii})">✕</button>
+          </div>`).join('')}
+      </div>
+      <button class="btn btn-ghost" style="font-size:12px;width:100%" onclick="steAddItem(${ci})">＋ 項目を追加</button>
+    </div>`).join('');
+
+  showWideModal(`
+    <div class="modal-header">
+      <div style="font-size:20px">📋</div>
+      <div class="modal-title">スキルシート設定</div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body" style="max-height:65vh;overflow-y:auto">
+      <div style="font-size:12px;color:var(--text-sub);margin-bottom:16px">
+        カテゴリと評価項目を自由に設定できます。保存後は全メンバーのスキルシートに反映されます。
+      </div>
+      <div class="ste-wrap">${catsHTML}</div>
+      <button class="btn btn-ghost" style="width:100%;margin-top:12px" onclick="steAddCat()">＋ カテゴリを追加</button>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal();_talentSkillDraft=null">キャンセル</button>
+      <button class="btn btn-primary" onclick="steApplySave()">保存する</button>
+    </div>
+  `);
+}
+
+function _steCollect() {
+  _talentSkillDraft.categories.forEach((cat, ci) => {
+    const cn = document.getElementById(`ste_cat_${ci}`);
+    if (cn) cat.name = cn.value;
+    cat.items.forEach((item, ii) => {
+      const el = document.getElementById(`ste_item_${ci}_${ii}`);
+      if (el) item.text = el.value;
+    });
+  });
+}
+function steDeleteCat(ci) {
+  _steCollect();
+  _talentSkillDraft.categories.splice(ci, 1);
+  _renderSkillTemplateEditor();
+}
+function steDeleteItem(ci, ii) {
+  _steCollect();
+  _talentSkillDraft.categories[ci].items.splice(ii, 1);
+  _renderSkillTemplateEditor();
+}
+function steAddItem(ci) {
+  _steCollect();
+  _talentSkillDraft.categories[ci].items.push({ id: 'i' + Date.now(), text: '' });
+  _renderSkillTemplateEditor();
+}
+function steAddCat() {
+  _steCollect();
+  _talentSkillDraft.categories.push({ id: 'c' + Date.now(), name: '', items: [] });
+  _renderSkillTemplateEditor();
+}
+function steApplySave() {
+  _steCollect();
+  const cleaned = {
+    categories: _talentSkillDraft.categories
+      .filter(c => c.name.trim())
+      .map(c => ({ ...c, items: c.items.filter(i => i.text.trim()) }))
+      .filter(c => c.items.length > 0)
+  };
+  if (!cleaned.categories.length) { showToast('カテゴリと項目を1つ以上入力してください', 'error'); return; }
+  saveSkillTemplate(cleaned);
+  _talentSkillDraft = null;
+  closeModal();
+  showToast('スキルシートを保存しました');
+  renderTalent();
 }

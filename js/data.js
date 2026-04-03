@@ -70,6 +70,10 @@ const LS = {
   shiftSites:     'lc_shift_sites',
   shiftSchedules: 'lc_shift_schedules',
   shiftVenuePlans:'lc_venue_plans',
+  talent:         'lc_talent',
+  photos:         'lc_photos',
+  skillTemplate:  'lc_skill_template',
+  skillEval:      'lc_skill_eval',
   session:        'lc_session',
   version:        'lc_version',
 };
@@ -473,4 +477,137 @@ function formatDate(dateStr) {
 }
 function formatMoney(n) {
   return Number(n || 0).toLocaleString('ja-JP') + '円';
+}
+
+// ─── TALENT CARDS (人材カルテ) ───
+// lc_talent: { [userId]: { joinMonth, jobDescription, strengths, challenges,
+//   skills, lastInterviewDate, agreedRole, nextRoleCandidate, nextReviewDate,
+//   managerComment, careerHope, devActions, updatedAt } }
+function getTalentCards() {
+  return Store.get(LS.talent, {});
+}
+function saveTalentCards(cards) {
+  Store.set(LS.talent, cards);
+}
+function getTalentCard(userId) {
+  return getTalentCards()[userId] || {};
+}
+function setTalentCard(userId, data) {
+  const cards = getTalentCards();
+  cards[userId] = { ...(cards[userId] || {}), ...data, updatedAt: new Date().toISOString() };
+  saveTalentCards(cards);
+}
+
+// ─── PHOTOS (顔写真, base64) ───
+function getPhoto(userId) {
+  return Store.get(LS.photos, {})[userId] || null;
+}
+function setPhoto(userId, dataUrl) {
+  const p = Store.get(LS.photos, {});
+  p[userId] = dataUrl;
+  Store.set(LS.photos, p);
+}
+function removePhoto(userId) {
+  const p = Store.get(LS.photos, {});
+  delete p[userId];
+  Store.set(LS.photos, p);
+}
+
+// ─── SKILL TEMPLATE (スキルシート定義) ───
+const DEFAULT_SKILL_TEMPLATE = {
+  categories: [
+    {
+      id: 'mindset', name: 'マインドセット・勤怠',
+      items: [
+        { id: 'ms1', text: '自己目標を毎月設定・宣言できている' },
+        { id: 'ms2', text: '月次振り返りを行い次月改善につなげている' },
+        { id: 'ms3', text: '遅刻・欠勤なく安定した勤怠がある' },
+        { id: 'ms4', text: '指示がなくても自主的に動ける' },
+      ]
+    },
+    {
+      id: 'knowledge', name: '商品・業務知識',
+      items: [
+        { id: 'kn1', text: 'SB/YM各プランの特徴・料金を正確に説明できる' },
+        { id: 'kn2', text: 'MNP手続きの流れをお客様に案内できる' },
+        { id: 'kn3', text: '光回線・AIRの提案ができる' },
+        { id: 'kn4', text: 'PayPayカード・電気など副商材の提案ができる' },
+      ]
+    },
+    {
+      id: 'sales', name: '営業スキル',
+      items: [
+        { id: 'sl1', text: 'キャッチ〜クロージングを自立して完結できる' },
+        { id: 'sl2', text: '見込み客の管理・後追いができている' },
+        { id: 'sl3', text: '日次で実績報告・自己管理ができている' },
+        { id: 'sl4', text: 'セット提案率が安定している（月3件以上）' },
+      ]
+    },
+    {
+      id: 'team', name: 'チーム貢献',
+      items: [
+        { id: 'tm1', text: '後輩へのOJT・同行指導ができている' },
+        { id: 'tm2', text: 'チームへの情報共有・連絡が適切にできる' },
+        { id: 'tm3', text: 'ミーティングで積極的に発言・提案ができる' },
+      ]
+    },
+    {
+      id: 'compliance', name: 'コンプライアンス',
+      items: [
+        { id: 'cp1', text: '個人情報の取り扱いルールを正しく理解・遵守している' },
+        { id: 'cp2', text: 'クレーム対応の基本手順を理解している' },
+        { id: 'cp3', text: 'SNS・情報管理のルールを守っている' },
+      ]
+    },
+  ]
+};
+function getSkillTemplate() {
+  return Store.get(LS.skillTemplate, DEFAULT_SKILL_TEMPLATE);
+}
+function saveSkillTemplate(tmpl) {
+  Store.set(LS.skillTemplate, tmpl);
+}
+
+// ─── SKILL EVAL (ユーザー別チェック状況) ───
+function getSkillEval(userId) {
+  return Store.get(LS.skillEval, {})[userId] || {};
+}
+function setSkillEval(userId, evalObj) {
+  const all = Store.get(LS.skillEval, {});
+  all[userId] = evalObj;
+  Store.set(LS.skillEval, all);
+}
+function getSkillScore(userId) {
+  const tmpl = getSkillTemplate();
+  const ev = getSkillEval(userId);
+  let total = 0, checked = 0;
+  tmpl.categories.forEach(cat => {
+    cat.items.forEach(item => {
+      total++;
+      if (ev[item.id]) checked++;
+    });
+  });
+  return { checked, total };
+}
+
+// ─── TALENT: 直近N か月の生産性推移を返す ───
+// [{month:'YYYY-MM', value: number, label: string}]
+function getTalentProductivityTrend(userId, months = 6) {
+  const user = getUserById(userId);
+  if (!user || !user.reportType) return null;
+  const result = [];
+  const now = new Date();
+  for (let i = months - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const reports = getUserReportsForMonth(userId, month);
+    if (user.reportType === 'mobile') {
+      const agg = aggregateReports(reports);
+      result.push({ month, value: agg.totalPt, label: monthLabel(month) });
+    } else if (user.reportType === 'refa') {
+      const total = reports.reduce((s, r) => s + Number(r.amount || 0), 0);
+      result.push({ month, value: total, label: monthLabel(month) });
+    }
+  }
+  return result;
 }

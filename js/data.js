@@ -514,15 +514,9 @@ function removePhoto(userId) {
 }
 
 // ─── SKILL TEMPLATE (スキルシート定義) ───
-// 項目定義は skilldata.js の SKILL_TEMPLATES を参照
-// roleKey: 'catch' | 'trainee_closer' | 'closer' | 'event_closer' | 'young_chief' | 'chief'
-function getSkillTemplate(roleKey) {
-  if (roleKey && SKILL_TEMPLATES[roleKey]) {
-    return SKILL_TEMPLATES[roleKey];
-  }
-  // roleKey未指定またはキー不一致の場合は最初のテンプレートを返す
-  const firstKey = Object.keys(SKILL_TEMPLATES)[0];
-  return SKILL_TEMPLATES[firstKey];
+// 項目定義は skilldata.js の DEFAULT_SKILL_TEMPLATE を参照（全員共通）
+function getSkillTemplate() {
+  return Store.get(LS.skillTemplate, DEFAULT_SKILL_TEMPLATE);
 }
 function saveSkillTemplate(tmpl) {
   Store.set(LS.skillTemplate, tmpl);

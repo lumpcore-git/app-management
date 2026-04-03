@@ -2400,24 +2400,29 @@ function openTalentCard(userId, activeTab = 'basic') {
   // ── スキルシートパネル ──
   const skill = getSkillScore(userId);
   const skillPanelHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
-      <div>
+    <div class="sk-panel-wrap">
+      <div style="margin-bottom:14px">
         <div style="font-size:18px;font-weight:700;color:var(--green)">${skill.checked} / ${skill.total} 項目達成</div>
         <div style="font-size:12px;color:var(--text-sub);margin-top:2px">
           ${skill.total > 0 ? Math.round(skill.checked / skill.total * 100) : 0}% 完了
         </div>
       </div>
-    </div>
-    ${tmpl.categories.map(cat => `
-      <div class="sk-cat">
-        <div class="sk-cat-name">${cat.name}</div>
-        ${cat.items.map(item => `
-          <div class="sk-item">
-            <input type="checkbox" class="sk-checkbox" id="sk_${item.id}" ${ev[item.id] ? 'checked' : ''}
-              ${canEdit ? '' : 'disabled'} onchange="this.parentElement.querySelector('.sk-item-text').classList.toggle('ok',this.checked)">
-            <label for="sk_${item.id}" class="sk-item-text ${ev[item.id] ? 'ok' : ''}">${item.text}</label>
-          </div>`).join('')}
-      </div>`).join('')}`;
+      ${tmpl.categories.length > 1 ? `
+      <div class="sk-cat-tabs">
+        ${tmpl.categories.map((cat, i) => `
+          <button class="sk-cat-tab${i === 0 ? ' active' : ''}" onclick="switchSkillCat('${cat.id}',this)">${cat.name}</button>
+        `).join('')}
+      </div>` : ''}
+      ${tmpl.categories.map((cat, i) => `
+        <div class="sk-cat-panel" id="skp_${cat.id}"${i > 0 ? ' style="display:none"' : ''}>
+          ${cat.items.map(item => `
+            <div class="sk-item">
+              <input type="checkbox" class="sk-checkbox" id="sk_${item.id}" ${ev[item.id] ? 'checked' : ''}
+                ${canEdit ? '' : 'disabled'} onchange="this.parentElement.querySelector('.sk-item-text').classList.toggle('ok',this.checked)">
+              <label for="sk_${item.id}" class="sk-item-text ${ev[item.id] ? 'ok' : ''}">${item.text}</label>
+            </div>`).join('')}
+        </div>`).join('')}
+    </div>`;
 
   // ─ フォームヘルパー ─
   const inp  = (id, val, ph = '') => canEdit
@@ -2633,6 +2638,15 @@ function saveTalentCard(userId) {
   closeModal();
   showToast('カルテを保存しました');
   renderTalent();
+}
+
+// ─── スキルシート カテゴリ切替 ───
+function switchSkillCat(catId, btn) {
+  const wrap = btn.closest('.sk-panel-wrap');
+  wrap.querySelectorAll('.sk-cat-panel').forEach(p => p.style.display = 'none');
+  wrap.querySelectorAll('.sk-cat-tab').forEach(b => b.classList.remove('active'));
+  document.getElementById('skp_' + catId).style.display = '';
+  btn.classList.add('active');
 }
 
 // ─── スキルシート テンプレート編集 ───

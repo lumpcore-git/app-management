@@ -514,55 +514,15 @@ function removePhoto(userId) {
 }
 
 // ─── SKILL TEMPLATE (スキルシート定義) ───
-const DEFAULT_SKILL_TEMPLATE = {
-  categories: [
-    {
-      id: 'mindset', name: 'マインドセット・勤怠',
-      items: [
-        { id: 'ms1', text: '自己目標を毎月設定・宣言できている' },
-        { id: 'ms2', text: '月次振り返りを行い次月改善につなげている' },
-        { id: 'ms3', text: '遅刻・欠勤なく安定した勤怠がある' },
-        { id: 'ms4', text: '指示がなくても自主的に動ける' },
-      ]
-    },
-    {
-      id: 'knowledge', name: '商品・業務知識',
-      items: [
-        { id: 'kn1', text: 'SB/YM各プランの特徴・料金を正確に説明できる' },
-        { id: 'kn2', text: 'MNP手続きの流れをお客様に案内できる' },
-        { id: 'kn3', text: '光回線・AIRの提案ができる' },
-        { id: 'kn4', text: 'PayPayカード・電気など副商材の提案ができる' },
-      ]
-    },
-    {
-      id: 'sales', name: '営業スキル',
-      items: [
-        { id: 'sl1', text: 'キャッチ〜クロージングを自立して完結できる' },
-        { id: 'sl2', text: '見込み客の管理・後追いができている' },
-        { id: 'sl3', text: '日次で実績報告・自己管理ができている' },
-        { id: 'sl4', text: 'セット提案率が安定している（月3件以上）' },
-      ]
-    },
-    {
-      id: 'team', name: 'チーム貢献',
-      items: [
-        { id: 'tm1', text: '後輩へのOJT・同行指導ができている' },
-        { id: 'tm2', text: 'チームへの情報共有・連絡が適切にできる' },
-        { id: 'tm3', text: 'ミーティングで積極的に発言・提案ができる' },
-      ]
-    },
-    {
-      id: 'compliance', name: 'コンプライアンス',
-      items: [
-        { id: 'cp1', text: '個人情報の取り扱いルールを正しく理解・遵守している' },
-        { id: 'cp2', text: 'クレーム対応の基本手順を理解している' },
-        { id: 'cp3', text: 'SNS・情報管理のルールを守っている' },
-      ]
-    },
-  ]
-};
-function getSkillTemplate() {
-  return Store.get(LS.skillTemplate, DEFAULT_SKILL_TEMPLATE);
+// 項目定義は skilldata.js の SKILL_TEMPLATES を参照
+// roleKey: 'catch' | 'trainee_closer' | 'closer' | 'event_closer' | 'young_chief' | 'chief'
+function getSkillTemplate(roleKey) {
+  if (roleKey && SKILL_TEMPLATES[roleKey]) {
+    return SKILL_TEMPLATES[roleKey];
+  }
+  // roleKey未指定またはキー不一致の場合は最初のテンプレートを返す
+  const firstKey = Object.keys(SKILL_TEMPLATES)[0];
+  return SKILL_TEMPLATES[firstKey];
 }
 function saveSkillTemplate(tmpl) {
   Store.set(LS.skillTemplate, tmpl);

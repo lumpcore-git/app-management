@@ -74,6 +74,7 @@ const LS = {
   photos:         'lc_photos',
   skillTemplate:  'lc_skill_template',
   skillEval:      'lc_skill_eval',
+  notifications:  'lc_notifications',
   session:        'lc_session',
   version:        'lc_version',
 };
@@ -531,6 +532,20 @@ function setSkillEval(userId, evalObj) {
   all[userId] = evalObj;
   Store.set(LS.skillEval, all);
 }
+
+// 旧形式(true)との後方互換を保ちつつ、3段階認定がすべて揃っているか判定
+function isItemCertified(d) {
+  if (!d || d === true) return false;
+  return !!(d.self && d.certifier?.name && d.certifier?.date && d.manager?.name && d.manager?.date);
+}
+
+// 本人チェック(self)が入っているか（未認定でも進捗表示に使う）
+function isItemSelfChecked(d) {
+  if (!d) return false;
+  if (d === true) return true;  // 旧形式
+  return !!d.self;
+}
+
 function getSkillScore(userId) {
   const tmpl = getSkillTemplate();
   const ev = getSkillEval(userId);
@@ -538,10 +553,82 @@ function getSkillScore(userId) {
   tmpl.categories.forEach(cat => {
     cat.items.forEach(item => {
       total++;
-      if (ev[item.id]) checked++;
+      if (isItemCertified(ev[item.id])) checked++;
     });
   });
   return { checked, total };
+}
+
+// カテゴリ別スコアを返す [{id, name, certified, selfChecked, total, pct}]
+function getSkillScoreByCategory(userId) {
+  const tmpl = getSkillTemplate();
+  const ev = getSkillEval(userId);
+  return tmpl.categories.map(cat => {
+    const total = cat.items.length;
+    const certified = cat.items.filter(item => isItemCertified(ev[item.id])).length;
+    const selfChecked = cat.items.filter(item => isItemSelfChecked(ev[item.id])).length;
+    return {
+      id: cat.id,
+      name: cat.name,
+      certified,
+      selfChecked,
+      total,
+      pct: total > 0 ? Math.round(certified / total * 100) : 0
+    };
+  });
+}
+
+// ─── NOTIFICATIONS (お知らせ) ───
+// lc_notifications: [{ id, fromUserId, toUserIds, title, body, createdAt, readBy:{userId:ISO} }]
+// toUserIds: ['all'] で全員、または ['u1','u2',...] で個別指定
+function getNotifications() {
+  return Store.get(LS.notifications, []);
+}
+function saveNotifications(notifs) {
+  Store.set(LS.notifications, notifs);
+}
+function getNotificationsForUser(userId) {
+  return getNotifications()
+    .filter(n => n.toUserIds.includes('all') || n.toUserIds.includes(userId))
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+function addNotification(fromUserId, toUserIds, title, body) {
+  const notifs = getNotifications();
+  const n = {
+    id: 'n' + Date.now(),
+    fromUserId,
+    toUserIds,
+    title,
+    body: body || '',
+    createdAt: new Date().toISOString(),
+    readBy: {},
+  };
+  notifs.push(n);
+  saveNotifications(notifs);
+  return n;
+}
+function markNotificationRead(notifId, userId) {
+  const notifs = getNotifications();
+  const n = notifs.find(x => x.id === notifId);
+  if (n && !n.readBy[userId]) {
+    n.readBy[userId] = new Date().toISOString();
+    saveNotifications(notifs);
+  }
+}
+function markAllNotificationsRead(userId) {
+  const notifs = getNotifications();
+  const ts = new Date().toISOString();
+  let changed = false;
+  notifs.forEach(n => {
+    if ((n.toUserIds.includes('all') || n.toUserIds.includes(userId)) && !n.readBy[userId]) {
+      n.readBy[userId] = ts;
+      changed = true;
+    }
+  });
+  if (changed) saveNotifications(notifs);
+}
+function getUnreadCount(userId) {
+  return getNotificationsForUser(userId).filter(n => !n.readBy[userId]).length;
 }
 
 // ─── TALENT: 直近N か月の生産性推移を返す ───

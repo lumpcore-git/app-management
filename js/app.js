@@ -14,6 +14,10 @@ let shiftPlanMonth = null;   // 'YYYY-MM'（シフト作成ページ）
 let shiftPlanBrushSite    = null;  // シフト作成で選択中の入力ブラシ（現場/休み）
 let shiftPlanWeekdayOnly = false;  // 土日非表示トグル
 
+// ─── PROFILE STATE ───
+let profileUserId = '';
+let profileActiveTab = 'perf';
+
 // ─── INIT ───
 window.addEventListener('DOMContentLoaded', () => {
   initData();
@@ -38,6 +42,19 @@ function renderTopbar() {
   avatarEl.style.background = ROLES[CU.role]?.color || '#4f7cff';
   document.getElementById('topbarName').textContent = CU.name;
   document.getElementById('topbarRoleLabel').textContent = getUserDisplayRole(CU);
+  _updateNotifBadge();
+}
+
+function _updateNotifBadge() {
+  const count = getUnreadCount(CU.id);
+  const badge = document.getElementById('notifBadge');
+  if (!badge) return;
+  if (count > 0) {
+    badge.textContent = count > 9 ? '9+' : String(count);
+    badge.classList.remove('hidden');
+  } else {
+    badge.classList.add('hidden');
+  }
 }
 
 // ─── SIDEBAR ───
@@ -117,11 +134,15 @@ function route() {
   if (hash === 'members' && level < 5) {
     location.hash = 'dashboard'; return;
   }
+  if (hash === 'profile' && (level < 4 || !profileUserId)) {
+    location.hash = 'talent'; return;
+  }
 
   document.querySelectorAll('.nav-item, .nav-subitem').forEach(el => {
     const page = el.dataset.page;
     const isShift = hash === 'shifts-week' || hash === 'shifts-month';
-    const active = page === hash || (page === 'shifts' && isShift);
+    const isProfile = hash === 'profile';
+    const active = page === hash || (page === 'shifts' && isShift) || (page === 'talent' && isProfile);
     el.classList.toggle('active', active);
   });
 
@@ -144,6 +165,7 @@ function route() {
     ranking:   'ランキング',
     targets:   '目標設定',
     talent:    '人財カルテ',
+    profile:   '',
     members:   'メンバー管理',
   };
   document.getElementById('topbarTitle').textContent = titles[hash] || '';
@@ -159,6 +181,7 @@ function route() {
     ranking:   renderRanking,
     targets:   renderTargets,
     talent:    renderTalent,
+    profile:   renderProfile,
     members:   renderMembers,
   };
   (pages[hash] || renderDashboard)();
@@ -225,18 +248,201 @@ function showToast(msg, type = 'success') {
 
 // ─── MODAL ───
 function showModal(html) {
+  const overlay = document.getElementById('modalOverlay');
   const m = document.getElementById('modal');
   m.innerHTML = html;
-  m.classList.remove('modal-wide');
-  document.getElementById('modalOverlay').classList.remove('hidden');
+  m.classList.remove('modal-wide', 'modal-mainwidth');
+  overlay.classList.remove('modal-overlay-main');
+  overlay.classList.remove('hidden');
 }
 function showWideModal(html) {
   showModal(html);
   document.getElementById('modal').classList.add('modal-wide');
 }
+function showTalentModal(html) {
+  showModal(html);
+  document.getElementById('modal').classList.add('modal-mainwidth');
+  document.getElementById('modalOverlay').classList.add('modal-overlay-main');
+}
 function closeModal() {
-  document.getElementById('modalOverlay').classList.add('hidden');
-  document.getElementById('modal').classList.remove('modal-wide');
+  const overlay = document.getElementById('modalOverlay');
+  overlay.classList.add('hidden');
+  overlay.classList.remove('modal-overlay-main');
+  document.getElementById('modal').classList.remove('modal-wide', 'modal-mainwidth');
+}
+
+// ═══════════════════════════════════════════════════════
+// ─── NOTIFICATIONS UI ───
+// ═══════════════════════════════════════════════════════
+
+function _notificationsCard() {
+  const notifs = getNotificationsForUser(CU.id);
+  const level = roleLevel(CU.role);
+  const unreadCount = notifs.filter(n => !n.readBy[CU.id]).length;
+
+  return `
+    <div class="card fade-in">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <div class="section-title" style="margin-bottom:0">🔔 お知らせ</div>
+          ${unreadCount > 0 ? `<span class="notif-unread-chip">${unreadCount}件未読</span>` : ''}
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          ${unreadCount > 0 ? `<button class="btn btn-ghost" style="font-size:12px;padding:5px 10px" onclick="markAllReadAndRefresh()">すべて既読</button>` : ''}
+          ${level >= 4 ? `<button class="btn btn-primary" style="font-size:12px;padding:5px 12px" onclick="showSendNotificationModal()">📨 お知らせを送る</button>` : ''}
+        </div>
+      </div>
+      ${notifs.length === 0 ? `
+        <div class="empty-state" style="padding:24px 0">
+          <div style="font-size:28px;margin-bottom:8px">📭</div>
+          お知らせはありません
+        </div>
+      ` : `
+        <div style="display:flex;flex-direction:column;gap:8px">
+          ${notifs.slice(0, 10).map(n => {
+            const isUnread = !n.readBy[CU.id];
+            const from = getUserById(n.fromUserId);
+            return `
+              <div class="notif-item ${isUnread ? 'notif-unread' : ''}" onclick="markNotifReadAndRefresh('${n.id}')">
+                <div style="display:flex;align-items:flex-start;gap:10px">
+                  ${isUnread
+                    ? `<span class="notif-dot"></span>`
+                    : `<span style="width:8px;flex-shrink:0;margin-top:5px"></span>`}
+                  <div style="flex:1;min-width:0">
+                    <div style="font-weight:${isUnread ? '700' : '500'};font-size:14px;margin-bottom:2px">${n.title}</div>
+                    ${n.body ? `<div style="font-size:12px;color:var(--text-sub);margin-bottom:4px">${n.body}</div>` : ''}
+                    <div style="font-size:11px;color:var(--text-sub)">${from?.name || '—'} · ${_timeAgo(n.createdAt)}</div>
+                  </div>
+                  ${isUnread ? `<span style="font-size:10px;color:var(--accent);flex-shrink:0;margin-top:4px">タップで既読</span>` : ''}
+                </div>
+              </div>
+            `;
+          }).join('')}
+          ${notifs.length > 10 ? `<div style="text-align:center;font-size:12px;color:var(--text-sub);padding:8px">他 ${notifs.length - 10}件</div>` : ''}
+        </div>
+      `}
+    </div>
+  `;
+}
+
+function _timeAgo(isoString) {
+  const diff = Date.now() - new Date(isoString).getTime();
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return 'たった今';
+  if (m < 60) return `${m}分前`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}時間前`;
+  const d = Math.floor(h / 24);
+  if (d < 7) return `${d}日前`;
+  return isoString.slice(0, 10).replace(/-/g, '/');
+}
+
+function markNotifReadAndRefresh(notifId) {
+  markNotificationRead(notifId, CU.id);
+  _updateNotifBadge();
+  renderDashboard();
+}
+
+function markAllReadAndRefresh() {
+  markAllNotificationsRead(CU.id);
+  _updateNotifBadge();
+  renderDashboard();
+}
+
+// ── お知らせ送信モーダル（level≥4） ──
+function showSendNotificationModal() {
+  const users = getUsers().filter(u => u.id !== CU.id);
+  const presets = [
+    'スキルシートの入力をお願いします',
+    '実績報告を入力してください',
+    'シフトを確認してください',
+    '人財カルテの内容を確認してください',
+    'カスタム（自由入力）',
+  ];
+
+  showModal(`
+    <div class="modal-title">📨 お知らせを送る</div>
+    <div style="display:flex;flex-direction:column;gap:16px;margin-top:16px">
+
+      <div class="form-group">
+        <label class="form-label">宛先</label>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;margin-bottom:8px">
+          <input type="checkbox" id="notif_to_all" onchange="toggleNotifToAll(this)">
+          <span style="font-weight:600;color:var(--accent)">全員に送る</span>
+        </label>
+        <div id="notif_recipients" style="display:flex;flex-direction:column;gap:2px;max-height:200px;overflow-y:auto;background:var(--surface2);border-radius:8px;padding:8px;border:1px solid var(--border)">
+          ${users.map(u => `
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;padding:5px 6px;border-radius:6px" onmouseover="this.style.background='var(--surface)'" onmouseout="this.style.background=''">
+              <input type="checkbox" name="notif_to" value="${u.id}">
+              <span style="width:8px;height:8px;border-radius:50%;background:${ROLES[u.role]?.color || '#888'};flex-shrink:0"></span>
+              <span>${u.name}</span>
+              <span style="font-size:11px;color:var(--text-sub);margin-left:auto">${getUserDisplayRole(u)}</span>
+            </label>
+          `).join('')}
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">お知らせ種別</label>
+        <select class="form-select" id="notif_preset" onchange="updateNotifTitleFromPreset(this)">
+          ${presets.map(p => `<option value="${p}">${p}</option>`).join('')}
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">タイトル</label>
+        <input type="text" class="form-input" id="notif_title" value="${presets[0]}" placeholder="お知らせのタイトル">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">本文（任意）</label>
+        <textarea class="form-textarea" id="notif_body" placeholder="詳細メッセージがあれば入力してください"></textarea>
+      </div>
+
+    </div>
+    <div style="display:flex;gap:8px;margin-top:20px;justify-content:flex-end">
+      <button class="btn btn-ghost" onclick="closeModal()">キャンセル</button>
+      <button class="btn btn-primary" onclick="submitNotification()">📨 送信する</button>
+    </div>
+  `);
+}
+
+function toggleNotifToAll(checkbox) {
+  const div = document.getElementById('notif_recipients');
+  div.style.opacity = checkbox.checked ? '0.4' : '1';
+  div.style.pointerEvents = checkbox.checked ? 'none' : '';
+}
+
+function updateNotifTitleFromPreset(select) {
+  const titleInput = document.getElementById('notif_title');
+  if (select.value !== 'カスタム（自由入力）') {
+    titleInput.value = select.value;
+  } else {
+    titleInput.value = '';
+    titleInput.focus();
+  }
+}
+
+function submitNotification() {
+  const toAll = document.getElementById('notif_to_all').checked;
+  const title = document.getElementById('notif_title').value.trim();
+  const body  = document.getElementById('notif_body').value.trim();
+
+  if (!title) { showToast('タイトルを入力してください', 'error'); return; }
+
+  let toUserIds;
+  if (toAll) {
+    toUserIds = ['all'];
+  } else {
+    const checked = [...document.querySelectorAll('input[name="notif_to"]:checked')];
+    toUserIds = checked.map(c => c.value);
+    if (toUserIds.length === 0) { showToast('宛先を選択してください', 'error'); return; }
+  }
+
+  addNotification(CU.id, toUserIds, title, body);
+  closeModal();
+  showToast('お知らせを送信しました ✓', 'success');
+  _updateNotifBadge();
 }
 
 // ═══════════════════════════════════════════════════════
@@ -333,6 +539,8 @@ function renderAdminDashboard() {
         }).join('')}
       </div>
     </div>
+
+    ${_notificationsCard()}
 
     <div class="card fade-in">
       <div class="section-title">最近の報告（全事業部）</div>
@@ -501,6 +709,8 @@ function renderMobileDashboard() {
         </div>
       `}
     </div>
+
+    ${_notificationsCard()}
   `;
 }
 
@@ -668,6 +878,8 @@ function renderRefaDashboard() {
         </div>
       `}
     </div>
+
+    ${_notificationsCard()}
   `;
 }
 
@@ -682,6 +894,7 @@ function renderBasicDashboard() {
       </div>
     </div>
     ${_todayShiftCard(CU.id)}
+    ${_notificationsCard()}
     <div class="card fade-in" style="text-align:center;padding:40px">
       <div style="font-size:40px;margin-bottom:12px">🏢</div>
       <div style="font-size:16px;font-weight:600;margin-bottom:6px">LUMP CORE</div>
@@ -2340,10 +2553,369 @@ function _tcCardHTML(user, canEdit) {
     </div>`;
 }
 
-// ─── 詳細/編集モーダル（タブ式） ───
-function openTalentCard(userId, activeTab = 'basic') {
+// ─── 詳細ページへ遷移 ───
+function openTalentCard(userId) {
+  profileUserId = userId;
+  profileActiveTab = 'perf';
+  navigate('profile');
+}
+
+// ─── プロフィールページ ───
+function renderProfile() {
   const level = roleLevel(CU.role);
   const canEdit = level >= 4;
+  const canManagerApprove = level >= 5;
+  const user = getUserById(profileUserId);
+  if (!user) { navigate('talent'); return; }
+
+  document.getElementById('topbarTitle').textContent = user.name;
+
+  const card    = getTalentCard(profileUserId);
+  const trend   = getTalentProductivityTrend(profileUserId, 6);
+  const photo   = getPhoto(profileUserId);
+  const ev      = getSkillEval(profileUserId);
+  const tmpl    = getSkillTemplate();
+  const isRefa  = user.reportType === 'refa';
+  const mon     = currentMonth();
+  const reports = getUserReportsForMonth(profileUserId, mon);
+  const agg     = (reports.length && !isRefa) ? aggregateReports(reports) : null;
+  const refaAmt = isRefa ? reports.reduce((s, r) => s + Number(r.amount || 0), 0) : 0;
+  const workDays = getWorkingDaysCount(profileUserId, mon);
+
+  // ── 写真ブロック ──
+  const photoHTML = photo
+    ? `<img src="${photo}" alt="${user.name}">`
+    : `<div class="profile-avatar-av" style="background:${roleColor(user.role)}">${user.name[0]}</div>`;
+
+  // ── 生産性グラフ ──
+  let trendBlock = '<div style="color:var(--text-sub);font-size:13px;padding:16px 0">実績報告なし（生産性データ未取得）</div>';
+  if (trend) {
+    const maxVal = Math.max(...trend.map(t => t.value), 1);
+    const latest = trend[trend.length - 1].value;
+    const numText = isRefa
+      ? (latest > 0 ? (latest / 10000).toFixed(1) : '—')
+      : (latest > 0 ? latest.toFixed(1) : '—');
+    const unitText = isRefa ? '万円（今月）' : 'pt（今月）';
+    const barsHTML = trend.map((t, i) => {
+      const h = Math.max(Math.round((t.value / maxVal) * 48), 2);
+      const mo = t.month.slice(5, 7) + '月';
+      return `<div class="tm-trend-col">
+        <div class="tm-trend-bar${i === trend.length - 1 ? ' cur' : ''}" style="height:${h}px"></div>
+        <div class="tm-trend-tick">${mo}</div>
+      </div>`;
+    }).join('');
+    trendBlock = `
+      <div class="tm-score-box">
+        <div>
+          <div class="tm-score-num">${numText}</div>
+          <div class="tm-score-unit">${unitText}</div>
+        </div>
+        <div class="tm-trend-area">
+          <div class="tm-trend-label">直近6か月の推移</div>
+          <div class="tm-trend-bars">${barsHTML}</div>
+        </div>
+      </div>`;
+  }
+
+  // ── 今月の実績詳細 ──
+  let aggBlock = '';
+  if (agg) {
+    const items = PRODUCTS.filter(p => agg[p.key] > 0);
+    if (items.length) {
+      aggBlock = `
+        <div class="profile-agg-section">
+          <div class="profile-agg-title">今月の商材別実績</div>
+          <div class="profile-agg-grid">
+            ${items.map(p => `
+              <div class="profile-agg-item">
+                <div class="profile-agg-label">${p.label}</div>
+                <div class="profile-agg-val">${agg[p.key]}<span class="profile-agg-unit">件</span></div>
+                <div class="profile-agg-pt">${(agg[p.key] * p.pt).toFixed(1)}pt</div>
+              </div>`).join('')}
+          </div>
+        </div>`;
+    }
+  } else if (isRefa && refaAmt > 0) {
+    aggBlock = `
+      <div class="profile-agg-section">
+        <div class="profile-agg-title">今月の売上</div>
+        <div style="font-size:28px;font-weight:700;color:var(--accent2);font-family:'Space Grotesk',sans-serif;margin-top:6px">${formatMoney(refaAmt)}</div>
+      </div>`;
+  }
+
+  // ── 強み・課題 ──
+  const ta = (id, val, ph) => canEdit
+    ? `<textarea class="form-input" id="tc_${id}" rows="3" placeholder="${ph}">${val || ''}</textarea>`
+    : `<div class="profile-text-val">${val || '—'}</div>`;
+
+  const strengthsBlock = `
+    <div class="profile-two-col">
+      <div class="form-group">
+        <label class="form-label">強み（営業観点）</label>
+        ${ta('strengths', card.strengths, 'クロージング力、提案の幅 など')}
+      </div>
+      <div class="form-group">
+        <label class="form-label">課題（営業観点）</label>
+        ${ta('challenges', card.challenges, '見込み管理、後追い率 など')}
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">保有スキル・資格</label>
+      ${canEdit
+        ? `<input type="text" class="form-input" id="tc_skills" value="${(card.skills||'').replace(/"/g,'&quot;')}" placeholder="例: FP2級、SB認定資格 など">`
+        : `<div class="profile-text-val">${card.skills || '—'}</div>`}
+    </div>`;
+
+  // ── スキルシートパネル ──
+  const skill     = getSkillScore(profileUserId);
+  const catScores = getSkillScoreByCategory(profileUserId);
+  const totalPct  = skill.total > 0 ? Math.round(skill.checked / skill.total * 100) : 0;
+
+  const catSummaryHTML = `
+    <div class="sk-cat-summary">
+      ${catScores.map(c => `
+        <div class="sk-cat-summary-row">
+          <div class="sk-cat-summary-name">${c.name}</div>
+          <div class="sk-cat-summary-bar-wrap">
+            <div class="sk-cat-summary-bar-fill" style="width:${c.pct}%"></div>
+          </div>
+          <div class="sk-cat-summary-nums">${c.certified}<span class="sk-cat-summary-total">/${c.total}</span></div>
+          <div class="sk-cat-summary-pct">${c.pct}%</div>
+        </div>`).join('')}
+    </div>`;
+
+  function skItemHTML(item) {
+    const d = ev[item.id];
+    const raw = (d && d !== true) ? d : { self: d === true, certifier: { name: '', date: '' }, manager: { name: '', date: '' } };
+    const certified = isItemCertified(d);
+    const certDone  = !!(raw.certifier?.name && raw.certifier?.date);
+    const mgrDone   = !!(raw.manager?.name && raw.manager?.date);
+    return `
+      <div class="sk-item sk-item--cert${certified ? ' sk-item--done' : ''}">
+        <div class="sk-item-header">
+          <span class="sk-item-text${certified ? ' ok' : ''}">${item.text}</span>
+          ${certified ? '<span class="sk-badge-cert">認定済み</span>' : ''}
+        </div>
+        <div class="sk-cert-steps">
+          <label class="sk-cert-step sk-cert-step--self${raw.self ? ' done' : ''}">
+            <input type="checkbox" id="sk_self_${item.id}" ${raw.self ? 'checked' : ''} ${canEdit ? '' : 'disabled'}>
+            <span class="sk-cert-step-label">本人認定</span>
+          </label>
+          <div class="sk-cert-step${certDone ? ' done' : ''}">
+            <span class="sk-cert-step-label">認定者</span>
+            <input type="text" class="sk-cert-input" id="sk_cn_${item.id}" placeholder="サイン" value="${(raw.certifier?.name||'').replace(/"/g,'&quot;')}" ${canEdit ? '' : 'disabled'}>
+            <input type="date" class="sk-cert-input sk-cert-date" id="sk_cd_${item.id}" value="${raw.certifier?.date||''}" ${canEdit ? '' : 'disabled'}>
+          </div>
+          <div class="sk-cert-step${mgrDone ? ' done' : ''}">
+            <span class="sk-cert-step-label">マネージャー</span>
+            <input type="text" class="sk-cert-input" id="sk_mn_${item.id}" placeholder="サイン" value="${(raw.manager?.name||'').replace(/"/g,'&quot;')}" ${canManagerApprove ? '' : 'disabled'}>
+            <input type="date" class="sk-cert-input sk-cert-date" id="sk_md_${item.id}" value="${raw.manager?.date||''}" ${canManagerApprove ? '' : 'disabled'}>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  const skillPanelHTML = `
+    <div class="sk-panel-wrap">
+      <div class="sk-total-header">
+        <div class="sk-total-num">${skill.checked} <span class="sk-total-denom">/ ${skill.total} 項目認定</span></div>
+        <div class="sk-total-pct" style="color:var(--green)">${totalPct}% 完了</div>
+      </div>
+      ${catSummaryHTML}
+      ${tmpl.categories.length > 1 ? `
+      <div class="sk-cat-tabs">
+        ${tmpl.categories.map((cat, i) => {
+          const cs = catScores.find(c => c.id === cat.id) || { certified: 0, total: 0 };
+          return `<button class="sk-cat-tab${i === 0 ? ' active' : ''}" onclick="switchSkillCat('${cat.id}',this)">${cat.name}<span class="sk-cat-tab-badge">${cs.certified}/${cs.total}</span></button>`;
+        }).join('')}
+      </div>` : ''}
+      ${tmpl.categories.map((cat, i) => `
+        <div class="sk-cat-panel" id="skp_${cat.id}"${i > 0 ? ' style="display:none"' : ''}>
+          ${cat.items.map(item => skItemHTML(item)).join('')}
+        </div>`).join('')}
+    </div>`;
+
+  // ── メッセージタブ ──
+  const inp = (id, val, ph) => canEdit
+    ? `<input type="text" class="form-input" id="tc_${id}" value="${(val||'').replace(/"/g,'&quot;')}" placeholder="${ph}">`
+    : `<div class="profile-text-val">${val || '—'}</div>`;
+  const taMsg = (id, val, ph) => canEdit
+    ? `<textarea class="form-input" id="tc_${id}" rows="3" placeholder="${ph}">${val || ''}</textarea>`
+    : `<div class="profile-text-val">${val || '—'}</div>`;
+  const dateInp = (id, val) => canEdit
+    ? `<input type="date" class="form-input" id="tc_${id}" value="${val || ''}">`
+    : `<div class="profile-text-val">${val || '—'}</div>`;
+
+  const msgBlock = `
+    <div class="form-group">
+      <label class="form-label">上長コメント</label>
+      ${taMsg('managerComment', card.managerComment, '現状評価・特記事項など')}
+    </div>
+    <div class="form-group">
+      <label class="form-label">育成アクション</label>
+      ${taMsg('devActions', card.devActions, '例: 提案力研修（5月）など')}
+    </div>
+    <div class="profile-two-col" style="margin-top:8px">
+      <div class="form-group">
+        <label class="form-label">最終面談日</label>
+        ${dateInp('lastInterviewDate', card.lastInterviewDate)}
+      </div>
+      <div class="form-group">
+        <label class="form-label">次回見直し予定日</label>
+        ${dateInp('nextReviewDate', card.nextReviewDate)}
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">面談で合意した役割</label>
+      ${inp('agreedRole', card.agreedRole, '例: クローザーとして独立稼働')}
+    </div>
+    <div class="form-group">
+      <label class="form-label">次の役職候補</label>
+      ${inp('nextRoleCandidate', card.nextRoleCandidate, '例: イベントCL → チーフ候補')}
+    </div>`;
+
+  // ── 生産性スコア（左カラム） ──
+  const prodScore = !agg && !isRefa ? '—'
+    : isRefa ? (refaAmt > 0 ? (refaAmt / 10000).toFixed(1) + '万' : '—')
+    : agg.totalPt > 0 ? agg.totalPt.toFixed(1) + 'pt' : '—';
+
+  document.getElementById('main').innerHTML = `
+    <div class="profile-page fade-in">
+      <div class="profile-topbar">
+        <button class="btn btn-ghost profile-back" onclick="navigate('talent')">← 一覧へ</button>
+        ${canEdit ? `<button class="btn btn-primary" style="margin-left:auto" onclick="saveProfileCard('${user.id}')">保存する</button>` : ''}
+      </div>
+
+      <div class="profile-layout">
+        <aside class="profile-left">
+          <div class="profile-avatar-block">
+            <div class="profile-avatar" id="profilePhotoWrap">${photoHTML}</div>
+            ${canEdit ? `
+            <div class="profile-avatar-btns">
+              <button class="btn btn-ghost" style="font-size:11px" onclick="uploadTalentPhoto('${user.id}')">写真変更</button>
+              ${photo ? `<button class="btn btn-ghost" style="font-size:11px;color:var(--danger)" onclick="removeTalentPhoto('${user.id}')">削除</button>` : ''}
+            </div>` : ''}
+          </div>
+
+          <div class="profile-identity">
+            <div class="profile-name">${user.name}</div>
+            <div class="profile-dept" style="color:${DEPTS[user.dept]?.color}">${deptLabel(user.dept)}</div>
+            <div class="profile-role">${getUserDisplayRole(user)}</div>
+            ${card.joinMonth ? `<div class="profile-join">入社 ${card.joinMonth.replace('-', '年')}月</div>` : ''}
+          </div>
+
+          ${canEdit ? `
+          <div class="profile-left-section">
+            <div class="profile-left-label">入社年月</div>
+            <input type="month" class="form-input" id="tc_joinMonth" value="${card.joinMonth || ''}">
+          </div>` : ''}
+
+          <div class="profile-left-section">
+            <div class="profile-left-label">自己紹介 / 職務</div>
+            ${canEdit
+              ? `<textarea class="form-input" id="tc_jobDescription" rows="2" placeholder="モバイル販売 / チームリード など">${card.jobDescription || ''}</textarea>`
+              : `<div class="profile-left-text">${card.jobDescription || '—'}</div>`}
+          </div>
+
+          <div class="profile-left-section">
+            <div class="profile-left-label">今月の目標・希望</div>
+            ${canEdit
+              ? `<textarea class="form-input" id="tc_careerHope" rows="2" placeholder="例: チーフを目指したい など">${card.careerHope || ''}</textarea>`
+              : `<div class="profile-left-text">${card.careerHope || '—'}</div>`}
+          </div>
+
+          <div class="profile-stats">
+            <div class="profile-stat">
+              <div class="profile-stat-num">${workDays}</div>
+              <div class="profile-stat-label">出勤日数（今月）</div>
+            </div>
+            <div class="profile-stat">
+              <div class="profile-stat-num" style="color:var(--accent)">${prodScore}</div>
+              <div class="profile-stat-label">生産性（今月）</div>
+            </div>
+          </div>
+        </aside>
+
+        <div class="profile-right">
+          <div class="profile-tabs">
+            <button class="profile-tab ${profileActiveTab === 'perf' ? 'active' : ''}" onclick="switchProfileTab('perf')">実績</button>
+            <button class="profile-tab ${profileActiveTab === 'skill' ? 'active' : ''}" onclick="switchProfileTab('skill')">スキル</button>
+            <button class="profile-tab ${profileActiveTab === 'msg' ? 'active' : ''}" onclick="switchProfileTab('msg')">メッセージ</button>
+          </div>
+
+          <div class="profile-panel${profileActiveTab === 'perf' ? '' : ' hidden'}" id="pp_perf">
+            ${trendBlock}
+            ${aggBlock}
+            ${strengthsBlock}
+          </div>
+
+          <div class="profile-panel${profileActiveTab === 'skill' ? '' : ' hidden'}" id="pp_skill">
+            ${skillPanelHTML}
+          </div>
+
+          <div class="profile-panel${profileActiveTab === 'msg' ? '' : ' hidden'}" id="pp_msg">
+            ${msgBlock}
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function switchProfileTab(tab) {
+  profileActiveTab = tab;
+  document.querySelectorAll('.profile-tab').forEach(b => {
+    b.classList.toggle('active', b.getAttribute('onclick')?.includes(`'${tab}'`));
+  });
+  ['perf', 'skill', 'msg'].forEach(t => {
+    const p = document.getElementById('pp_' + t);
+    if (p) p.classList.toggle('hidden', t !== tab);
+  });
+}
+
+function saveProfileCard(userId) {
+  const g = id => { const el = document.getElementById('tc_' + id); return el ? el.value.trim() : ''; };
+  setTalentCard(userId, {
+    joinMonth:         g('joinMonth'),
+    jobDescription:    g('jobDescription'),
+    strengths:         g('strengths'),
+    challenges:        g('challenges'),
+    skills:            g('skills'),
+    lastInterviewDate: g('lastInterviewDate'),
+    agreedRole:        g('agreedRole'),
+    nextRoleCandidate: g('nextRoleCandidate'),
+    nextReviewDate:    g('nextReviewDate'),
+    managerComment:    g('managerComment'),
+    careerHope:        g('careerHope'),
+    devActions:        g('devActions'),
+  });
+  const tmpl = getSkillTemplate();
+  const evalObj = {};
+  tmpl.categories.forEach(cat =>
+    cat.items.forEach(item => {
+      const selfEl = document.getElementById('sk_self_' + item.id);
+      const cnEl   = document.getElementById('sk_cn_'   + item.id);
+      const cdEl   = document.getElementById('sk_cd_'   + item.id);
+      const mnEl   = document.getElementById('sk_mn_'   + item.id);
+      const mdEl   = document.getElementById('sk_md_'   + item.id);
+      if (!selfEl && !cnEl) return;
+      evalObj[item.id] = {
+        self:      selfEl ? selfEl.checked : false,
+        certifier: { name: cnEl ? cnEl.value.trim() : '', date: cdEl ? cdEl.value : '' },
+        manager:   { name: mnEl ? mnEl.value.trim() : '', date: mdEl ? mdEl.value : '' },
+      };
+    })
+  );
+  setSkillEval(userId, evalObj);
+  showToast('カルテを保存しました');
+  renderProfile();
+}
+
+// ─── 旧モーダル形式（参照用・以下は不使用） ───
+function openTalentCardModal(userId, activeTab = 'basic') {
+  const level = roleLevel(CU.role);
+  const canEdit = level >= 4;
+  const canManagerApprove = level >= 5;
   const user = getUserById(userId);
   if (!user) return;
 
@@ -2399,28 +2971,72 @@ function openTalentCard(userId, activeTab = 'basic') {
 
   // ── スキルシートパネル ──
   const skill = getSkillScore(userId);
+  const catScores = getSkillScoreByCategory(userId);
+  const totalPct = skill.total > 0 ? Math.round(skill.checked / skill.total * 100) : 0;
+
+  // カテゴリ別進捗サマリー
+  const catSummaryHTML = `
+    <div class="sk-cat-summary">
+      ${catScores.map(c => `
+        <div class="sk-cat-summary-row">
+          <div class="sk-cat-summary-name">${c.name}</div>
+          <div class="sk-cat-summary-bar-wrap">
+            <div class="sk-cat-summary-bar-fill" style="width:${c.pct}%"></div>
+          </div>
+          <div class="sk-cat-summary-nums">${c.certified}<span class="sk-cat-summary-total">/${c.total}</span></div>
+          <div class="sk-cat-summary-pct">${c.pct}%</div>
+        </div>`).join('')}
+    </div>`;
+
+  // 3段階認定 — 項目ごとのHTML
+  function skItemHTML(item) {
+    const d = ev[item.id];
+    const raw = (d && d !== true) ? d : { self: d === true, certifier: { name: '', date: '' }, manager: { name: '', date: '' } };
+    const certified = isItemCertified(d);
+    const certDone  = !!(raw.certifier?.name && raw.certifier?.date);
+    const mgrDone   = !!(raw.manager?.name && raw.manager?.date);
+    return `
+      <div class="sk-item sk-item--cert${certified ? ' sk-item--done' : ''}">
+        <div class="sk-item-header">
+          <span class="sk-item-text${certified ? ' ok' : ''}">${item.text}</span>
+          ${certified ? '<span class="sk-badge-cert">認定済み</span>' : ''}
+        </div>
+        <div class="sk-cert-steps">
+          <label class="sk-cert-step sk-cert-step--self${raw.self ? ' done' : ''}">
+            <input type="checkbox" id="sk_self_${item.id}" ${raw.self ? 'checked' : ''} ${canEdit ? '' : 'disabled'}>
+            <span class="sk-cert-step-label">本人認定</span>
+          </label>
+          <div class="sk-cert-step${certDone ? ' done' : ''}">
+            <span class="sk-cert-step-label">認定者</span>
+            <input type="text" class="sk-cert-input" id="sk_cn_${item.id}" placeholder="サイン" value="${(raw.certifier?.name||'').replace(/"/g,'&quot;')}" ${canEdit ? '' : 'disabled'}>
+            <input type="date" class="sk-cert-input sk-cert-date" id="sk_cd_${item.id}" value="${raw.certifier?.date||''}" ${canEdit ? '' : 'disabled'}>
+          </div>
+          <div class="sk-cert-step${mgrDone ? ' done' : ''}">
+            <span class="sk-cert-step-label">マネージャー</span>
+            <input type="text" class="sk-cert-input" id="sk_mn_${item.id}" placeholder="サイン" value="${(raw.manager?.name||'').replace(/"/g,'&quot;')}" ${canManagerApprove ? '' : 'disabled'}>
+            <input type="date" class="sk-cert-input sk-cert-date" id="sk_md_${item.id}" value="${raw.manager?.date||''}" ${canManagerApprove ? '' : 'disabled'}>
+          </div>
+        </div>
+      </div>`;
+  }
+
   const skillPanelHTML = `
     <div class="sk-panel-wrap">
-      <div style="margin-bottom:14px">
-        <div style="font-size:18px;font-weight:700;color:var(--green)">${skill.checked} / ${skill.total} 項目達成</div>
-        <div style="font-size:12px;color:var(--text-sub);margin-top:2px">
-          ${skill.total > 0 ? Math.round(skill.checked / skill.total * 100) : 0}% 完了
-        </div>
+      <div class="sk-total-header">
+        <div class="sk-total-num">${skill.checked} <span class="sk-total-denom">/ ${skill.total} 項目認定</span></div>
+        <div class="sk-total-pct" style="color:var(--green)">${totalPct}% 完了</div>
       </div>
+      ${catSummaryHTML}
       ${tmpl.categories.length > 1 ? `
       <div class="sk-cat-tabs">
-        ${tmpl.categories.map((cat, i) => `
-          <button class="sk-cat-tab${i === 0 ? ' active' : ''}" onclick="switchSkillCat('${cat.id}',this)">${cat.name}</button>
-        `).join('')}
+        ${tmpl.categories.map((cat, i) => {
+          const cs = catScores.find(c => c.id === cat.id) || { certified: 0, total: 0 };
+          return `<button class="sk-cat-tab${i === 0 ? ' active' : ''}" onclick="switchSkillCat('${cat.id}',this)">${cat.name}<span class="sk-cat-tab-badge">${cs.certified}/${cs.total}</span></button>`;
+        }).join('')}
       </div>` : ''}
       ${tmpl.categories.map((cat, i) => `
         <div class="sk-cat-panel" id="skp_${cat.id}"${i > 0 ? ' style="display:none"' : ''}>
-          ${cat.items.map(item => `
-            <div class="sk-item">
-              <input type="checkbox" class="sk-checkbox" id="sk_${item.id}" ${ev[item.id] ? 'checked' : ''}
-                ${canEdit ? '' : 'disabled'} onchange="this.parentElement.querySelector('.sk-item-text').classList.toggle('ok',this.checked)">
-              <label for="sk_${item.id}" class="sk-item-text ${ev[item.id] ? 'ok' : ''}">${item.text}</label>
-            </div>`).join('')}
+          ${cat.items.map(item => skItemHTML(item)).join('')}
         </div>`).join('')}
     </div>`;
 
@@ -2435,7 +3051,7 @@ function openTalentCard(userId, activeTab = 'basic') {
     ? `<input type="date" class="form-input" id="tc_${id}" value="${val || ''}">`
     : `<div style="font-size:13px">${val || '—'}</div>`;
 
-  showWideModal(`
+  showTalentModal(`
     <div class="modal-header" style="padding-bottom:0;border-bottom:none">
       <div class="tm-photo" style="width:40px;height:40px;flex-shrink:0">
         ${photo ? `<img src="${photo}" alt="">` : `<div class="tm-photo-av" style="background:${roleColor(user.role)};font-size:16px">${user.name[0]}</div>`}
@@ -2586,8 +3202,7 @@ function uploadTalentPhoto(userId) {
         ctx.drawImage(img, sx, sy, s, s, 0, 0, SIZE, SIZE);
         const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
         setPhoto(userId, dataUrl);
-        // モーダル内の写真を即時更新
-        const wrap = document.getElementById('tmPhotoWrap');
+        const wrap = document.getElementById('profilePhotoWrap');
         if (wrap) wrap.innerHTML = `<img src="${dataUrl}" alt="">`;
         showToast('写真を更新しました');
       };
@@ -2600,10 +3215,10 @@ function uploadTalentPhoto(userId) {
 
 function removeTalentPhoto(userId) {
   removePhoto(userId);
-  const wrap = document.getElementById('tmPhotoWrap');
+  const wrap = document.getElementById('profilePhotoWrap');
   const user = getUserById(userId);
   if (wrap && user) {
-    wrap.innerHTML = `<div class="tm-photo-av" style="background:${roleColor(user.role)}">${user.name[0]}</div>`;
+    wrap.innerHTML = `<div class="profile-avatar-av" style="background:${roleColor(user.role)}">${user.name[0]}</div>`;
   }
   showToast('写真を削除しました');
 }
@@ -2625,13 +3240,22 @@ function saveTalentCard(userId) {
     careerHope:        g('careerHope'),
     devActions:        g('devActions'),
   });
-  // スキルシート評価を保存
+  // スキルシート評価を保存（3段階認定フォーマット）
   const tmpl = getSkillTemplate();
   const evalObj = {};
   tmpl.categories.forEach(cat =>
     cat.items.forEach(item => {
-      const el = document.getElementById('sk_' + item.id);
-      evalObj[item.id] = el ? el.checked : false;
+      const selfEl = document.getElementById('sk_self_' + item.id);
+      const cnEl   = document.getElementById('sk_cn_'   + item.id);
+      const cdEl   = document.getElementById('sk_cd_'   + item.id);
+      const mnEl   = document.getElementById('sk_mn_'   + item.id);
+      const mdEl   = document.getElementById('sk_md_'   + item.id);
+      if (!selfEl && !cnEl) return; // スキルパネルが非表示の場合はスキップ
+      evalObj[item.id] = {
+        self:       selfEl ? selfEl.checked : false,
+        certifier:  { name: cnEl ? cnEl.value.trim() : '', date: cdEl ? cdEl.value : '' },
+        manager:    { name: mnEl ? mnEl.value.trim() : '', date: mdEl ? mdEl.value : '' },
+      };
     })
   );
   setSkillEval(userId, evalObj);

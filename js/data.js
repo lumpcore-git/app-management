@@ -75,6 +75,7 @@ const LS = {
   skillTemplate:  'lc_skill_template',
   skillEval:      'lc_skill_eval',
   notifications:  'lc_notifications',
+  venueAchieve:   'lc_venue_achieve',
   session:        'lc_session',
   version:        'lc_version',
 };
@@ -633,6 +634,42 @@ function getUnreadCount(userId) {
 
 // ─── TALENT: 直近N か月の生産性推移を返す ───
 // [{month:'YYYY-MM', value: number, label: string}]
+// ─── VENUE ACHIEVEMENT (現場達成率) ───
+// lc_venue_achieve: { [month: 'YYYY-MM']: { [site: string]: {
+//   weekdayBudget: number,   // 月合計の平日予算
+//   weekdayActual: number,   // 月合計の平日実績
+//   weekends: { [satDateStr: 'YYYY-MM-DD']: { budget: number, actual: number } }
+// }}}
+
+// 指定月のすべての週末（土曜日）を返す: [{ sat:'YYYY-MM-DD', sun:'YYYY-MM-DD'|null }]
+function getWeekendDates(month) {
+  const [y, m] = month.split('-').map(Number);
+  const daysInMonth = new Date(y, m, 0).getDate();
+  const weekends = [];
+  for (let d = 1; d <= daysInMonth; d++) {
+    const date = new Date(y, m - 1, d);
+    if (date.getDay() === 6) {
+      const sat = `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+      const sunD = d + 1;
+      const sun = sunD <= daysInMonth
+        ? `${y}-${String(m).padStart(2,'0')}-${String(sunD).padStart(2,'0')}`
+        : null;
+      weekends.push({ sat, sun });
+    }
+  }
+  return weekends;
+}
+
+function getVenueAchieve(month) {
+  return Store.get(LS.venueAchieve, {})[month] || {};
+}
+function setVenueAchieveSite(month, site, data) {
+  const all = Store.get(LS.venueAchieve, {});
+  all[month] = all[month] || {};
+  all[month][site] = data;
+  Store.set(LS.venueAchieve, all);
+}
+
 function getTalentProductivityTrend(userId, months = 6) {
   const user = getUserById(userId);
   if (!user || !user.reportType) return null;

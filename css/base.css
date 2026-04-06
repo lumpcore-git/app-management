@@ -12,13 +12,32 @@
   --text-sub: #d0d8ee;
   --green: #86f9d7;
   --radius: 12px;
+  --body-grad1: #6f8fe0;
+  --body-grad2: #765cc4;
+}
+
+/* ─── LIGHT THEME ─── */
+html[data-theme="light"] {
+  --bg: #f0f2ff;
+  --surface: #ffffff;
+  --surface2: #e4e9ff;
+  --border: #bec9eb;
+  --accent: #5f4fd6;
+  --accent2: #0096b7;
+  --warn: #c97a00;
+  --danger: #cc2244;
+  --text: #1a2040;
+  --text-sub: #4e5a80;
+  --green: #00876b;
+  --body-grad1: #a0b4f0;
+  --body-grad2: #b09ee8;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
   font-family: 'Noto Sans JP', sans-serif;
-  background: radial-gradient(circle at 12% -12%, #6f8fe0 0%, transparent 48%), radial-gradient(circle at 100% 0%, #765cc4 0%, transparent 42%), var(--bg);
+  background: radial-gradient(circle at 12% -12%, var(--body-grad1) 0%, transparent 48%), radial-gradient(circle at 100% 0%, var(--body-grad2) 0%, transparent 42%), var(--bg);
   color: var(--text);
   min-height: 100vh;
   overflow-x: hidden;
@@ -96,6 +115,18 @@ body {
   transition: .15s;
 }
 .btn-logout:hover { background: rgba(255,79,106,.2); }
+.btn-theme-toggle {
+  width: 34px; height: 34px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  font-size: 16px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: .15s;
+  line-height: 1;
+}
+.btn-theme-toggle:hover { background: var(--border); }
 
 /* ─── SIDEBAR ─── */
 .sidebar {
@@ -128,7 +159,7 @@ body {
   user-select: none;
 }
 .nav-item:hover { background: var(--surface2); color: var(--text); }
-.nav-item.active { background: rgba(79,124,255,.15); color: var(--accent); }
+.nav-item.active { background: rgba(95,79,214,.12); color: var(--accent); }
 .nav-item .icon { font-size: 15px; width: 20px; text-align: center; }
 .nav-item-parent { cursor: pointer; }
 .nav-caret {
@@ -148,7 +179,7 @@ body {
   transition: all .15s;
 }
 .nav-subitem:hover { background: var(--surface2); color: var(--text); }
-.nav-subitem.active { background: rgba(79,124,255,.15); color: var(--accent); }
+.nav-subitem.active { background: rgba(95,79,214,.12); color: var(--accent); }
 
 /* ─── MAIN ─── */
 .main {

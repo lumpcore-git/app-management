@@ -18,8 +18,34 @@ let shiftPlanWeekdayOnly = false;  // 土日非表示トグル
 let profileUserId = '';
 let profileActiveTab = 'perf';
 
+// ─── VENUE ACHIEVE STATE ───
+let venueAchieveMonth = '';
+
+// ─── THEME ───
+function initTheme() {
+  const saved = localStorage.getItem('lc_theme') || 'dark';
+  document.documentElement.setAttribute('data-theme', saved);
+  _syncThemeBtn(saved);
+}
+
+function toggleTheme() {
+  const current = document.documentElement.getAttribute('data-theme') || 'dark';
+  const next = current === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  localStorage.setItem('lc_theme', next);
+  _syncThemeBtn(next);
+}
+
+function _syncThemeBtn(theme) {
+  const btn = document.getElementById('themeToggleBtn');
+  if (!btn) return;
+  btn.textContent = theme === 'dark' ? '☀️' : '🌙';
+  btn.title = theme === 'dark' ? 'ライトモードに切替' : 'ダークモードに切替';
+}
+
 // ─── INIT ───
 window.addEventListener('DOMContentLoaded', () => {
+  initTheme();
   initData();
   CU = requireAuth();
   if (!CU) return;
@@ -74,9 +100,11 @@ function renderSidebar() {
     { id: 'shifts',    icon: '🗓️', label: 'シフト',         show: true },
     { id: 'team',      icon: '👥', label: 'チーム実績',     show: canSeeTeam },
     { id: 'ranking',   icon: '🏆', label: 'ランキング',     show: canSeeTeam },
-    { id: 'targets',   icon: '🎯', label: '目標設定',       show: canSetTargets },
-    { id: 'talent',    icon: '📋', label: '人財カルテ',     show: level >= 4 },
-    { id: 'members',   icon: '⚙️', label: 'メンバー管理',  show: level >= 5 },
+    { id: 'targets',        icon: '🎯', label: '目標設定',       show: canSetTargets },
+    { id: 'venue-achieve',  icon: '📊', label: '現場達成率',     show: true },
+    { id: 'talent',         icon: '📋', label: '人財カルテ',     show: level >= 4 },
+    { id: 'members',        icon: '⚙️', label: 'メンバー管理',  show: level >= 5 },
+    { id: 'settings',       icon: '🔧', label: '設定',           show: true },
   ];
 
   const items = nav.filter(n => n.show);
@@ -163,10 +191,12 @@ function route() {
     'shifts-plan': 'シフト作成',
     team:      'チーム実績',
     ranking:   'ランキング',
-    targets:   '目標設定',
-    talent:    '人財カルテ',
-    profile:   '',
-    members:   'メンバー管理',
+    targets:        '目標設定',
+    'venue-achieve': '現場達成率',
+    talent:         '人財カルテ',
+    profile:        '',
+    members:        'メンバー管理',
+    settings:       '設定',
   };
   document.getElementById('topbarTitle').textContent = titles[hash] || '';
 
@@ -179,10 +209,12 @@ function route() {
     'shifts-plan': renderShiftsPlan,
     team:      renderTeam,
     ranking:   renderRanking,
-    targets:   renderTargets,
-    talent:    renderTalent,
-    profile:   renderProfile,
-    members:   renderMembers,
+    targets:        renderTargets,
+    'venue-achieve': renderVenueAchieve,
+    talent:         renderTalent,
+    profile:        renderProfile,
+    members:        renderMembers,
+    settings:       renderSettings,
   };
   (pages[hash] || renderDashboard)();
 }
@@ -1633,6 +1665,28 @@ function renderShiftsMonth() {
   const monthLabelText = monthLabel(monthStr);
   const workCount = selectedUser ? getWorkingDaysCount(selectedUser.id, monthStr) : 0;
 
+  // 実績報告チェック（reportType があるユーザーのみ）
+  const needsReport = !!selectedUser?.reportType;
+  const reportedDates = needsReport
+    ? new Set(getUserReportsForMonth(selectedUser.id, monthStr).map(r => r.date))
+    : new Set();
+  const today = todayStr();
+
+  // 過去の出勤日で報告済み/未報告の集計
+  let workDaysPast = 0, reportedCount = 0;
+  if (needsReport) {
+    const lastDay = new Date(shiftMonthCursor.getFullYear(), shiftMonthCursor.getMonth() + 1, 0).getDate();
+    for (let d = 1; d <= lastDay; d++) {
+      const ds = dateToStr(new Date(shiftMonthCursor.getFullYear(), shiftMonthCursor.getMonth(), d));
+      if (ds > today) break;
+      const slot = getShiftForUser(selectedUser.id, ds);
+      if (slot && slot.site !== '休み') {
+        workDaysPast++;
+        if (reportedDates.has(ds)) reportedCount++;
+      }
+    }
+  }
+
   const weeks = buildMonthMatrix(shiftMonthCursor);
   const calendarHtml = weeks.map(week => `
     <tr>
@@ -1640,7 +1694,7 @@ function renderShiftsMonth() {
         if (!day) return `<td class="month-cell is-empty"></td>`;
         const ds = dateToStr(day);
         const slot = selectedUser ? getShiftForUser(selectedUser.id, ds) : null;
-        const isToday = ds === todayStr();
+        const isToday = ds === today;
         const wk = day.getDay();
         const tone = getShiftDayTone(wk);
         const isOff = slot?.site === '休み';
@@ -1650,11 +1704,21 @@ function renderShiftsMonth() {
           : isOff
             ? 'background:rgba(122,130,153,.1);color:var(--text-sub);border-color:rgba(122,130,153,.2)'
             : 'background:transparent;color:var(--text-sub);border-color:var(--border)';
+        // 報告バッジ（出勤日 & reportType あり & 当日以前のみ）
+        let reportBadge = '';
+        if (needsReport && slot && !isOff && ds <= today) {
+          if (reportedDates.has(ds)) {
+            reportBadge = `<div class="report-badge report-ok">✓ 報告済</div>`;
+          } else {
+            reportBadge = `<div class="report-badge report-missing">! 未報告</div>`;
+          }
+        }
         return `
           <td class="month-cell ${isToday ? 'is-today' : ''}" style="${isToday ? '' : `background:${tone.cellBg};`}">
             <div class="month-day" style="color:${tone.textColor}">${day.getDate()}</div>
             <div class="shift-chip" style="${chipStyle}">${slot ? (isOff ? '休' : _shortSite(slot.site)) : '—'}</div>
             ${slot && !isOff && slot.start ? `<div class="month-time">${slot.start}〜</div>` : ''}
+            ${reportBadge}
           </td>
         `;
       }).join('')}
@@ -1674,7 +1738,7 @@ function renderShiftsMonth() {
       </div>
     </div>
 
-    <div class="card fade-in" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+    <div class="card fade-in" style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
       <div class="form-group" style="min-width:220px;margin:0">
         <label class="form-label">表示メンバー</label>
         <select class="form-select" onchange="changeShiftMonthUser(this.value)">
@@ -1685,6 +1749,20 @@ function renderShiftsMonth() {
         <span style="color:var(--text)">${selectedUser?.name || '-'}</span> の ${shiftMonthCursor.getMonth() + 1}月出勤日数：
         <span style="font-weight:700;color:${workCount >= 21 ? 'var(--green)' : 'var(--accent)'}">${workCount}日</span>
       </div>
+      ${needsReport && workDaysPast > 0 ? (() => {
+        const pct = Math.round(reportedCount / workDaysPast * 100);
+        const color = pct === 100 ? 'var(--green)' : pct >= 70 ? 'var(--warn)' : 'var(--danger)';
+        return `
+        <div style="flex:1;min-width:200px">
+          <div class="report-summary-bar">
+            <span style="color:var(--text-sub);white-space:nowrap">報告完了率</span>
+            <div class="report-progress-track">
+              <div class="report-progress-fill" style="width:${pct}%;background:${color}"></div>
+            </div>
+            <span style="font-weight:700;color:${color};white-space:nowrap">${reportedCount}/${workDaysPast}日 (${pct}%)</span>
+          </div>
+        </div>`;
+      })() : needsReport ? `<div style="font-size:12px;color:var(--text-sub)">まだ出勤日がありません</div>` : ''}
     </div>
 
     <div class="card fade-in" style="padding:0;overflow:hidden">
@@ -2247,6 +2325,72 @@ function renderMembers() {
       </div>
     </div>
   `;
+}
+
+// ─── SETTINGS ───
+function renderSettings() {
+  const theme = document.documentElement.getAttribute('data-theme') || 'dark';
+
+  document.getElementById('main').innerHTML = `
+    <div class="page-header fade-in">
+      <div>
+        <div class="page-title">設定</div>
+        <div class="page-sub">表示・テーマのカスタマイズ</div>
+      </div>
+    </div>
+
+    <div class="card fade-in">
+      <div class="section-title">テーマ</div>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div style="font-size:14px;color:var(--text-sub)">アプリの配色を選択してください。</div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap">
+          <div class="theme-option ${theme === 'dark' ? 'active' : ''}" onclick="applyTheme('dark')">
+            <div class="theme-preview theme-preview-dark">
+              <div class="tp-bar"></div>
+              <div class="tp-sidebar"></div>
+              <div class="tp-content">
+                <div class="tp-card"></div>
+                <div class="tp-card"></div>
+              </div>
+            </div>
+            <div class="theme-option-label">
+              <span class="theme-radio ${theme === 'dark' ? 'checked' : ''}"></span>
+              ダークモード
+            </div>
+          </div>
+          <div class="theme-option ${theme === 'light' ? 'active' : ''}" onclick="applyTheme('light')">
+            <div class="theme-preview theme-preview-light">
+              <div class="tp-bar"></div>
+              <div class="tp-sidebar"></div>
+              <div class="tp-content">
+                <div class="tp-card"></div>
+                <div class="tp-card"></div>
+              </div>
+            </div>
+            <div class="theme-option-label">
+              <span class="theme-radio ${theme === 'light' ? 'checked' : ''}"></span>
+              ライトモード
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card fade-in">
+      <div class="section-title">バージョン情報</div>
+      <div style="font-size:13px;color:var(--text-sub);line-height:1.8">
+        <div>LUMP CORE</div>
+        <div>データバージョン: ${localStorage.getItem('lc_version') || '-'}</div>
+      </div>
+    </div>
+  `;
+}
+
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  localStorage.setItem('lc_theme', theme);
+  _syncThemeBtn(theme);
+  renderSettings(); // re-render to update selected state
 }
 
 function _deptOptions(selected) {
@@ -3363,4 +3507,154 @@ function steApplySave() {
   closeModal();
   showToast('スキルシートを保存しました');
   renderTalent();
+}
+
+// ═══════════════════════════════════════════════════════
+// ─── VENUE ACHIEVE（現場達成率）───
+// ═══════════════════════════════════════════════════════
+
+function renderVenueAchieve() {
+  if (!venueAchieveMonth) venueAchieveMonth = currentMonth();
+  const level = roleLevel(CU.role);
+  const canEdit = level >= 4;
+  const sites = getShiftSites();
+  const months = getAvailableMonths();
+  const achieve = getVenueAchieve(venueAchieveMonth);
+  const weekends = getWeekendDates(venueAchieveMonth);
+
+  document.getElementById('main').innerHTML = `
+    <div class="page-header fade-in">
+      <div>
+        <div class="page-title">現場達成率</div>
+        <div class="page-sub">${monthLabel(venueAchieveMonth)}の現場別予算達成状況</div>
+      </div>
+      <select class="form-input-sm" onchange="venueAchieveMonth=this.value;renderVenueAchieve()">
+        ${months.map(m => `<option value="${m}" ${m === venueAchieveMonth ? 'selected' : ''}>${monthLabel(m)}</option>`).join('')}
+      </select>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:16px">
+      ${sites.map((site, si) => {
+        const data = achieve[site] || {};
+        const sc = getSiteColor(site);
+        const accentColor = sc ? sc.text : 'var(--accent)';
+
+        const wdBudget = data.weekdayBudget || 0;
+        const wdActual = data.weekdayActual || 0;
+        const wdRate   = calcAchieve(wdActual, wdBudget);
+
+        const weekendRows = weekends.map(({ sat, sun }) => {
+          const weData   = (data.weekends || {})[sat] || {};
+          const weBudget = weData.budget || 0;
+          const weActual = weData.actual || 0;
+          const weRate   = calcAchieve(weActual, weBudget);
+          const label    = formatDate(sat) + '(土)' + (sun ? '・' + formatDate(sun) + '(日)' : '');
+          return { sat, label, weBudget, weActual, weRate };
+        });
+
+        return `
+          <div class="card fade-in">
+            <!-- ヘッダー -->
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+              <div style="display:flex;align-items:center;gap:10px">
+                <div style="width:4px;height:26px;border-radius:2px;background:${accentColor}"></div>
+                <span style="font-size:18px;font-weight:700">${site}</span>
+              </div>
+              ${canEdit ? `<button class="btn btn-primary" style="font-size:12px;padding:6px 14px" onclick="venueAchieveSave(${si})">保存</button>` : ''}
+            </div>
+
+            <!-- 平日予算（月合計） -->
+            <div style="margin-bottom:20px">
+              <div class="section-title">平日予算（月合計）</div>
+              <div style="display:flex;align-items:flex-end;gap:20px;flex-wrap:wrap;margin-bottom:10px">
+                <div>
+                  <div style="font-size:11px;color:var(--text-sub);margin-bottom:4px">予算</div>
+                  ${canEdit
+                    ? `<input type="number" class="form-input-sm" id="va_wd_budget_${si}" value="${wdBudget || ''}" placeholder="0" min="0" style="width:110px">`
+                    : `<div style="font-family:'Space Grotesk';font-size:24px;font-weight:700">${wdBudget || '—'}</div>`}
+                </div>
+                <div>
+                  <div style="font-size:11px;color:var(--text-sub);margin-bottom:4px">実績</div>
+                  ${canEdit
+                    ? `<input type="number" class="form-input-sm" id="va_wd_actual_${si}" value="${wdActual || ''}" placeholder="0" min="0" style="width:110px">`
+                    : `<div style="font-family:'Space Grotesk';font-size:24px;font-weight:700">${wdActual || '—'}</div>`}
+                </div>
+                ${wdBudget > 0 ? `
+                  <div style="flex:1;min-width:160px">
+                    <div style="font-size:11px;color:var(--text-sub);margin-bottom:6px">達成率</div>
+                    <div style="display:flex;align-items:center;gap:10px">
+                      <div class="va-progress-bar" style="flex:1">
+                        <div class="va-progress-fill" style="width:${Math.min(wdRate || 0, 100)}%;background:${achieveColor(wdRate)}"></div>
+                      </div>
+                      <div style="font-family:'Space Grotesk';font-size:20px;font-weight:700;color:${achieveColor(wdRate)};min-width:52px;text-align:right">${wdRate}%</div>
+                    </div>
+                  </div>
+                ` : ''}
+              </div>
+            </div>
+
+            <!-- 週末予算 -->
+            <div>
+              <div class="section-title">週末予算</div>
+              ${weekendRows.length === 0
+                ? `<div style="color:var(--text-sub);font-size:13px">この月に週末はありません</div>`
+                : `<div style="display:flex;flex-direction:column;gap:8px">
+                    ${weekendRows.map(({ sat, label, weBudget, weActual, weRate }) => `
+                      <div class="va-weekend-row">
+                        <div style="font-size:12px;font-weight:600;color:var(--text-sub);margin-bottom:8px">${label}</div>
+                        <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+                          ${canEdit ? `
+                            <div style="display:flex;align-items:center;gap:6px">
+                              <span style="font-size:11px;color:var(--text-sub)">予算</span>
+                              <input type="number" class="form-input-sm" id="va_we_budget_${si}_${sat}" value="${weBudget || ''}" placeholder="0" min="0" style="width:90px">
+                            </div>
+                            <div style="display:flex;align-items:center;gap:6px">
+                              <span style="font-size:11px;color:var(--text-sub)">実績</span>
+                              <input type="number" class="form-input-sm" id="va_we_actual_${si}_${sat}" value="${weActual || ''}" placeholder="0" min="0" style="width:90px">
+                            </div>
+                          ` : `
+                            <span style="font-size:13px;color:var(--text-sub)">予算 <strong style="color:var(--text);font-family:'Space Grotesk'">${weBudget || '—'}</strong></span>
+                            <span style="font-size:13px;color:var(--text-sub)">実績 <strong style="color:var(--text);font-family:'Space Grotesk'">${weActual || '—'}</strong></span>
+                          `}
+                          ${weBudget > 0 ? `
+                            <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:140px">
+                              <div class="va-progress-bar" style="flex:1">
+                                <div class="va-progress-fill" style="width:${Math.min(weRate || 0, 100)}%;background:${achieveColor(weRate)}"></div>
+                              </div>
+                              <div style="font-family:'Space Grotesk';font-size:16px;font-weight:700;color:${achieveColor(weRate)};min-width:48px;text-align:right">${weRate}%</div>
+                            </div>
+                          ` : ''}
+                        </div>
+                      </div>
+                    `).join('')}
+                  </div>`
+              }
+            </div>
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `;
+}
+
+function venueAchieveSave(si) {
+  const sites = getShiftSites();
+  const site  = sites[si];
+  if (!site) return;
+  const month    = venueAchieveMonth;
+  const weekends = getWeekendDates(month);
+
+  const weekdayBudget = parseInt(document.getElementById(`va_wd_budget_${si}`)?.value) || 0;
+  const weekdayActual = parseInt(document.getElementById(`va_wd_actual_${si}`)?.value) || 0;
+
+  const weekendData = {};
+  weekends.forEach(({ sat }) => {
+    const budget = parseInt(document.getElementById(`va_we_budget_${si}_${sat}`)?.value) || 0;
+    const actual = parseInt(document.getElementById(`va_we_actual_${si}_${sat}`)?.value) || 0;
+    weekendData[sat] = { budget, actual };
+  });
+
+  setVenueAchieveSite(month, site, { weekdayBudget, weekdayActual, weekends: weekendData });
+  showToast(`${site} の達成率を保存しました`);
+  renderVenueAchieve();
 }

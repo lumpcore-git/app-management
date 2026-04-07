@@ -23,6 +23,11 @@
 
 **読み込み順（必ず守る）:** `data.js` → `auth.js` → `app.js`
 
+> **data.js はAPIゲートウェイ相当として扱う。**
+> app.js・auth.js から直接 `localStorage` / `sessionStorage` を触ることを禁止。
+> データの読み書きは必ず data.js の関数または `Store` / `getTheme()` / `setTheme()` を経由すること。
+> → Azure移行時は data.js と auth.js のみを差し替えれば済む設計を維持する。
+
 ---
 
 ## データ構造
@@ -263,8 +268,9 @@ let shiftPlanWeekdayOnly = false; // 土日非表示トグル
 | `lc_session` | セッション（sessionStorageに保存） |
 | `lc_version` | DATA_VERSION番号 |
 | `lc_shift_plan_hidden` | シフト作成の非表示日付 { [month]: ['YYYY-MM-DD',...] } |
+| `lc_theme` | テーマ設定 `'dark'` \| `'light'`（クライアントローカル — Azure移行後も保持） |
 
-**注意:** `lc_shift_plan_hidden` は LS オブジェクトに含まれず、data.js でハードコードされている。
+**注意:** `lc_theme` はUIのローカル設定のため、Azure移行後もlocalStorageのままで問題ない。`getTheme()` / `setTheme()` 経由でアクセスすること。
 
 ---
 
@@ -281,8 +287,9 @@ let shiftPlanWeekdayOnly = false; // 土日非表示トグル
 
 ## 注意事項
 
-- **セッション管理:** sessionStorage（タブを閉じるとログアウト）
-- **ユーザー追加・名前変更:** data.jsのINITIAL_USERSを変更 → DATA_VERSIONを上げる
+- **セッション管理:** sessionStorage（タブを閉じるとログアウト）。Azure移行後はEntra IDトークンに置き換わる
+- **ユーザー追加・名前変更（プロトタイプ期間のみ）:** data.jsのINITIAL_USERSを変更 → DATA_VERSIONを上げる。Azure移行後はEntra ID + Cosmos DBから取得するため、INITIAL_USERSは不要になる
+- **DATA_VERSIONマイグレーションはlocalStorage専用:** Azure移行後は不要になる。スキーマ変更のために不必要にDATA_VERSIONを上げることは避ける
 - **新機能追加時:** 権限チェックを `route()` と `renderSidebar()` の**両方**に追加する
 - **写真のlocalStorage容量:** base64画像は大きい。35名全員に写真を入れると ~5MB上限に近づく
 - **ダッシュボード分岐:** `renderDashboard()` はロール別に4つの関数を呼び分ける
@@ -291,6 +298,35 @@ let shiftPlanWeekdayOnly = false; // 土日非表示トグル
   - reportType==='refa' → `renderRefaDashboard()`
   - その他 → `renderBasicDashboard()`
 - **既知バグ:** adminDashboard の `totalMnp` / `totalShinki` 集計が `r.mnp`/`r.shinki` を参照しており常に0（実際のフィールドは `sbmnp`/`ymnp`/`sb_shinki`/`ym_shinki`）
+
+---
+
+## Azure移行に備えた設計ルール
+
+### 移行時に差し替えるファイル
+| ファイル | 現在 | Azure移行後 |
+|----------|------|-------------|
+| `data.js` の `Store` オブジェクト | localStorage | Cosmos DB SDK |
+| `data.js` の各データ関数 | 同期 | async/await 化が必要 |
+| `auth.js` | sessionStorage + パスワード認証 | MSAL.js + Entra ID SSO |
+
+### 変わらないもの
+- `app.js` のレンダリングロジック全体（UIはそのまま）
+- `css/` のスタイル
+- `lc_theme` のlocalStorage保存（UIローカル設定）
+
+### 移行手順メモ（将来の作業者向け）
+1. `Store.get` / `Store.set` / `Store.remove` を Cosmos DB SDK 呼び出しに書き換える
+2. 各データ関数を `async/await` 化する（app.js 側も `await` が必要になる）
+3. `LS` のキー名をCosmosDBのコンテナ名・ドキュメントIDに読み替える
+4. `auth.js` を MSAL.js を使ったEntra ID認証に置き換える（`pw` フィールドは不要）
+5. `INITIAL_USERS` を削除し、ユーザー情報はEntra ID + Cosmos DBから取得する
+6. `DATA_VERSION` マイグレーション処理は削除する（DBスキーマ管理に移行）
+
+### コーディング時の禁止事項
+- `app.js` から直接 `localStorage.getItem/setItem` を呼ぶこと（`lc_theme` は例外）
+- `app.js` から直接 `sessionStorage` を呼ぶこと
+- データ操作のロジックを `app.js` に書くこと（必ず `data.js` に関数を作る）
 
 ---
 

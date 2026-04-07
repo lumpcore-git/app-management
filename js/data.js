@@ -78,6 +78,8 @@ const LS = {
   venueAchieve:   'lc_venue_achieve',
   session:        'lc_session',
   version:        'lc_version',
+  shiftPlanHidden:'lc_shift_plan_hidden',
+  theme:          'lc_theme',
 };
 
 // ─── STORAGE ADAPTER ───
@@ -105,6 +107,14 @@ const Store = {
     localStorage.removeItem(key);
   },
 };
+
+// ─── THEME (クライアントローカル設定 — Azure移行後もlocalStorageに残す) ───
+function getTheme() {
+  return localStorage.getItem(LS.theme) || 'dark';
+}
+function setTheme(theme) {
+  localStorage.setItem(LS.theme, theme);
+}
 
 // ─── INIT & MIGRATION ───
 function initData() {

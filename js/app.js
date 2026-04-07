@@ -23,7 +23,7 @@ let venueAchieveMonth = '';
 
 // ─── THEME ───
 function initTheme() {
-  const saved = localStorage.getItem('lc_theme') || 'dark';
+  const saved = getTheme();
   document.documentElement.setAttribute('data-theme', saved);
   _syncThemeBtn(saved);
 }
@@ -32,7 +32,7 @@ function toggleTheme() {
   const current = document.documentElement.getAttribute('data-theme') || 'dark';
   const next = current === 'dark' ? 'light' : 'dark';
   document.documentElement.setAttribute('data-theme', next);
-  localStorage.setItem('lc_theme', next);
+  setTheme(next);
   _syncThemeBtn(next);
 }
 
@@ -2380,7 +2380,7 @@ function renderSettings() {
       <div class="section-title">バージョン情報</div>
       <div style="font-size:13px;color:var(--text-sub);line-height:1.8">
         <div>LUMP CORE</div>
-        <div>データバージョン: ${localStorage.getItem('lc_version') || '-'}</div>
+        <div>データバージョン: ${Store.get(LS.version) ?? '-'}</div>
       </div>
     </div>
   `;
@@ -2388,7 +2388,7 @@ function renderSettings() {
 
 function applyTheme(theme) {
   document.documentElement.setAttribute('data-theme', theme);
-  localStorage.setItem('lc_theme', theme);
+  setTheme(theme);
   _syncThemeBtn(theme);
   renderSettings(); // re-render to update selected state
 }

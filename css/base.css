@@ -18,10 +18,10 @@
 
 /* ─── LIGHT THEME ─── */
 html[data-theme="light"] {
-  --bg: #f0f2ff;
-  --surface: #ffffff;
-  --surface2: #e4e9ff;
-  --border: #bec9eb;
+  --bg: #dce0f0;
+  --surface: #eaedf8;
+  --surface2: #d0d5e8;
+  --border: #a8b2d0;
   --accent: #5f4fd6;
   --accent2: #0096b7;
   --warn: #c97a00;
@@ -29,8 +29,8 @@ html[data-theme="light"] {
   --text: #1a2040;
   --text-sub: #4e5a80;
   --green: #00876b;
-  --body-grad1: #a0b4f0;
-  --body-grad2: #b09ee8;
+  --body-grad1: #8fa8e0;
+  --body-grad2: #9e8cd8;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }

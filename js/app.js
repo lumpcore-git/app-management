@@ -3015,6 +3015,8 @@ function switchProfileTab(tab) {
     const p = document.getElementById('pp_' + t);
     if (p) p.classList.toggle('hidden', t !== tab);
   });
+  const layout = document.querySelector('.profile-layout');
+  if (layout) layout.classList.toggle('skill-active', tab === 'skill');
 }
 
 function saveProfileCard(userId) {

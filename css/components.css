@@ -714,6 +714,42 @@ td { padding: 12px 16px; vertical-align: middle; }
   max-height: 90vh;
 }
 
+/* 検索 + ソートコントロール */
+.tc-controls {
+  display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;
+}
+.tc-search-wrap { position: relative; flex: 1; min-width: 180px; }
+.tc-search-icon {
+  position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+  font-size: 13px; pointer-events: none; opacity: .6;
+}
+.tc-search-input {
+  width: 100%; background: var(--surface2); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 8px 32px 8px 32px;
+  color: var(--text); font-size: 13px; font-family: inherit; outline: none;
+  box-sizing: border-box; transition: border-color .15s;
+}
+.tc-search-input:focus { border-color: var(--accent); }
+.tc-search-clear {
+  position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+  background: none; border: none; color: var(--text-sub); cursor: pointer;
+  font-size: 13px; padding: 2px 4px; line-height: 1; border-radius: 4px;
+  transition: color .15s;
+}
+.tc-search-clear:hover { color: var(--text); }
+.tc-sort-select { width: auto; min-width: 130px; padding: 8px 12px; font-size: 13px; }
+
+/* メンバー管理コントロール */
+.member-controls {
+  display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;
+}
+
+/* 空状態 */
+.list-empty {
+  text-align: center; color: var(--text-sub); font-size: 13px; padding: 40px 0;
+  grid-column: 1 / -1;
+}
+
 /* フィルターバー */
 .talent-filter-bar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
 .talent-filter-btn {
@@ -754,6 +790,7 @@ td { padding: 12px 16px; vertical-align: middle; }
 .tc-role-line { font-size: 12px; color: var(--text-sub); margin-bottom: 8px; }
 .tc-job { font-size: 13px; line-height: 1.5; }
 .tc-join { font-size: 12px; color: var(--text-sub); margin-top: 4px; }
+.tc-tenure { opacity: .75; }
 
 /* メトリクス行: 生産性 | スキル達成 */
 .tc-metrics { display: flex; border-bottom: 1px solid var(--border); }
@@ -967,6 +1004,8 @@ td { padding: 12px 16px; vertical-align: middle; }
 .profile-dept { font-size: 12px; font-weight: 600; letter-spacing: .3px; margin-bottom: 2px; }
 .profile-role { font-size: 12px; color: var(--text-sub); margin-bottom: 4px; }
 .profile-join { font-size: 11px; color: var(--text-sub); }
+.profile-tenure { opacity: .75; margin-left: 2px; }
+.tenure-hint { font-size: 12px; color: var(--accent); margin-top: 4px; font-family: 'Space Grotesk', sans-serif; }
 
 .profile-left-section {
   padding: 12px 20px;
@@ -1104,6 +1143,75 @@ td { padding: 12px 16px; vertical-align: middle; }
 }
 .profile-agg-unit { font-size: 11px; font-weight: 400; margin-left: 2px; }
 .profile-agg-pt { font-size: 11px; color: var(--green); font-weight: 600; }
+
+/* ─── 経歴・面談タブ（ジョブ経歴タイムライン + 面談ログ） ─── */
+.hist-section { margin-bottom: 28px; }
+.hist-section-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 14px;
+}
+.hist-section-title {
+  font-size: 13px; font-weight: 700; color: var(--text-sub);
+  letter-spacing: .4px; text-transform: uppercase;
+}
+.hist-add-btn {
+  font-size: 12px; padding: 4px 12px; color: var(--accent); border-color: var(--accent);
+}
+.hist-add-btn:hover { background: rgba(171,160,255,.1); }
+.hist-empty { font-size: 13px; color: var(--text-sub); padding: 12px 0; }
+
+/* タイムライン */
+.hist-timeline { display: flex; flex-direction: column; gap: 0; }
+.hist-entry {
+  display: flex; gap: 12px; position: relative; padding-bottom: 20px;
+}
+.hist-entry:last-child { padding-bottom: 0; }
+.hist-dot {
+  width: 12px; height: 12px; border-radius: 50%;
+  background: var(--surface2); border: 2px solid var(--border);
+  flex-shrink: 0; margin-top: 4px; position: relative; z-index: 1;
+}
+.hist-dot--current { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 0 3px rgba(171,160,255,.25); }
+.hist-entry:not(:last-child) .hist-dot::after {
+  content: ''; position: absolute; left: 50%; top: 14px;
+  transform: translateX(-50%);
+  width: 2px; height: calc(100% + 8px);
+  background: var(--border); z-index: 0;
+}
+.hist-line-wrap { flex: 1; min-width: 0; }
+.hist-header { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 4px; }
+.hist-date { font-size: 11px; color: var(--text-sub); white-space: nowrap; }
+.hist-role { font-size: 14px; font-weight: 700; color: var(--text); }
+.hist-dept {
+  font-size: 11px; color: var(--accent2); background: rgba(128,241,255,.12);
+  padding: 1px 7px; border-radius: 20px;
+}
+.hist-badge-now {
+  font-size: 10px; font-weight: 700; color: var(--accent);
+  background: rgba(171,160,255,.15); padding: 1px 7px; border-radius: 20px;
+}
+.hist-memo { font-size: 12px; color: var(--text-sub); line-height: 1.6; margin-top: 4px; }
+.hist-actions { display: flex; gap: 6px; margin-top: 8px; }
+.hist-btn { font-size: 11px; padding: 3px 10px; }
+.hist-btn--danger { color: var(--danger); border-color: transparent; }
+.hist-btn--danger:hover { background: rgba(255,149,179,.1); border-color: var(--danger); }
+
+/* 面談ログカード */
+.ilog-list { display: flex; flex-direction: column; gap: 10px; }
+.ilog-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 14px 16px;
+}
+.ilog-header {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.ilog-date { font-size: 13px; font-weight: 700; color: var(--accent2); }
+.ilog-interviewer { font-size: 11px; color: var(--text-sub); background: var(--surface2); padding: 2px 8px; border-radius: 20px; }
+.ilog-actions { margin-left: auto; display: flex; gap: 6px; }
+.ilog-section { margin-top: 8px; }
+.ilog-label { font-size: 10px; font-weight: 700; color: var(--text-sub); letter-spacing: .3px; margin-bottom: 3px; }
+.ilog-body { font-size: 13px; color: var(--text); line-height: 1.65; }
 
 /* モバイル対応 */
 @media (max-width: 768px) {

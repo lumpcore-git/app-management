@@ -80,6 +80,8 @@ const LS = {
   version:        'lc_version',
   shiftPlanHidden:'lc_shift_plan_hidden',
   theme:          'lc_theme',
+  jobHistory:     'lc_job_history',
+  interviewLogs:  'lc_interview_logs',
 };
 
 // ─── STORAGE ADAPTER ───
@@ -508,6 +510,55 @@ function setTalentCard(userId, data) {
   const cards = getTalentCards();
   cards[userId] = { ...(cards[userId] || {}), ...data, updatedAt: new Date().toISOString() };
   saveTalentCards(cards);
+}
+
+// ─── JOB HISTORY (ジョブ経歴) ───
+// lc_job_history: { [userId]: [ { id, date, role, dept, memo, createdAt } ] }
+// date: 'YYYY-MM'  role: 表示用役職テキスト  dept: 事業部テキスト
+function getJobHistory(userId) {
+  return (Store.get(LS.jobHistory, {})[userId] || [])
+    .slice().sort((a, b) => (a.date < b.date ? -1 : 1));
+}
+function addJobHistoryEntry(userId, entry) {
+  const all = Store.get(LS.jobHistory, {});
+  const list = all[userId] || [];
+  list.push({ ...entry, id: 'jh' + Date.now(), createdAt: new Date().toISOString() });
+  all[userId] = list;
+  Store.set(LS.jobHistory, all);
+}
+function updateJobHistoryEntry(userId, entryId, data) {
+  const all = Store.get(LS.jobHistory, {});
+  all[userId] = (all[userId] || []).map(e => e.id === entryId ? { ...e, ...data } : e);
+  Store.set(LS.jobHistory, all);
+}
+function deleteJobHistoryEntry(userId, entryId) {
+  const all = Store.get(LS.jobHistory, {});
+  all[userId] = (all[userId] || []).filter(e => e.id !== entryId);
+  Store.set(LS.jobHistory, all);
+}
+
+// ─── INTERVIEW LOGS (面談ログ) ───
+// lc_interview_logs: { [userId]: [ { id, date, interviewer, summary, agreedActions, nextDate, createdAt } ] }
+function getInterviewLogs(userId) {
+  return (Store.get(LS.interviewLogs, {})[userId] || [])
+    .slice().sort((a, b) => (a.date > b.date ? -1 : 1)); // 新しい順
+}
+function addInterviewLog(userId, log) {
+  const all = Store.get(LS.interviewLogs, {});
+  const list = all[userId] || [];
+  list.push({ ...log, id: 'il' + Date.now(), createdAt: new Date().toISOString() });
+  all[userId] = list;
+  Store.set(LS.interviewLogs, all);
+}
+function updateInterviewLog(userId, logId, data) {
+  const all = Store.get(LS.interviewLogs, {});
+  all[userId] = (all[userId] || []).map(l => l.id === logId ? { ...l, ...data } : l);
+  Store.set(LS.interviewLogs, all);
+}
+function deleteInterviewLog(userId, logId) {
+  const all = Store.get(LS.interviewLogs, {});
+  all[userId] = (all[userId] || []).filter(l => l.id !== logId);
+  Store.set(LS.interviewLogs, all);
 }
 
 // ─── PHOTOS (顔写真, base64) ───

@@ -2281,51 +2281,113 @@ function savePlanCell(userId, dateStr) {
 // ═══════════════════════════════════════════════════════
 // ─── PAGE: メンバー管理（admin only） ───
 // ═══════════════════════════════════════════════════════
+// メンバー行HTML（テーブル tbody 用）
+function _memberRowsHTML(users) {
+  if (!users.length) return `<tr><td colspan="4" class="list-empty" style="padding:32px">該当するメンバーが見つかりません</td></tr>`;
+  return users.map(u => `
+    <tr>
+      <td>
+        <div class="emp-cell">
+          <div class="avatar" style="background:${roleColor(u.role)}">${u.name[0]}</div>
+          <span class="emp-name">${u.name}</span>
+        </div>
+      </td>
+      <td style="color:${DEPTS[u.dept]?.color};font-size:12px">${deptLabel(u.dept)}</td>
+      <td style="color:${roleColor(u.role)};font-size:12px">${getUserDisplayRole(u)}</td>
+      <td style="display:flex;gap:8px;align-items:center">
+        <button class="btn btn-ghost" style="font-size:12px;padding:6px 12px"
+          onclick="openEditMember('${u.id}')">編集</button>
+        ${u.id !== CU.id
+          ? `<button class="btn btn-danger" style="font-size:12px;padding:6px 12px"
+              onclick="confirmDeleteMember('${u.id}')">削除</button>`
+          : '<span style="font-size:11px;color:var(--text-sub)">(自分)</span>'}
+      </td>
+    </tr>
+  `).join('');
+}
+
+// 検索クエリに基づき絞り込んだユーザーを返す
+function _filteredMemberUsers() {
+  const deptOrder = Object.keys(DEPTS);
+  const idNum = u => parseInt(u.id.replace(/\D/g, '')) || 0;
+  let users = getUsers().sort((a, b) => {
+    const di = deptOrder.indexOf(a.dept) - deptOrder.indexOf(b.dept);
+    return di !== 0 ? di : idNum(a) - idNum(b);
+  });
+  if (memberFilterDept !== 'all') users = users.filter(u => u.dept === memberFilterDept);
+  const q = memberQuery.trim().toLowerCase();
+  if (q) users = users.filter(u =>
+    u.name.toLowerCase().includes(q)
+    || deptLabel(u.dept).toLowerCase().includes(q)
+    || getUserDisplayRole(u).toLowerCase().includes(q)
+  );
+  return users;
+}
+
+// テーブルと件数だけ更新（検索inputには触らない）
+function _refreshMemberTable() {
+  const users = _filteredMemberUsers();
+  const tbody = document.getElementById('member-tbody');
+  if (tbody) tbody.innerHTML = _memberRowsHTML(users);
+  const sub = document.getElementById('member-sub');
+  if (sub) sub.textContent = `ユーザーの追加・編集・削除（${users.length} / ${getUsers().length}名）`;
+  const clear = document.getElementById('member-clear');
+  if (clear) clear.style.display = memberQuery ? '' : 'none';
+}
+
 function renderMembers() {
-  const users = getUsers();
+  const users = _filteredMemberUsers();
+  const totalAll = getUsers().length;
+  const deptFilters = [
+    { key: 'all', label: 'すべて' },
+    ...Object.entries(DEPTS).map(([k, v]) => ({ key: k, label: v.label })),
+  ];
 
   document.getElementById('main').innerHTML = `
     <div class="page-header fade-in">
       <div>
         <div class="page-title">メンバー管理</div>
-        <div class="page-sub">ユーザーの追加・編集・削除（全${users.length}名）</div>
+        <div id="member-sub" class="page-sub">ユーザーの追加・編集・削除（${users.length} / ${totalAll}名）</div>
       </div>
       <button class="btn btn-primary" onclick="openAddMember()">＋ メンバー追加</button>
     </div>
-
+    <div class="member-controls fade-in">
+      <div class="tc-search-wrap" style="max-width:300px">
+        <span class="tc-search-icon">🔍</span>
+        <input type="text" id="member-q" class="tc-search-input" placeholder="名前・事業部・役職で検索"
+          value="${memberQuery.replace(/"/g, '&quot;')}"
+          oninput="setMemberQuery(this.value)">
+        <button id="member-clear" class="tc-search-clear" onclick="setMemberQuery('')"
+          style="${memberQuery ? '' : 'display:none'}">✕</button>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        ${deptFilters.map(f => `
+          <button class="talent-filter-btn ${memberFilterDept === f.key ? 'active' : ''}"
+            onclick="setMemberFilterDept('${f.key}')">${f.label}</button>
+        `).join('')}
+      </div>
+    </div>
     <div class="card fade-in">
       <div class="table-wrap">
         <table>
           <thead>
             <tr><th>名前</th><th>事業部</th><th>役職</th><th>操作</th></tr>
           </thead>
-          <tbody>
-            ${users.map(u => `
-              <tr>
-                <td>
-                  <div class="emp-cell">
-                    <div class="avatar" style="background:${roleColor(u.role)}">${u.name[0]}</div>
-                    <span class="emp-name">${u.name}</span>
-                  </div>
-                </td>
-                <td style="color:${DEPTS[u.dept]?.color};font-size:12px">${deptLabel(u.dept)}</td>
-                <td style="color:${roleColor(u.role)};font-size:12px">${getUserDisplayRole(u)}</td>
-                <td style="display:flex;gap:8px;align-items:center">
-                  <button class="btn btn-ghost" style="font-size:12px;padding:6px 12px"
-                    onclick="openEditMember('${u.id}')">編集</button>
-                  ${u.id !== CU.id ? `
-                    <button class="btn btn-danger" style="font-size:12px;padding:6px 12px"
-                      onclick="confirmDeleteMember('${u.id}')">削除</button>
-                  ` : '<span style="font-size:11px;color:var(--text-sub)">(自分)</span>'}
-                </td>
-              </tr>
-            `).join('')}
+          <tbody id="member-tbody">
+            ${_memberRowsHTML(users)}
           </tbody>
         </table>
       </div>
     </div>
   `;
 }
+
+function setMemberQuery(val) {
+  memberQuery = val;
+  _refreshMemberTable(); // inputには触れず結果だけ更新
+}
+
+function setMemberFilterDept(dept) { memberFilterDept = dept; renderMembers(); }
 
 // ─── SETTINGS ───
 function renderSettings() {
@@ -2572,26 +2634,156 @@ function execDeleteMember(userId) {
 // ════════════════════════════════════════════
 
 let talentFilterDept = 'all';
+let talentSortKey    = 'productivity'; // 'productivity'|'skill'|'interview_new'|'interview_old'|'joined'
+let talentQuery      = '';
+let memberQuery      = '';
+let memberFilterDept = 'all';
 let _talentSkillDraft = null; // スキルシート編集中のドラフト
+
+// 在籍期間を計算して "X年Yヶ月" 形式で返す
+function calcTenure(joinMonth) {
+  if (!joinMonth) return '';
+  const [jy, jm] = joinMonth.split('-').map(Number);
+  const now = new Date();
+  const months = (now.getFullYear() - jy) * 12 + (now.getMonth() + 1 - jm);
+  if (months < 0) return '';
+  const years = Math.floor(months / 12);
+  const rem = months % 12;
+  if (years === 0) return `${rem}ヶ月`;
+  if (rem === 0) return `${years}年`;
+  return `${years}年${rem}ヶ月`;
+}
+
+// 入社年月inputの変更時に在籍期間ヒントをリアルタイム更新
+function updateTenureHint(inputId, hintId) {
+  const val = document.getElementById(inputId)?.value;
+  const hint = document.getElementById(hintId);
+  if (!hint) return;
+  hint.textContent = val ? calcTenure(val) : '';
+}
+
+// ─── ソート ───
+function _sortTalentUsers(users) {
+  const deptOrder = Object.keys(DEPTS);
+  const idNum = u => parseInt(u.id.replace(/\D/g, '')) || 0;
+  return [...users].sort((a, b) => {
+    switch (talentSortKey) {
+      case 'name':
+        return a.name.localeCompare(b.name, 'ja');
+      case 'productivity': {
+        const ta = getTalentProductivityTrend(a.id, 1);
+        const tb = getTalentProductivityTrend(b.id, 1);
+        const va = ta ? ta[0].value : -1;
+        const vb = tb ? tb[0].value : -1;
+        return vb - va;
+      }
+      case 'skill': {
+        const sa = getSkillScore(a.id), sb = getSkillScore(b.id);
+        const pa = sa.total > 0 ? sa.checked / sa.total : -1;
+        const pb = sb.total > 0 ? sb.checked / sb.total : -1;
+        return pb - pa;
+      }
+      case 'interview_new': {
+        const da = getTalentCard(a.id).lastInterviewDate || '';
+        const db = getTalentCard(b.id).lastInterviewDate || '';
+        if (!da && !db) return idNum(a) - idNum(b);
+        if (!da) return 1; if (!db) return -1;
+        return db.localeCompare(da); // 新しい順（未設定は末尾）
+      }
+      case 'interview_old': {
+        const da = getTalentCard(a.id).lastInterviewDate || '';
+        const db = getTalentCard(b.id).lastInterviewDate || '';
+        if (!da && !db) return idNum(a) - idNum(b);
+        if (!da) return 1; if (!db) return -1;
+        return da.localeCompare(db); // 古い順（面談が遅れているメンバーが上）
+      }
+      case 'joined': {
+        const ja = getTalentCard(a.id).joinMonth || '';
+        const jb = getTalentCard(b.id).joinMonth || '';
+        if (!ja && !jb) return idNum(a) - idNum(b);
+        if (!ja) return 1; if (!jb) return -1;
+        return ja.localeCompare(jb); // 古い順（入社が早い順）
+      }
+      default: { // 'dept': 事業部順 → ID順
+        const di = deptOrder.indexOf(a.dept) - deptOrder.indexOf(b.dept);
+        return di !== 0 ? di : idNum(a) - idNum(b);
+      }
+    }
+  });
+}
+
+function _filterTalentUsers(users) {
+  const q = talentQuery.trim().toLowerCase();
+  if (!q) return users;
+  return users.filter(u => {
+    const card = getTalentCard(u.id);
+    return u.name.toLowerCase().includes(q)
+      || (card.jobDescription || '').toLowerCase().includes(q)
+      || deptLabel(u.dept).toLowerCase().includes(q)
+      || getUserDisplayRole(u).toLowerCase().includes(q);
+  });
+}
+
+// グリッドと件数だけ更新（検索inputには触らない）
+function _refreshTalentGrid() {
+  const level = roleLevel(CU.role);
+  let users = getUsers();
+  if (talentFilterDept !== 'all') users = users.filter(u => u.dept === talentFilterDept);
+  users = _filterTalentUsers(users);
+  users = _sortTalentUsers(users);
+
+  const grid = document.getElementById('talent-grid');
+  if (grid) grid.innerHTML = users.length
+    ? users.map(u => _tcCardHTML(u, level >= 4)).join('')
+    : '<div class="list-empty">該当するメンバーが見つかりません</div>';
+
+  const sub = document.getElementById('talent-sub');
+  if (sub) sub.textContent = `生産性指標 × ジョブ面談を中核にした1人1カード（${users.length} / ${getUsers().length}名）`;
+
+  const clear = document.getElementById('talent-clear');
+  if (clear) clear.style.display = talentQuery ? '' : 'none';
+}
 
 // ─── 一覧ページ ───
 function renderTalent() {
   const level = roleLevel(CU.role);
-  const users = getUsers().filter(u =>
-    talentFilterDept === 'all' ? true : u.dept === talentFilterDept
-  );
+  let users = getUsers();
+  if (talentFilterDept !== 'all') users = users.filter(u => u.dept === talentFilterDept);
+  users = _filterTalentUsers(users);
+  users = _sortTalentUsers(users);
+
+  const totalAll = getUsers().length;
   const deptFilters = [
     { key: 'all', label: 'すべて' },
     ...Object.entries(DEPTS).map(([k, v]) => ({ key: k, label: v.label })),
+  ];
+  const sortOptions = [
+    { key: 'productivity',  label: '生産性順' },
+    { key: 'skill',         label: 'スキル達成順' },
+    { key: 'interview_new', label: '面談履歴順' },
+    { key: 'joined',        label: '入社順' },
   ];
 
   document.getElementById('main').innerHTML = `
     <div class="page-header fade-in">
       <div>
         <div class="page-title">人財カルテ</div>
-        <div class="page-sub">生産性指標 × ジョブ面談を中核にした1人1カード（${users.length}名）</div>
+        <div id="talent-sub" class="page-sub">生産性指標 × ジョブ面談を中核にした1人1カード（${users.length} / ${totalAll}名）</div>
       </div>
       ${level >= 5 ? `<button class="btn btn-ghost" onclick="openSkillTemplateEditor()">📋 スキルシート設定</button>` : ''}
+    </div>
+    <div class="tc-controls fade-in">
+      <div class="tc-search-wrap">
+        <span class="tc-search-icon">🔍</span>
+        <input type="text" id="talent-q" class="tc-search-input" placeholder="名前・職務・役職で検索"
+          value="${talentQuery.replace(/"/g, '&quot;')}"
+          oninput="setTalentQuery(this.value)">
+        <button id="talent-clear" class="tc-search-clear" onclick="setTalentQuery('')"
+          style="${talentQuery ? '' : 'display:none'}">✕</button>
+      </div>
+      <select class="form-select tc-sort-select" onchange="setTalentSort(this.value)">
+        ${sortOptions.map(o => `<option value="${o.key}" ${talentSortKey === o.key ? 'selected' : ''}>${o.label}</option>`).join('')}
+      </select>
     </div>
     <div class="talent-filter-bar fade-in">
       ${deptFilters.map(f => `
@@ -2599,10 +2791,19 @@ function renderTalent() {
           onclick="setTalentFilter('${f.key}')">${f.label}</button>
       `).join('')}
     </div>
-    <div class="talent-grid fade-in">
-      ${users.map(u => _tcCardHTML(u, level >= 4)).join('')}
+    <div id="talent-grid" class="talent-grid fade-in">
+      ${users.length
+        ? users.map(u => _tcCardHTML(u, level >= 4)).join('')
+        : '<div class="list-empty">該当するメンバーが見つかりません</div>'}
     </div>
   `;
+}
+
+function setTalentSort(key) { talentSortKey = key; renderTalent(); }
+
+function setTalentQuery(val) {
+  talentQuery = val;
+  _refreshTalentGrid(); // inputには触れず結果だけ更新
 }
 
 function setTalentFilter(dept) {
@@ -2686,7 +2887,7 @@ function _tcCardHTML(user, canEdit) {
           <div class="tc-dept" style="color:${DEPTS[user.dept]?.color}">${deptLabel(user.dept)}</div>
           <div class="tc-role-line">${getUserDisplayRole(user)}</div>
           ${card.jobDescription ? `<div class="tc-job">${card.jobDescription}</div>` : ''}
-          ${card.joinMonth ? `<div class="tc-join">入社 ${card.joinMonth.replace('-', '年')}月</div>` : ''}
+          ${card.joinMonth ? `<div class="tc-join">入社 ${card.joinMonth.replace('-', '年')}月 <span class="tc-tenure">（${calcTenure(card.joinMonth)}）</span></div>` : ''}
         </div>
         ${canEdit ? `<button class="btn btn-ghost" style="font-size:11px;padding:4px 10px;align-self:flex-start;flex-shrink:0"
           onclick="event.stopPropagation();openTalentCard('${user.id}')">詳細 →</button>` : ''}
@@ -2879,6 +3080,74 @@ function renderProfile() {
         </div>`).join('')}
     </div>`;
 
+  // ── 経歴・面談タブ ──
+  const jobHistory    = getJobHistory(profileUserId);
+  const interviewLogs = getInterviewLogs(profileUserId);
+
+  // ジョブ経歴タイムライン
+  const jobTimelineHTML = jobHistory.length === 0
+    ? `<div class="hist-empty">経歴が登録されていません</div>`
+    : jobHistory.map((e, i) => {
+        const isLast = i === jobHistory.length - 1;
+        const ym = e.date ? e.date.replace('-', '年') + '月〜' : '—';
+        return `
+          <div class="hist-entry${isLast ? ' hist-entry--current' : ''}">
+            <div class="hist-dot${isLast ? ' hist-dot--current' : ''}"></div>
+            <div class="hist-line-wrap">
+              <div class="hist-header">
+                <div class="hist-date">${ym}</div>
+                <div class="hist-role">${e.role || '—'}</div>
+                ${e.dept ? `<div class="hist-dept">${e.dept}</div>` : ''}
+                ${isLast ? '<div class="hist-badge-now">現在</div>' : ''}
+              </div>
+              ${e.memo ? `<div class="hist-memo">${e.memo.replace(/\n/g,'<br>')}</div>` : ''}
+              ${canEdit ? `
+              <div class="hist-actions">
+                <button class="btn btn-ghost hist-btn" onclick="openJobHistoryModal('${profileUserId}','${e.id}')">編集</button>
+                <button class="btn btn-ghost hist-btn hist-btn--danger" onclick="confirmDeleteJobHistory('${profileUserId}','${e.id}')">削除</button>
+              </div>` : ''}
+            </div>
+          </div>`;
+      }).join('');
+
+  // 面談ログリスト
+  const interviewLogsHTML = interviewLogs.length === 0
+    ? `<div class="hist-empty">面談ログが登録されていません</div>`
+    : interviewLogs.map(l => {
+        const dateLabel = l.date || '—';
+        return `
+          <div class="ilog-card">
+            <div class="ilog-header">
+              <div class="ilog-date">${dateLabel}</div>
+              ${l.interviewer ? `<div class="ilog-interviewer">担当: ${l.interviewer}</div>` : ''}
+              ${canEdit ? `
+              <div class="ilog-actions">
+                <button class="btn btn-ghost hist-btn" onclick="openInterviewLogModal('${profileUserId}','${l.id}')">編集</button>
+                <button class="btn btn-ghost hist-btn hist-btn--danger" onclick="confirmDeleteInterviewLog('${profileUserId}','${l.id}')">削除</button>
+              </div>` : ''}
+            </div>
+            ${l.summary ? `<div class="ilog-section"><div class="ilog-label">面談内容</div><div class="ilog-body">${l.summary.replace(/\n/g,'<br>')}</div></div>` : ''}
+            ${l.agreedActions ? `<div class="ilog-section"><div class="ilog-label">合意事項・アクション</div><div class="ilog-body">${l.agreedActions.replace(/\n/g,'<br>')}</div></div>` : ''}
+            ${l.nextDate ? `<div class="ilog-section"><div class="ilog-label">次回予定</div><div class="ilog-body">${l.nextDate}</div></div>` : ''}
+          </div>`;
+      }).join('');
+
+  const historyBlock = `
+    <div class="hist-section">
+      <div class="hist-section-header">
+        <div class="hist-section-title">ジョブ経歴</div>
+        ${canEdit ? `<button class="btn btn-ghost hist-add-btn" onclick="openJobHistoryModal('${profileUserId}',null)">＋ 追加</button>` : ''}
+      </div>
+      <div class="hist-timeline">${jobTimelineHTML}</div>
+    </div>
+    <div class="hist-section">
+      <div class="hist-section-header">
+        <div class="hist-section-title">面談ログ</div>
+        ${canEdit ? `<button class="btn btn-ghost hist-add-btn" onclick="openInterviewLogModal('${profileUserId}',null)">＋ 追加</button>` : ''}
+      </div>
+      <div class="ilog-list">${interviewLogsHTML}</div>
+    </div>`;
+
   // ── メッセージタブ ──
   const inp = (id, val, ph) => canEdit
     ? `<input type="text" class="form-input" id="tc_${id}" value="${(val||'').replace(/"/g,'&quot;')}" placeholder="${ph}">`
@@ -2945,13 +3214,15 @@ function renderProfile() {
             <div class="profile-name">${user.name}</div>
             <div class="profile-dept" style="color:${DEPTS[user.dept]?.color}">${deptLabel(user.dept)}</div>
             <div class="profile-role">${getUserDisplayRole(user)}</div>
-            ${card.joinMonth ? `<div class="profile-join">入社 ${card.joinMonth.replace('-', '年')}月</div>` : ''}
+            ${card.joinMonth ? `<div class="profile-join">入社 ${card.joinMonth.replace('-', '年')}月<span class="profile-tenure">（${calcTenure(card.joinMonth)}）</span></div>` : ''}
           </div>
 
           ${canEdit ? `
           <div class="profile-left-section">
             <div class="profile-left-label">入社年月</div>
-            <input type="month" class="form-input" id="tc_joinMonth" value="${card.joinMonth || ''}">
+            <input type="month" class="form-input" id="tc_joinMonth" value="${card.joinMonth || ''}"
+              oninput="updateTenureHint('tc_joinMonth','tc_tenureHint_profile')">
+            <div id="tc_tenureHint_profile" class="tenure-hint">${card.joinMonth ? calcTenure(card.joinMonth) : ''}</div>
           </div>` : ''}
 
           <div class="profile-left-section">
@@ -2984,6 +3255,7 @@ function renderProfile() {
           <div class="profile-tabs">
             <button class="profile-tab ${profileActiveTab === 'perf' ? 'active' : ''}" onclick="switchProfileTab('perf')">実績</button>
             <button class="profile-tab ${profileActiveTab === 'skill' ? 'active' : ''}" onclick="switchProfileTab('skill')">スキル</button>
+            <button class="profile-tab ${profileActiveTab === 'history' ? 'active' : ''}" onclick="switchProfileTab('history')">経歴・面談</button>
             <button class="profile-tab ${profileActiveTab === 'msg' ? 'active' : ''}" onclick="switchProfileTab('msg')">メッセージ</button>
           </div>
 
@@ -2995,6 +3267,10 @@ function renderProfile() {
 
           <div class="profile-panel${profileActiveTab === 'skill' ? '' : ' hidden'}" id="pp_skill">
             ${skillPanelHTML}
+          </div>
+
+          <div class="profile-panel${profileActiveTab === 'history' ? '' : ' hidden'}" id="pp_history">
+            ${historyBlock}
           </div>
 
           <div class="profile-panel${profileActiveTab === 'msg' ? '' : ' hidden'}" id="pp_msg">
@@ -3011,7 +3287,7 @@ function switchProfileTab(tab) {
   document.querySelectorAll('.profile-tab').forEach(b => {
     b.classList.toggle('active', b.getAttribute('onclick')?.includes(`'${tab}'`));
   });
-  ['perf', 'skill', 'msg'].forEach(t => {
+  ['perf', 'skill', 'history', 'msg'].forEach(t => {
     const p = document.getElementById('pp_' + t);
     if (p) p.classList.toggle('hidden', t !== tab);
   });
@@ -3054,6 +3330,139 @@ function saveProfileCard(userId) {
   );
   setSkillEval(userId, evalObj);
   showToast('カルテを保存しました');
+  renderProfile();
+}
+
+// ─── ジョブ経歴モーダル ───
+function openJobHistoryModal(userId, entryId) {
+  const existing = entryId ? getJobHistory(userId).find(e => e.id === entryId) : null;
+  const isNew = !existing;
+  showModal(`
+    <div style="padding:4px 0">
+      <div style="font-size:15px;font-weight:700;margin-bottom:16px">${isNew ? '経歴を追加' : '経歴を編集'}</div>
+      <div class="form-group">
+        <label class="form-label">開始年月</label>
+        <input type="month" class="form-input" id="jh_date" value="${existing?.date || ''}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">役職 / ポジション</label>
+        <input type="text" class="form-input" id="jh_role" placeholder="例: クローザー" value="${(existing?.role||'').replace(/"/g,'&quot;')}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">事業部・チーム</label>
+        <input type="text" class="form-input" id="jh_dept" placeholder="例: モバイル事業部" value="${(existing?.dept||'').replace(/"/g,'&quot;')}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">メモ（担当業務・変更理由など）</label>
+        <textarea class="form-input" id="jh_memo" rows="3" placeholder="例: キャッチからクローザーへ昇格。MNP専任対応。">${existing?.memo||''}</textarea>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:16px">
+        <button class="btn btn-ghost" style="flex:1" onclick="closeModal()">キャンセル</button>
+        <button class="btn btn-primary" style="flex:1" onclick="saveJobHistoryEntry('${userId}','${entryId||''}')">保存</button>
+      </div>
+    </div>
+  `);
+}
+function saveJobHistoryEntry(userId, entryId) {
+  const g = id => { const el = document.getElementById(id); return el ? el.value.trim() : ''; };
+  const data = { date: g('jh_date'), role: g('jh_role'), dept: g('jh_dept'), memo: g('jh_memo') };
+  if (!data.date || !data.role) { showToast('開始年月と役職は必須です', 'error'); return; }
+  if (entryId) {
+    updateJobHistoryEntry(userId, entryId, data);
+  } else {
+    addJobHistoryEntry(userId, data);
+  }
+  closeModal();
+  showToast('経歴を保存しました');
+  renderProfile();
+}
+function confirmDeleteJobHistory(userId, entryId) {
+  showModal(`
+    <div style="padding:4px 0">
+      <div style="font-size:15px;font-weight:700;margin-bottom:8px">経歴を削除</div>
+      <div style="color:var(--text-sub);margin-bottom:20px">この経歴エントリを削除しますか？</div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost" style="flex:1" onclick="closeModal()">キャンセル</button>
+        <button class="btn" style="flex:1;background:var(--danger);color:#fff" onclick="execDeleteJobHistory('${userId}','${entryId}')">削除する</button>
+      </div>
+    </div>
+  `);
+}
+function execDeleteJobHistory(userId, entryId) {
+  deleteJobHistoryEntry(userId, entryId);
+  closeModal();
+  showToast('経歴を削除しました');
+  renderProfile();
+}
+
+// ─── 面談ログモーダル ───
+function openInterviewLogModal(userId, logId) {
+  const existing = logId ? getInterviewLogs(userId).find(l => l.id === logId) : null;
+  const isNew = !existing;
+  showModal(`
+    <div style="padding:4px 0">
+      <div style="font-size:15px;font-weight:700;margin-bottom:16px">${isNew ? '面談ログを追加' : '面談ログを編集'}</div>
+      <div class="profile-two-col">
+        <div class="form-group">
+          <label class="form-label">面談日</label>
+          <input type="date" class="form-input" id="il_date" value="${existing?.date || ''}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">担当者（面談者）</label>
+          <input type="text" class="form-input" id="il_interviewer" placeholder="例: 廣瀬" value="${(existing?.interviewer||'').replace(/"/g,'&quot;')}">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">面談内容・まとめ</label>
+        <textarea class="form-input" id="il_summary" rows="4" placeholder="話し合った内容を記録...">${existing?.summary||''}</textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">合意事項・アクション</label>
+        <textarea class="form-input" id="il_agreedActions" rows="3" placeholder="例: 来月からシフトリーダー担当">${existing?.agreedActions||''}</textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">次回面談予定日</label>
+        <input type="date" class="form-input" id="il_nextDate" value="${existing?.nextDate||''}">
+      </div>
+      <div style="display:flex;gap:8px;margin-top:16px">
+        <button class="btn btn-ghost" style="flex:1" onclick="closeModal()">キャンセル</button>
+        <button class="btn btn-primary" style="flex:1" onclick="saveInterviewLog('${userId}','${logId||''}')">保存</button>
+      </div>
+    </div>
+  `);
+}
+function saveInterviewLog(userId, logId) {
+  const g = id => { const el = document.getElementById(id); return el ? el.value.trim() : ''; };
+  const data = {
+    date: g('il_date'), interviewer: g('il_interviewer'),
+    summary: g('il_summary'), agreedActions: g('il_agreedActions'), nextDate: g('il_nextDate'),
+  };
+  if (!data.date) { showToast('面談日は必須です', 'error'); return; }
+  if (logId) {
+    updateInterviewLog(userId, logId, data);
+  } else {
+    addInterviewLog(userId, data);
+  }
+  closeModal();
+  showToast('面談ログを保存しました');
+  renderProfile();
+}
+function confirmDeleteInterviewLog(userId, logId) {
+  showModal(`
+    <div style="padding:4px 0">
+      <div style="font-size:15px;font-weight:700;margin-bottom:8px">面談ログを削除</div>
+      <div style="color:var(--text-sub);margin-bottom:20px">この面談ログを削除しますか？</div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost" style="flex:1" onclick="closeModal()">キャンセル</button>
+        <button class="btn" style="flex:1;background:var(--danger);color:#fff" onclick="execDeleteInterviewLog('${userId}','${logId}')">削除する</button>
+      </div>
+    </div>
+  `);
+}
+function execDeleteInterviewLog(userId, logId) {
+  deleteInterviewLog(userId, logId);
+  closeModal();
+  showToast('面談ログを削除しました');
   renderProfile();
 }
 
@@ -3225,7 +3634,11 @@ function openTalentCardModal(userId, activeTab = 'basic') {
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">入社年月</label>
-          ${canEdit ? `<input type="month" class="form-input" id="tc_joinMonth" value="${card.joinMonth || ''}">` : `<div style="font-size:13px">${card.joinMonth ? card.joinMonth.replace('-', '年') + '月' : '—'}</div>`}
+          ${canEdit
+            ? `<input type="month" class="form-input" id="tc_joinMonth" value="${card.joinMonth || ''}"
+                oninput="updateTenureHint('tc_joinMonth','tc_tenureHint_modal')">
+               <div id="tc_tenureHint_modal" class="tenure-hint">${card.joinMonth ? calcTenure(card.joinMonth) : ''}</div>`
+            : `<div style="font-size:13px">${card.joinMonth ? card.joinMonth.replace('-', '年') + '月 <span class="tc-tenure">（' + calcTenure(card.joinMonth) + '）</span>' : '—'}</div>`}
         </div>
         <div class="form-group">
           <label class="form-label">現在のジョブ（職務）</label>

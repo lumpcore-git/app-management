@@ -20,6 +20,11 @@ let profileActiveTab = 'perf';
 
 // ─── VENUE ACHIEVE STATE ───
 let venueAchieveMonth = '';
+let venueMenuExpanded = false;
+// 週末グラフ用
+let venueWeekendChartMode  = 'by_weekend'; // 'by_weekend'=週末×全現場 | 'by_site'=現場×過去6ヶ月
+let venueWeekendSelectedSat  = '';          // 'by_weekend' 選択中の土曜日
+let venueWeekendSelectedSite = '';          // 'by_site' 選択中の現場名
 
 // ─── THEME ───
 function initTheme() {
@@ -90,48 +95,56 @@ function renderSidebar() {
   const canSeeTeam = (level >= 2 && CU.dept === 'mobile') || level >= 5;
   const canSetTargets = (level >= 4 && CU.dept === 'mobile') || level >= 5;
   const hash = location.hash.replace('#', '') || 'dashboard';
-  const isShiftPage = hash === 'shifts-week' || hash === 'shifts-month' || hash === 'shifts-plan';
+  const isShiftPage  = hash === 'shifts-week' || hash === 'shifts-month' || hash === 'shifts-plan';
+  const isVenuePage  = hash === 'venue-achieve-weekday' || hash === 'venue-achieve-weekend';
 
   if (isShiftPage) shiftMenuExpanded = true;
+  if (isVenuePage) venueMenuExpanded = true;
 
   const nav = [
-    { id: 'dashboard', icon: '🏠', label: 'ダッシュボード', show: true },
-    { id: 'report',    icon: '📝', label: '実績報告',       show: hasReport },
-    { id: 'shifts',    icon: '🗓️', label: 'シフト',         show: true },
-    { id: 'team',      icon: '👥', label: 'チーム実績',     show: canSeeTeam },
-    { id: 'ranking',   icon: '🏆', label: 'ランキング',     show: canSeeTeam },
-    { id: 'targets',        icon: '🎯', label: '目標設定',       show: canSetTargets },
-    { id: 'venue-achieve',  icon: '📊', label: '現場達成率',     show: true },
-    { id: 'talent',         icon: '📋', label: '人財カルテ',     show: level >= 4 },
-    { id: 'members',        icon: '⚙️', label: 'メンバー管理',  show: level >= 5 },
-    { id: 'settings',       icon: '🔧', label: '設定',           show: true },
+    { id: 'dashboard',            icon: '🏠', label: 'ダッシュボード', show: true },
+    { id: 'report',               icon: '📝', label: '実績報告',       show: hasReport },
+    { id: 'shifts',               icon: '🗓️', label: 'シフト',         show: true },
+    { id: 'team',                 icon: '👥', label: 'チーム実績',     show: canSeeTeam },
+    { id: 'ranking',              icon: '🏆', label: 'ランキング',     show: canSeeTeam },
+    { id: 'targets',              icon: '🎯', label: '目標設定',       show: canSetTargets },
+    { id: 'venue-achieve',        icon: '📊', label: '現場達成率',     show: true },
+    { id: 'talent',               icon: '📋', label: '人財カルテ',     show: level >= 4 },
+    { id: 'members',              icon: '⚙️', label: 'メンバー管理',  show: level >= 5 },
+    { id: 'settings',             icon: '🔧', label: '設定',           show: true },
   ];
 
   const items = nav.filter(n => n.show);
   document.getElementById('sidebar').innerHTML = `
     <div class="nav-section">メニュー</div>
-    ${items.map(n => `
-      ${n.id === 'shifts'
-        ? `
-          <div class="nav-item nav-item-parent" data-page="shifts" onclick="toggleShiftMenu()">
-            <span class="icon">${n.icon}</span>
-            <span>${n.label}</span>
-            <span class="nav-caret ${shiftMenuExpanded ? 'open' : ''}">▾</span>
-          </div>
-          <div class="nav-submenu ${shiftMenuExpanded ? '' : 'hidden'}" id="shiftSubmenu">
-            <div class="nav-subitem" data-page="shifts-week" onclick="navigate('shifts-week')">週次シフト</div>
-            <div class="nav-subitem" data-page="shifts-month" onclick="navigate('shifts-month')">月次シフト</div>
-            ${level >= 4 ? `<div class="nav-subitem nav-subitem-admin" data-page="shifts-plan" onclick="navigate('shifts-plan')">シフト作成</div>` : ''}
-          </div>
-        `
-        : `
-          <div class="nav-item" data-page="${n.id}" onclick="navigate('${n.id}')">
-            <span class="icon">${n.icon}</span>
-            <span>${n.label}</span>
-          </div>
-        `
-      }
-    `).join('')}
+    ${items.map(n => {
+      if (n.id === 'shifts') return `
+        <div class="nav-item nav-item-parent" data-page="shifts" onclick="toggleShiftMenu()">
+          <span class="icon">${n.icon}</span>
+          <span>${n.label}</span>
+          <span class="nav-caret ${shiftMenuExpanded ? 'open' : ''}">▾</span>
+        </div>
+        <div class="nav-submenu ${shiftMenuExpanded ? '' : 'hidden'}" id="shiftSubmenu">
+          <div class="nav-subitem" data-page="shifts-week" onclick="navigate('shifts-week')">週次シフト</div>
+          <div class="nav-subitem" data-page="shifts-month" onclick="navigate('shifts-month')">月次シフト</div>
+          ${level >= 4 ? `<div class="nav-subitem nav-subitem-admin" data-page="shifts-plan" onclick="navigate('shifts-plan')">シフト作成</div>` : ''}
+        </div>`;
+      if (n.id === 'venue-achieve') return `
+        <div class="nav-item nav-item-parent" data-page="venue-achieve" onclick="toggleVenueMenu()">
+          <span class="icon">${n.icon}</span>
+          <span>${n.label}</span>
+          <span class="nav-caret ${venueMenuExpanded ? 'open' : ''}">▾</span>
+        </div>
+        <div class="nav-submenu ${venueMenuExpanded ? '' : 'hidden'}" id="venueSubmenu">
+          <div class="nav-subitem" data-page="venue-achieve-weekday" onclick="navigate('venue-achieve-weekday')">平日達成率</div>
+          <div class="nav-subitem" data-page="venue-achieve-weekend" onclick="navigate('venue-achieve-weekend')">週末達成率</div>
+        </div>`;
+      return `
+        <div class="nav-item" data-page="${n.id}" onclick="navigate('${n.id}')">
+          <span class="icon">${n.icon}</span>
+          <span>${n.label}</span>
+        </div>`;
+    }).join('')}
     <div style="margin-top:auto;padding:12px">
       <div style="font-size:11px;color:var(--text-sub);padding:8px 0;border-top:1px solid var(--border)">
         ${DEPTS[CU.dept]?.label || ''}
@@ -168,15 +181,23 @@ function route() {
 
   document.querySelectorAll('.nav-item, .nav-subitem').forEach(el => {
     const page = el.dataset.page;
-    const isShift = hash === 'shifts-week' || hash === 'shifts-month';
+    const isShift   = hash === 'shifts-week' || hash === 'shifts-month';
     const isProfile = hash === 'profile';
-    const active = page === hash || (page === 'shifts' && isShift) || (page === 'talent' && isProfile);
+    const isVenue   = hash === 'venue-achieve-weekday' || hash === 'venue-achieve-weekend';
+    const active = page === hash
+      || (page === 'shifts'         && isShift)
+      || (page === 'talent'         && isProfile)
+      || (page === 'venue-achieve'  && isVenue);
     el.classList.toggle('active', active);
   });
 
   const isShift = hash === 'shifts-week' || hash === 'shifts-month' || hash === 'shifts-plan';
   if (isShift) shiftMenuExpanded = true;
   syncShiftMenu();
+
+  const isVenuePage = hash === 'venue-achieve-weekday' || hash === 'venue-achieve-weekend';
+  if (isVenuePage) venueMenuExpanded = true;
+  syncVenueMenu();
 
   if (hash === 'shifts-plan' && level < 4) {
     location.hash = 'dashboard'; return;
@@ -192,7 +213,9 @@ function route() {
     team:      'チーム実績',
     ranking:   'ランキング',
     targets:        '目標設定',
-    'venue-achieve': '現場達成率',
+    'venue-achieve':         '現場達成率',
+    'venue-achieve-weekday': '平日達成率',
+    'venue-achieve-weekend': '週末達成率',
     talent:         '人財カルテ',
     profile:        '',
     members:        'メンバー管理',
@@ -210,7 +233,9 @@ function route() {
     team:      renderTeam,
     ranking:   renderRanking,
     targets:        renderTargets,
-    'venue-achieve': renderVenueAchieve,
+    'venue-achieve':         () => navigate('venue-achieve-weekday'),
+    'venue-achieve-weekday': renderVenueAchieveWeekday,
+    'venue-achieve-weekend': renderVenueAchieveWeekend,
     talent:         renderTalent,
     profile:        renderProfile,
     members:        renderMembers,
@@ -240,7 +265,24 @@ function navigate(page) {
     location.hash = 'shifts-week';
     return;
   }
+  if (page === 'venue-achieve') {
+    location.hash = 'venue-achieve-weekday';
+    return;
+  }
   location.hash = page;
+}
+
+function toggleVenueMenu() {
+  venueMenuExpanded = !venueMenuExpanded;
+  syncVenueMenu();
+}
+
+function syncVenueMenu() {
+  const submenu = document.getElementById('venueSubmenu');
+  if (submenu) submenu.classList.toggle('hidden', !venueMenuExpanded);
+  // カレットは venue-achieve の nav-item-parent 内
+  const parents = document.querySelectorAll('.nav-item-parent[data-page="venue-achieve"] .nav-caret');
+  parents.forEach(c => c.classList.toggle('open', venueMenuExpanded));
 }
 
 // ─── HELPERS ───
@@ -3928,148 +3970,579 @@ function steApplySave() {
 // ─── VENUE ACHIEVE（現場達成率）───
 // ═══════════════════════════════════════════════════════
 
-function renderVenueAchieve() {
+// ── SVGチャート: 水平バー（平日現場別比較） ──
+// items: [{ label, budget, actual }]
+function _vaHBarChart(items) {
+  if (!items || !items.length) return '';
+  const W = 520, labelW = 120, barAreaW = 260, numW = 58, rateW = 62;
+  const rowH = 30, gap = 7;
+  const H = items.length * (rowH + gap) + 14;
+  const maxBudget = Math.max(...items.map(i => Number(i.budget) || 0), 1);
+
+  const rows = items.map((item, i) => {
+    const y   = 7 + i * (rowH + gap);
+    const bgt = Number(item.budget) || 0;
+    const act = Number(item.actual) || 0;
+    const budgetW = bgt > 0 ? (bgt / maxBudget) * barAreaW : barAreaW * 0.06;
+    const actualW = bgt > 0 ? Math.min(act / bgt, 1.3) * budgetW : 0;
+    const rate  = calcAchieve(act, bgt);
+    const color = achieveColor(rate);
+    const cy    = y + rowH / 2;
+    return `
+      <text x="${labelW - 7}" y="${cy + 4}" text-anchor="end" font-size="11" fill="rgba(208,216,238,.85)">${item.label}</text>
+      <rect x="${labelW}" y="${y + 5}" width="${budgetW}" height="${rowH - 10}" rx="3" fill="rgba(255,255,255,.09)"/>
+      ${actualW > 0 ? `<rect x="${labelW}" y="${y + 5}" width="${actualW}" height="${rowH - 10}" rx="3" fill="${color}" opacity=".82"/>` : ''}
+      ${bgt > 0 ? `<line x1="${labelW + budgetW}" y1="${y + 3}" x2="${labelW + budgetW}" y2="${y + rowH - 3}" stroke="rgba(255,255,255,.22)" stroke-width="1.5" stroke-dasharray="3 2"/>` : ''}
+      <text x="${labelW + barAreaW + numW}" y="${cy + 4}" text-anchor="end" font-size="11" fill="rgba(208,216,238,.7)" font-family="'Space Grotesk',monospace">${act > 0 ? act.toLocaleString() : '—'}</text>
+      <text x="${W - 4}" y="${cy + 4}" text-anchor="end" font-size="13" font-weight="bold" fill="${color}" font-family="'Space Grotesk',monospace">${rate !== null ? rate + '%' : '—'}</text>
+    `;
+  }).join('');
+
+  // 列ヘッダー
+  const hy = 0;
+  const header = `
+    <text x="${labelW + barAreaW + numW}" y="${hy + 10}" text-anchor="end" font-size="9" fill="rgba(208,216,238,.5)">実績</text>
+    <text x="${W - 4}" y="${hy + 10}" text-anchor="end" font-size="9" fill="rgba(208,216,238,.5)">達成率</text>
+  `;
+
+  return `<div class="va-chart-wrap">
+    <svg width="100%" viewBox="0 0 ${W} ${H + 12}" style="display:block;min-width:260px">
+      ${header}
+      <g transform="translate(0,12)">${rows}</g>
+    </svg>
+  </div>`;
+}
+
+// ── SVGチャート: 縦棒（週末別達成率比較） ──
+// weekends: [{sat, sun}], weData: {[sat]: {sites:[...]}}
+function _vaWeekendBarChart(weekends, weData) {
+  if (!weekends.length) return '';
+  const items = weekends.map(({ sat, sun }) => {
+    const sites = (weData[sat] || {}).sites || [];
+    const totalBudget = sites.reduce((s, x) => s + (Number(x.budget) || 0), 0);
+    const totalActual = sites.reduce((s, x) => s + (Number(x.actual) || 0), 0);
+    const rate  = calcAchieve(totalActual, totalBudget);
+    const [, m, d] = sat.split('-');
+    return { label: `${parseInt(m)}/${parseInt(d)}`, budget: totalBudget, actual: totalActual, rate };
+  });
+
+  const W = 420, H = 130;
+  const n = items.length;
+  const maxBudget = Math.max(...items.map(i => i.budget), 1);
+  const barMaxH = 78;
+  const totalBarW = Math.min(52, Math.floor((W - 30) / n) - 10);
+  const step = (W - 20) / n;
+
+  const bars = items.map((item, i) => {
+    const cx = 10 + step * i + step / 2;
+    const x  = cx - totalBarW / 2;
+    const bh = item.budget > 0 ? (item.budget / maxBudget) * barMaxH : 6;
+    const ah = item.budget > 0 ? Math.min(item.actual / item.budget, 1.25) * bh : 0;
+    const color = achieveColor(item.rate);
+    const budgetY = H - 26 - bh;
+    const actualY = H - 26 - ah;
+    return `
+      <rect x="${x}" y="${budgetY}" width="${totalBarW}" height="${bh}" rx="3" fill="rgba(255,255,255,.09)"/>
+      ${ah > 0 ? `<rect x="${x}" y="${actualY}" width="${totalBarW}" height="${ah}" rx="3" fill="${color}" opacity=".85"/>` : ''}
+      <text x="${cx}" y="${H - 10}" text-anchor="middle" font-size="10" fill="rgba(208,216,238,.7)">${item.label}</text>
+      ${item.rate !== null ? `<text x="${cx}" y="${Math.min(actualY - 4, H - 32)}" text-anchor="middle" font-size="10" font-weight="bold" fill="${color}">${item.rate}%</text>` : ''}
+    `;
+  }).join('');
+
+  return `<div class="va-chart-wrap">
+    <svg width="100%" viewBox="0 0 ${W} ${H}" style="display:block;max-width:420px">${bars}</svg>
+  </div>`;
+}
+
+// ── 平日ビュー ──
+function _renderVAWeekday(achieve, canEdit) {
+  const sites = getShiftSites().filter(s => s !== '休み');
+  const wdData = achieve.weekday || {};
+  const chartItems = sites.map(site => ({
+    label:  site,
+    budget: (wdData[site] || {}).budget || 0,
+    actual: (wdData[site] || {}).actual || 0
+  }));
+  const totalBudget = chartItems.reduce((s, i) => s + i.budget, 0);
+  const totalActual = chartItems.reduce((s, i) => s + i.actual, 0);
+  const totalRate   = calcAchieve(totalActual, totalBudget);
+
+  const tableRows = sites.map((site, si) => {
+    const d     = wdData[site] || {};
+    const bgt   = Number(d.budget) || 0;
+    const act   = Number(d.actual) || 0;
+    const rate  = calcAchieve(act, bgt);
+    const sc    = getSiteColor(site);
+    const dot   = sc ? sc.text : 'var(--accent)';
+    return `
+      <tr style="border-bottom:1px solid rgba(106,128,186,.2)">
+        <td style="padding:10px 12px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <div style="width:8px;height:8px;border-radius:50%;background:${dot};flex-shrink:0"></div>
+            <span style="font-size:13px">${site}</span>
+          </div>
+        </td>
+        ${canEdit
+          ? `<td style="padding:8px"><input type="number" class="form-input-sm" id="va_wd_b_${si}" value="${bgt || ''}" placeholder="0" min="0" style="width:88px"></td>
+             <td style="padding:8px"><input type="number" class="form-input-sm" id="va_wd_a_${si}" value="${act || ''}" placeholder="0" min="0" style="width:88px"></td>`
+          : `<td style="padding:10px 12px;font-family:'Space Grotesk',monospace;text-align:right;font-size:14px">${bgt > 0 ? bgt.toLocaleString() : '—'}</td>
+             <td style="padding:10px 12px;font-family:'Space Grotesk',monospace;text-align:right;font-size:14px">${act > 0 ? act.toLocaleString() : '—'}</td>`}
+        <td style="padding:10px 12px;min-width:140px">
+          ${rate !== null
+            ? `<div style="display:flex;align-items:center;gap:8px">
+                 <div class="va-progress-bar" style="flex:1"><div class="va-progress-fill" style="width:${Math.min(rate,100)}%;background:${achieveColor(rate)}"></div></div>
+                 <span style="font-family:'Space Grotesk',monospace;font-size:14px;font-weight:700;color:${achieveColor(rate)};min-width:44px;text-align:right">${rate}%</span>
+               </div>`
+            : `<span style="color:var(--text-sub);font-size:12px">予算未設定</span>`}
+        </td>
+      </tr>`;
+  }).join('');
+
+  return `
+    <!-- 概要チャート -->
+    <div class="card fade-in">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:14px">
+        <div class="section-title" style="margin:0">平日 現場別達成率</div>
+        <div style="text-align:right">
+          <div style="font-size:11px;color:var(--text-sub)">合計達成率</div>
+          <div style="font-family:'Space Grotesk',monospace;font-size:28px;font-weight:700;color:${achieveColor(totalRate)};line-height:1.1">${totalRate !== null ? totalRate + '%' : '—'}</div>
+          <div style="font-size:11px;color:var(--text-sub);margin-top:2px">予算 ${totalBudget.toLocaleString()} / 実績 ${totalActual.toLocaleString()}</div>
+        </div>
+      </div>
+      ${sites.length ? _vaHBarChart(chartItems) : '<div style="color:var(--text-sub);font-size:13px">現場が登録されていません</div>'}
+    </div>
+
+    <!-- 入力テーブル -->
+    <div class="card fade-in">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <div class="section-title" style="margin:0">平日 予算・実績入力</div>
+        ${canEdit ? `<button class="btn btn-primary" style="font-size:12px;padding:6px 16px" onclick="venueAchieveSaveWeekday()">保存</button>` : ''}
+      </div>
+      ${sites.length === 0
+        ? `<div style="color:var(--text-sub);font-size:13px;text-align:center;padding:20px 0">⚙ 設定 → 現場・コマ数設定 から現場を追加してください</div>`
+        : `<div style="overflow-x:auto">
+            <table style="width:100%;border-collapse:collapse">
+              <thead>
+                <tr style="border-bottom:1px solid var(--border)">
+                  <th style="padding:8px 12px;text-align:left;font-size:11px;color:var(--text-sub);font-weight:500">現場名</th>
+                  <th style="padding:8px 12px;text-align:${canEdit?'left':'right'};font-size:11px;color:var(--text-sub);font-weight:500">予算</th>
+                  <th style="padding:8px 12px;text-align:${canEdit?'left':'right'};font-size:11px;color:var(--text-sub);font-weight:500">実績</th>
+                  <th style="padding:8px 12px;text-align:left;font-size:11px;color:var(--text-sub);font-weight:500">達成率</th>
+                </tr>
+              </thead>
+              <tbody>${tableRows}</tbody>
+            </table>
+           </div>`}
+    </div>`;
+}
+
+// ── 週末ビュー ──
+function _renderVAWeekend(achieve, canEdit) {
+  const weekends  = getWeekendDates(venueAchieveMonth);
+  const weAchieve = achieve.weekends || {};
+
+  if (!weekends.length) {
+    return `<div class="card fade-in" style="text-align:center;color:var(--text-sub);padding:40px">この月に週末はありません</div>`;
+  }
+
+  // 全週末の合計
+  const grandBudget = weekends.reduce((s, { sat }) => {
+    return s + ((weAchieve[sat] || {}).sites || []).reduce((ss, x) => ss + (Number(x.budget) || 0), 0);
+  }, 0);
+  const grandActual = weekends.reduce((s, { sat }) => {
+    return s + ((weAchieve[sat] || {}).sites || []).reduce((ss, x) => ss + (Number(x.actual) || 0), 0);
+  }, 0);
+  const grandRate = calcAchieve(grandActual, grandBudget);
+
+  // 週末ごとのカード
+  const weekendCards = weekends.map(({ sat, sun }) => {
+    const sites     = (weAchieve[sat] || {}).sites || [];
+    const dateLabel = formatDate(sat) + '(土)' + (sun ? '・' + formatDate(sun) + '(日)' : '');
+    const wBudget   = sites.reduce((s, x) => s + (Number(x.budget) || 0), 0);
+    const wActual   = sites.reduce((s, x) => s + (Number(x.actual) || 0), 0);
+    const wRate     = calcAchieve(wActual, wBudget);
+
+    const siteRows = sites.map((site, idx) => {
+      const rate  = calcAchieve(Number(site.actual) || 0, Number(site.budget) || 0);
+      const color = achieveColor(rate);
+      return `
+        <tr style="border-bottom:1px solid rgba(106,128,186,.15)">
+          <td style="padding:8px 10px">
+            ${canEdit
+              ? `<input type="text" class="form-input-sm" id="va_we_name_${sat}_${idx}" value="${site.name}" style="width:130px">`
+              : `<span style="font-size:13px">${site.name}</span>`}
+          </td>
+          ${canEdit
+            ? `<td style="padding:6px 8px"><input type="number" class="form-input-sm" id="va_we_b_${sat}_${idx}" value="${Number(site.budget)||''}" placeholder="0" min="0" style="width:80px"></td>
+               <td style="padding:6px 8px"><input type="number" class="form-input-sm" id="va_we_a_${sat}_${idx}" value="${Number(site.actual)||''}" placeholder="0" min="0" style="width:80px"></td>`
+            : `<td style="padding:8px 10px;font-family:'Space Grotesk',monospace;text-align:right;font-size:13px">${Number(site.budget)>0?Number(site.budget).toLocaleString():'—'}</td>
+               <td style="padding:8px 10px;font-family:'Space Grotesk',monospace;text-align:right;font-size:13px">${Number(site.actual)>0?Number(site.actual).toLocaleString():'—'}</td>`}
+          <td style="padding:8px 10px;min-width:120px">
+            ${rate !== null
+              ? `<div style="display:flex;align-items:center;gap:6px">
+                   <div class="va-progress-bar" style="flex:1"><div class="va-progress-fill" style="width:${Math.min(rate,100)}%;background:${color}"></div></div>
+                   <span style="font-family:'Space Grotesk',monospace;font-size:13px;font-weight:700;color:${color};min-width:40px;text-align:right">${rate}%</span>
+                 </div>`
+              : `<span style="color:var(--text-sub);font-size:11px">予算未設定</span>`}
+          </td>
+          ${canEdit ? `<td style="padding:6px 8px"><button class="btn" style="font-size:11px;padding:3px 8px;background:rgba(255,149,179,.15);color:var(--danger);border:1px solid rgba(255,149,179,.3)" onclick="venueAchieveRemoveWeekendSite('${sat}',${idx})">✕</button></td>` : ''}
+        </tr>`;
+    }).join('');
+
+    // 新規追加行（編集時のみ）
+    const newRow = canEdit ? `
+      <tr style="background:rgba(171,160,255,.05)">
+        <td style="padding:6px 8px"><input type="text" class="form-input-sm" id="va_we_new_name_${sat}" placeholder="現場名" style="width:130px"></td>
+        <td style="padding:6px 8px"><input type="number" class="form-input-sm" id="va_we_new_b_${sat}" placeholder="予算" min="0" style="width:80px"></td>
+        <td style="padding:6px 8px"><input type="number" class="form-input-sm" id="va_we_new_a_${sat}" placeholder="実績" min="0" style="width:80px"></td>
+        <td colspan="2" style="padding:6px 8px">
+          <button class="btn btn-ghost" style="font-size:11px;padding:4px 10px" onclick="venueAchieveAddWeekendSite('${sat}')">＋ 追加</button>
+        </td>
+      </tr>` : '';
+
+    return `
+      <div class="card fade-in">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px">
+          <div>
+            <div style="font-size:15px;font-weight:700">${dateLabel}</div>
+            ${wBudget > 0 ? `<div style="font-size:11px;color:var(--text-sub);margin-top:2px">予算 ${wBudget.toLocaleString()} / 実績 ${wActual.toLocaleString()}</div>` : ''}
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            ${wRate !== null ? `<div style="font-family:'Space Grotesk',monospace;font-size:22px;font-weight:700;color:${achieveColor(wRate)}">${wRate}%</div>` : ''}
+            ${canEdit ? `<button class="btn btn-primary" style="font-size:12px;padding:5px 14px" onclick="venueAchieveSaveWeekend('${sat}')">保存</button>` : ''}
+          </div>
+        </div>
+        <div style="overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse">
+            <thead>
+              <tr style="border-bottom:1px solid var(--border)">
+                <th style="padding:7px 10px;text-align:left;font-size:11px;color:var(--text-sub);font-weight:500">現場名</th>
+                <th style="padding:7px 10px;text-align:${canEdit?'left':'right'};font-size:11px;color:var(--text-sub);font-weight:500">予算</th>
+                <th style="padding:7px 10px;text-align:${canEdit?'left':'right'};font-size:11px;color:var(--text-sub);font-weight:500">実績</th>
+                <th style="padding:7px 10px;text-align:left;font-size:11px;color:var(--text-sub);font-weight:500">達成率</th>
+                ${canEdit ? '<th style="width:40px"></th>' : ''}
+              </tr>
+            </thead>
+            <tbody>
+              ${siteRows}
+              ${newRow}
+              ${sites.length === 0 && !canEdit ? `<tr><td colspan="4" style="padding:16px 10px;text-align:center;color:var(--text-sub);font-size:13px">データなし</td></tr>` : ''}
+            </tbody>
+          </table>
+        </div>
+      </div>`;
+  }).join('');
+
+  return `
+    <!-- 概要チャート -->
+    <div class="card fade-in">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:14px">
+        <div class="section-title" style="margin:0">週末 週別達成率</div>
+        <div style="text-align:right">
+          <div style="font-size:11px;color:var(--text-sub)">月間合計達成率</div>
+          <div style="font-family:'Space Grotesk',monospace;font-size:28px;font-weight:700;color:${achieveColor(grandRate)};line-height:1.1">${grandRate !== null ? grandRate + '%' : '—'}</div>
+          <div style="font-size:11px;color:var(--text-sub);margin-top:2px">予算 ${grandBudget.toLocaleString()} / 実績 ${grandActual.toLocaleString()}</div>
+        </div>
+      </div>
+      ${_vaWeekendBarChart(weekends, weAchieve)}
+    </div>
+
+    ${weekendCards}`;
+}
+
+// ── メインレンダラー ──
+// ── 平日達成率ページ ──
+function renderVenueAchieveWeekday() {
   if (!venueAchieveMonth) venueAchieveMonth = currentMonth();
-  const level = roleLevel(CU.role);
+  const level   = roleLevel(CU.role);
   const canEdit = level >= 4;
-  const sites = getShiftSites();
-  const months = getAvailableMonths();
+  const months  = getAvailableMonths();
   const achieve = getVenueAchieve(venueAchieveMonth);
-  const weekends = getWeekendDates(venueAchieveMonth);
 
   document.getElementById('main').innerHTML = `
     <div class="page-header fade-in">
       <div>
-        <div class="page-title">現場達成率</div>
-        <div class="page-sub">${monthLabel(venueAchieveMonth)}の現場別予算達成状況</div>
+        <div class="page-title">平日達成率</div>
+        <div class="page-sub">${monthLabel(venueAchieveMonth)}の現場別・平日予算達成状況</div>
       </div>
-      <select class="form-input-sm" onchange="venueAchieveMonth=this.value;renderVenueAchieve()">
-        ${months.map(m => `<option value="${m}" ${m === venueAchieveMonth ? 'selected' : ''}>${monthLabel(m)}</option>`).join('')}
+      <select class="form-input-sm" onchange="venueAchieveMonth=this.value;renderVenueAchieveWeekday()">
+        ${months.map(m => `<option value="${m}" ${m===venueAchieveMonth?'selected':''}>${monthLabel(m)}</option>`).join('')}
       </select>
     </div>
-
     <div style="display:flex;flex-direction:column;gap:16px">
-      ${sites.map((site, si) => {
-        const data = achieve[site] || {};
-        const sc = getSiteColor(site);
-        const accentColor = sc ? sc.text : 'var(--accent)';
-
-        const wdBudget = data.weekdayBudget || 0;
-        const wdActual = data.weekdayActual || 0;
-        const wdRate   = calcAchieve(wdActual, wdBudget);
-
-        const weekendRows = weekends.map(({ sat, sun }) => {
-          const weData   = (data.weekends || {})[sat] || {};
-          const weBudget = weData.budget || 0;
-          const weActual = weData.actual || 0;
-          const weRate   = calcAchieve(weActual, weBudget);
-          const label    = formatDate(sat) + '(土)' + (sun ? '・' + formatDate(sun) + '(日)' : '');
-          return { sat, label, weBudget, weActual, weRate };
-        });
-
-        return `
-          <div class="card fade-in">
-            <!-- ヘッダー -->
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
-              <div style="display:flex;align-items:center;gap:10px">
-                <div style="width:4px;height:26px;border-radius:2px;background:${accentColor}"></div>
-                <span style="font-size:18px;font-weight:700">${site}</span>
-              </div>
-              ${canEdit ? `<button class="btn btn-primary" style="font-size:12px;padding:6px 14px" onclick="venueAchieveSave(${si})">保存</button>` : ''}
-            </div>
-
-            <!-- 平日予算（月合計） -->
-            <div style="margin-bottom:20px">
-              <div class="section-title">平日予算（月合計）</div>
-              <div style="display:flex;align-items:flex-end;gap:20px;flex-wrap:wrap;margin-bottom:10px">
-                <div>
-                  <div style="font-size:11px;color:var(--text-sub);margin-bottom:4px">予算</div>
-                  ${canEdit
-                    ? `<input type="number" class="form-input-sm" id="va_wd_budget_${si}" value="${wdBudget || ''}" placeholder="0" min="0" style="width:110px">`
-                    : `<div style="font-family:'Space Grotesk';font-size:24px;font-weight:700">${wdBudget || '—'}</div>`}
-                </div>
-                <div>
-                  <div style="font-size:11px;color:var(--text-sub);margin-bottom:4px">実績</div>
-                  ${canEdit
-                    ? `<input type="number" class="form-input-sm" id="va_wd_actual_${si}" value="${wdActual || ''}" placeholder="0" min="0" style="width:110px">`
-                    : `<div style="font-family:'Space Grotesk';font-size:24px;font-weight:700">${wdActual || '—'}</div>`}
-                </div>
-                ${wdBudget > 0 ? `
-                  <div style="flex:1;min-width:160px">
-                    <div style="font-size:11px;color:var(--text-sub);margin-bottom:6px">達成率</div>
-                    <div style="display:flex;align-items:center;gap:10px">
-                      <div class="va-progress-bar" style="flex:1">
-                        <div class="va-progress-fill" style="width:${Math.min(wdRate || 0, 100)}%;background:${achieveColor(wdRate)}"></div>
-                      </div>
-                      <div style="font-family:'Space Grotesk';font-size:20px;font-weight:700;color:${achieveColor(wdRate)};min-width:52px;text-align:right">${wdRate}%</div>
-                    </div>
-                  </div>
-                ` : ''}
-              </div>
-            </div>
-
-            <!-- 週末予算 -->
-            <div>
-              <div class="section-title">週末予算</div>
-              ${weekendRows.length === 0
-                ? `<div style="color:var(--text-sub);font-size:13px">この月に週末はありません</div>`
-                : `<div style="display:flex;flex-direction:column;gap:8px">
-                    ${weekendRows.map(({ sat, label, weBudget, weActual, weRate }) => `
-                      <div class="va-weekend-row">
-                        <div style="font-size:12px;font-weight:600;color:var(--text-sub);margin-bottom:8px">${label}</div>
-                        <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
-                          ${canEdit ? `
-                            <div style="display:flex;align-items:center;gap:6px">
-                              <span style="font-size:11px;color:var(--text-sub)">予算</span>
-                              <input type="number" class="form-input-sm" id="va_we_budget_${si}_${sat}" value="${weBudget || ''}" placeholder="0" min="0" style="width:90px">
-                            </div>
-                            <div style="display:flex;align-items:center;gap:6px">
-                              <span style="font-size:11px;color:var(--text-sub)">実績</span>
-                              <input type="number" class="form-input-sm" id="va_we_actual_${si}_${sat}" value="${weActual || ''}" placeholder="0" min="0" style="width:90px">
-                            </div>
-                          ` : `
-                            <span style="font-size:13px;color:var(--text-sub)">予算 <strong style="color:var(--text);font-family:'Space Grotesk'">${weBudget || '—'}</strong></span>
-                            <span style="font-size:13px;color:var(--text-sub)">実績 <strong style="color:var(--text);font-family:'Space Grotesk'">${weActual || '—'}</strong></span>
-                          `}
-                          ${weBudget > 0 ? `
-                            <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:140px">
-                              <div class="va-progress-bar" style="flex:1">
-                                <div class="va-progress-fill" style="width:${Math.min(weRate || 0, 100)}%;background:${achieveColor(weRate)}"></div>
-                              </div>
-                              <div style="font-family:'Space Grotesk';font-size:16px;font-weight:700;color:${achieveColor(weRate)};min-width:48px;text-align:right">${weRate}%</div>
-                            </div>
-                          ` : ''}
-                        </div>
-                      </div>
-                    `).join('')}
-                  </div>`
-              }
-            </div>
-          </div>
-        `;
-      }).join('')}
+      ${_renderVAWeekday(achieve, canEdit)}
     </div>
   `;
 }
 
-function venueAchieveSave(si) {
-  const sites = getShiftSites();
-  const site  = sites[si];
-  if (!site) return;
-  const month    = venueAchieveMonth;
-  const weekends = getWeekendDates(month);
+// ── 週末達成率ページ（グラフ切り替え付き）──
+function renderVenueAchieveWeekend() {
+  if (!venueAchieveMonth) venueAchieveMonth = currentMonth();
+  const level   = roleLevel(CU.role);
+  const canEdit = level >= 4;
+  const months  = getAvailableMonths();
+  const achieve = getVenueAchieve(venueAchieveMonth);
+  const weekends = getWeekendDates(venueAchieveMonth);
+  const weAchieve = achieve.weekends || {};
 
-  const weekdayBudget = parseInt(document.getElementById(`va_wd_budget_${si}`)?.value) || 0;
-  const weekdayActual = parseInt(document.getElementById(`va_wd_actual_${si}`)?.value) || 0;
+  // 選択中の週末をデフォルト設定（最初の週末）
+  if (!venueWeekendSelectedSat || !weekends.find(w => w.sat === venueWeekendSelectedSat)) {
+    venueWeekendSelectedSat = weekends[0]?.sat || '';
+  }
 
-  const weekendData = {};
-  weekends.forEach(({ sat }) => {
-    const budget = parseInt(document.getElementById(`va_we_budget_${si}_${sat}`)?.value) || 0;
-    const actual = parseInt(document.getElementById(`va_we_actual_${si}_${sat}`)?.value) || 0;
-    weekendData[sat] = { budget, actual };
+  // 「現場×過去6ヶ月」モード用の現場一覧（直近6ヶ月全体から収集）
+  const trendSiteNames = _vaCollectAllSiteNames(6);
+  if (!venueWeekendSelectedSite || !trendSiteNames.includes(venueWeekendSelectedSite)) {
+    venueWeekendSelectedSite = trendSiteNames[0] || '';
+  }
+
+  // グラフエリア
+  const chartSection = _renderVAWeekendChart(weekends, weAchieve, trendSiteNames);
+
+  document.getElementById('main').innerHTML = `
+    <div class="page-header fade-in">
+      <div>
+        <div class="page-title">週末達成率</div>
+        <div class="page-sub">${monthLabel(venueAchieveMonth)}の週末別予算達成状況</div>
+      </div>
+      <select class="form-input-sm" onchange="venueAchieveMonth=this.value;venueWeekendSelectedSat='';renderVenueAchieveWeekend()">
+        ${months.map(m => `<option value="${m}" ${m===venueAchieveMonth?'selected':''}>${monthLabel(m)}</option>`).join('')}
+      </select>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:16px">
+      ${chartSection}
+      ${_renderVAWeekend(achieve, canEdit)}
+    </div>
+  `;
+}
+
+// 過去N ヶ月のすべての週末現場名を収集（ユニーク・登場順）
+function _vaCollectAllSiteNames(monthCount = 6) {
+  const names = new Set();
+  const now = new Date();
+  for (let i = monthCount - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const m = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    for (const n of getVenueWeekendSiteNames(m)) names.add(n);
+  }
+  return [...names];
+}
+
+// ── 週末グラフ切り替えセクション ──
+function _renderVAWeekendChart(weekends, weAchieve, trendSiteNames) {
+  // モード切替ボタン
+  const modeToggle = `
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <div class="va-view-toggle">
+        <button class="va-vt-btn${venueWeekendChartMode==='by_weekend'?' is-active':''}"
+          onclick="venueWeekendChartMode='by_weekend';renderVenueAchieveWeekend()">週末 × 全現場</button>
+        <button class="va-vt-btn${venueWeekendChartMode==='by_site'?' is-active':''}"
+          onclick="venueWeekendChartMode='by_site';renderVenueAchieveWeekend()">現場 × 過去6ヶ月</button>
+      </div>
+      ${venueWeekendChartMode === 'by_weekend' && weekends.length > 0 ? `
+        <select class="form-input-sm" onchange="venueWeekendSelectedSat=this.value;renderVenueAchieveWeekend()">
+          ${weekends.map(({sat, sun}) => {
+            const lbl = formatDate(sat) + '(土)' + (sun ? '・' + formatDate(sun) + '(日)' : '');
+            return `<option value="${sat}" ${sat===venueWeekendSelectedSat?'selected':''}>${lbl}</option>`;
+          }).join('')}
+        </select>
+      ` : ''}
+      ${venueWeekendChartMode === 'by_site' && trendSiteNames.length > 0 ? `
+        <select class="form-input-sm" onchange="venueWeekendSelectedSite=this.value;renderVenueAchieveWeekend()">
+          ${trendSiteNames.map(n => `<option value="${n}" ${n===venueWeekendSelectedSite?'selected':''}>${n}</option>`).join('')}
+        </select>
+      ` : ''}
+    </div>`;
+
+  let chartHtml = '';
+  let chartTitle = '';
+  let summaryHtml = '';
+
+  if (venueWeekendChartMode === 'by_weekend') {
+    // 指定週末の全現場バー
+    const sites = (weAchieve[venueWeekendSelectedSat] || {}).sites || [];
+    const [, m, d] = (venueWeekendSelectedSat || '----').split('-');
+    chartTitle = venueWeekendSelectedSat
+      ? `${parseInt(m)}/${parseInt(d)}(土) 現場別達成率`
+      : '週末を選択してください';
+
+    if (sites.length) {
+      const totalBudget = sites.reduce((s, x) => s + (Number(x.budget)||0), 0);
+      const totalActual = sites.reduce((s, x) => s + (Number(x.actual)||0), 0);
+      const totalRate   = calcAchieve(totalActual, totalBudget);
+      summaryHtml = `
+        <div style="text-align:right">
+          <div style="font-size:11px;color:var(--text-sub)">合計達成率</div>
+          <div style="font-family:'Space Grotesk',monospace;font-size:26px;font-weight:700;color:${achieveColor(totalRate)};line-height:1.1">${totalRate!==null?totalRate+'%':'—'}</div>
+          <div style="font-size:11px;color:var(--text-sub);margin-top:2px">予算 ${totalBudget.toLocaleString()} / 実績 ${totalActual.toLocaleString()}</div>
+        </div>`;
+      chartHtml = _vaHBarChart(sites.map(s => ({ label: s.name, budget: Number(s.budget)||0, actual: Number(s.actual)||0 })));
+    } else {
+      chartHtml = `<div style="color:var(--text-sub);font-size:13px;text-align:center;padding:20px 0">この週末にはデータがありません</div>`;
+    }
+
+  } else {
+    // 指定現場の過去6ヶ月推移ライン・バー
+    chartTitle = venueWeekendSelectedSite
+      ? `「${venueWeekendSelectedSite}」 週末実績 過去6ヶ月推移`
+      : '現場を選択してください';
+
+    if (venueWeekendSelectedSite) {
+      const trend = getVenueWeekendSiteTrend(venueWeekendSelectedSite, 6);
+      const totalBudget = trend.reduce((s, x) => s + x.budget, 0);
+      const totalActual = trend.reduce((s, x) => s + x.actual, 0);
+      const totalRate   = calcAchieve(totalActual, totalBudget);
+      summaryHtml = `
+        <div style="text-align:right">
+          <div style="font-size:11px;color:var(--text-sub)">6ヶ月合計達成率</div>
+          <div style="font-family:'Space Grotesk',monospace;font-size:26px;font-weight:700;color:${achieveColor(totalRate)};line-height:1.1">${totalRate!==null?totalRate+'%':'—'}</div>
+          <div style="font-size:11px;color:var(--text-sub);margin-top:2px">予算 ${totalBudget.toLocaleString()} / 実績 ${totalActual.toLocaleString()}</div>
+        </div>`;
+      chartHtml = _vaTrendChart(trend);
+    } else {
+      chartHtml = `<div style="color:var(--text-sub);font-size:13px;text-align:center;padding:20px 0">現場を選択してください</div>`;
+    }
+  }
+
+  return `
+    <div class="card fade-in">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:14px">
+        <div>
+          <div style="font-size:12px;color:var(--text-sub);margin-bottom:8px">グラフ表示</div>
+          ${modeToggle}
+          <div style="font-size:13px;font-weight:600;margin-top:10px">${chartTitle}</div>
+        </div>
+        ${summaryHtml}
+      </div>
+      ${chartHtml}
+    </div>`;
+}
+
+// ── SVGチャート: 月別推移（現場×過去6ヶ月）──
+// trend: [{ month, label, budget, actual, rate }]
+function _vaTrendChart(trend) {
+  if (!trend || !trend.length) return '';
+  const W = 520, H = 160;
+  const n = trend.length;
+  const maxBudget = Math.max(...trend.map(t => t.budget), 1);
+  const barMaxH = 90;
+  const step = (W - 30) / n;
+  const barW = Math.min(48, step - 14);
+
+  const bars = trend.map((t, i) => {
+    const cx = 15 + step * i + step / 2;
+    const x  = cx - barW / 2;
+    const bh = t.budget > 0 ? (t.budget / maxBudget) * barMaxH : 6;
+    const ah = t.budget > 0 ? Math.min(t.actual / t.budget, 1.3) * bh : 0;
+    const color = achieveColor(t.rate);
+    const budgetY = H - 30 - bh;
+    const actualY = H - 30 - ah;
+    // 月ラベル（短縮: "4月"）
+    const shortLabel = t.label.replace(/\d+年/, '').replace('ヶ月', '').replace('月', '月');
+    return `
+      <rect x="${x}" y="${budgetY}" width="${barW}" height="${bh}" rx="3" fill="rgba(255,255,255,.09)"/>
+      ${ah > 0 ? `<rect x="${x}" y="${actualY}" width="${barW}" height="${ah}" rx="3" fill="${color}" opacity=".85"/>` : ''}
+      <text x="${cx}" y="${H - 14}" text-anchor="middle" font-size="10" fill="rgba(208,216,238,.75)">${shortLabel}</text>
+      ${t.rate !== null
+        ? `<text x="${cx}" y="${Math.min(actualY - 4, H - 36)}" text-anchor="middle" font-size="10" font-weight="bold" fill="${color}">${t.rate}%</text>`
+        : `<text x="${cx}" y="${budgetY - 4}" text-anchor="middle" font-size="10" fill="rgba(208,216,238,.4)">—</text>`}
+      <text x="${cx}" y="${H - 4}" text-anchor="middle" font-size="9" fill="rgba(208,216,238,.45)">${t.actual > 0 ? t.actual.toLocaleString() : ''}</text>
+    `;
+  }).join('');
+
+  // 実績ラインを折れ線で接続
+  const linePoints = trend
+    .map((t, i) => {
+      if (!t.actual) return null;
+      const cx = 15 + step * i + step / 2;
+      const bh = t.budget > 0 ? (t.budget / maxBudget) * barMaxH : 6;
+      const ah = t.budget > 0 ? Math.min(t.actual / t.budget, 1.3) * bh : 0;
+      return `${cx},${H - 30 - ah}`;
+    })
+    .filter(Boolean);
+  const polyline = linePoints.length >= 2
+    ? `<polyline points="${linePoints.join(' ')}" fill="none" stroke="rgba(171,160,255,.5)" stroke-width="1.5" stroke-dasharray="4 2"/>`
+    : '';
+
+  return `<div class="va-chart-wrap">
+    <svg width="100%" viewBox="0 0 ${W} ${H}" style="display:block;min-width:260px">
+      ${bars}${polyline}
+    </svg>
+  </div>`;
+}
+
+// ── 保存関数 ──
+
+// 平日: 全現場をまとめて保存
+function venueAchieveSaveWeekday() {
+  const sites  = getShiftSites().filter(s => s !== '休み');
+  const cur    = getVenueAchieve(venueAchieveMonth);
+  sites.forEach((site, si) => {
+    const budget = parseInt(document.getElementById(`va_wd_b_${si}`)?.value) || 0;
+    const actual = parseInt(document.getElementById(`va_wd_a_${si}`)?.value) || 0;
+    cur.weekday[site] = { budget, actual };
+  });
+  setVenueAchieve(venueAchieveMonth, cur);
+  showToast('平日達成率を保存しました', 'success');
+  renderVenueAchieveWeekday();
+}
+
+// 週末: 1週末分を保存（新規追加行も含む）
+function venueAchieveSaveWeekend(sat) {
+  const cur   = getVenueAchieve(venueAchieveMonth);
+  const saved = (cur.weekends[sat] || {}).sites || [];
+  const sites = [];
+
+  saved.forEach((_, idx) => {
+    const name   = document.getElementById(`va_we_name_${sat}_${idx}`)?.value?.trim();
+    const budget = parseInt(document.getElementById(`va_we_b_${sat}_${idx}`)?.value) || 0;
+    const actual = parseInt(document.getElementById(`va_we_a_${sat}_${idx}`)?.value) || 0;
+    if (name) sites.push({ name, budget, actual });
   });
 
-  setVenueAchieveSite(month, site, { weekdayBudget, weekdayActual, weekends: weekendData });
-  showToast(`${site} の達成率を保存しました`);
-  renderVenueAchieve();
+  // 追加行
+  const newName   = document.getElementById(`va_we_new_name_${sat}`)?.value?.trim();
+  const newBudget = parseInt(document.getElementById(`va_we_new_b_${sat}`)?.value) || 0;
+  const newActual = parseInt(document.getElementById(`va_we_new_a_${sat}`)?.value) || 0;
+  if (newName) sites.push({ name: newName, budget: newBudget, actual: newActual });
+
+  cur.weekends[sat] = { sites };
+  setVenueAchieve(venueAchieveMonth, cur);
+  showToast(`${formatDate(sat)} 週末の達成率を保存しました`, 'success');
+  renderVenueAchieveWeekend();
+}
+
+// 週末: 追加行だけを即時コミット
+function venueAchieveAddWeekendSite(sat) {
+  const newName = document.getElementById(`va_we_new_name_${sat}`)?.value?.trim();
+  if (!newName) { showToast('現場名を入力してください', 'error'); return; }
+  const newBudget = parseInt(document.getElementById(`va_we_new_b_${sat}`)?.value) || 0;
+  const newActual = parseInt(document.getElementById(`va_we_new_a_${sat}`)?.value) || 0;
+
+  const cur   = getVenueAchieve(venueAchieveMonth);
+  const saved = (cur.weekends[sat] || {}).sites || [];
+  // 既存行の入力値も保持して保存
+  const sites = [];
+  saved.forEach((_, idx) => {
+    const name   = document.getElementById(`va_we_name_${sat}_${idx}`)?.value?.trim() || _.name;
+    const budget = parseInt(document.getElementById(`va_we_b_${sat}_${idx}`)?.value) || Number(_.budget) || 0;
+    const actual = parseInt(document.getElementById(`va_we_a_${sat}_${idx}`)?.value) || Number(_.actual) || 0;
+    if (name) sites.push({ name, budget, actual });
+  });
+  sites.push({ name: newName, budget: newBudget, actual: newActual });
+
+  cur.weekends[sat] = { sites };
+  setVenueAchieve(venueAchieveMonth, cur);
+  renderVenueAchieveWeekend();
+}
+
+// 週末: 現場1行を削除
+function venueAchieveRemoveWeekendSite(sat, idx) {
+  const cur   = getVenueAchieve(venueAchieveMonth);
+  const sites = [...((cur.weekends[sat] || {}).sites || [])];
+  sites.splice(idx, 1);
+  cur.weekends[sat] = { sites };
+  setVenueAchieve(venueAchieveMonth, cur);
+  showToast('現場を削除しました', 'success');
+  renderVenueAchieveWeekend();
 }

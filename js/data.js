@@ -696,11 +696,12 @@ function getUnreadCount(userId) {
 // ─── TALENT: 直近N か月の生産性推移を返す ───
 // [{month:'YYYY-MM', value: number, label: string}]
 // ─── VENUE ACHIEVEMENT (現場達成率) ───
-// lc_venue_achieve: { [month: 'YYYY-MM']: { [site: string]: {
-//   weekdayBudget: number,   // 月合計の平日予算
-//   weekdayActual: number,   // 月合計の平日実績
-//   weekends: { [satDateStr: 'YYYY-MM-DD']: { budget: number, actual: number } }
-// }}}
+// lc_venue_achieve v2: { [month: 'YYYY-MM']: {
+//   weekday:  { [site: string]: { budget: number, actual: number } },
+//   weekends: { [sat: 'YYYY-MM-DD']: { sites: Array<{ name, budget, actual }> } }
+// }}
+// ※ v1形式（{ [site]: { weekdayBudget, weekdayActual, weekends: {...} } }）は
+//    getVenueAchieve 内で自動マイグレーション
 
 // 指定月のすべての週末（土曜日）を返す: [{ sat:'YYYY-MM-DD', sun:'YYYY-MM-DD'|null }]
 function getWeekendDates(month) {
@@ -721,14 +722,87 @@ function getWeekendDates(month) {
   return weekends;
 }
 
+// 月のデータを取得（v1→v2 自動マイグレーション付き）
 function getVenueAchieve(month) {
-  return Store.get(LS.venueAchieve, {})[month] || {};
+  const raw = Store.get(LS.venueAchieve, {})[month] || {};
+  // 新フォーマット判定: 'weekday' か 'weekends' キーがあればv2
+  if ('weekday' in raw || 'weekends' in raw) {
+    return { weekday: raw.weekday || {}, weekends: raw.weekends || {} };
+  }
+  // v1 → v2 マイグレーション
+  const weekday = {};
+  const weekends = {};
+  for (const [site, data] of Object.entries(raw)) {
+    if (typeof data !== 'object' || data === null) continue;
+    if ((data.weekdayBudget || 0) > 0 || (data.weekdayActual || 0) > 0) {
+      weekday[site] = { budget: data.weekdayBudget || 0, actual: data.weekdayActual || 0 };
+    }
+    for (const [sat, weData] of Object.entries(data.weekends || {})) {
+      weekends[sat] = weekends[sat] || { sites: [] };
+      if ((weData.budget || 0) > 0 || (weData.actual || 0) > 0) {
+        weekends[sat].sites.push({ name: site, budget: weData.budget || 0, actual: weData.actual || 0 });
+      }
+    }
+  }
+  return { weekday, weekends };
 }
-function setVenueAchieveSite(month, site, data) {
+
+// 現場別・週末月次推移を取得（過去N ヶ月）
+// returns: [{ month: 'YYYY-MM', label, budget, actual, rate }]
+function getVenueWeekendSiteTrend(siteName, monthCount = 6) {
+  const result = [];
+  const now = new Date();
+  for (let i = monthCount - 1; i >= 0; i--) {
+    const d     = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const achieve  = getVenueAchieve(month);
+    const weekends = achieve.weekends || {};
+    let budget = 0, actual = 0;
+    for (const weDay of Object.values(weekends)) {
+      for (const s of (weDay.sites || [])) {
+        if (s.name === siteName) {
+          budget += Number(s.budget) || 0;
+          actual += Number(s.actual) || 0;
+        }
+      }
+    }
+    result.push({ month, label: monthLabel(month), budget, actual, rate: calcAchieve(actual, budget) });
+  }
+  return result;
+}
+
+// 指定月の全週末に登場する現場名一覧を取得（ユニーク）
+function getVenueWeekendSiteNames(month) {
+  const achieve  = getVenueAchieve(month);
+  const weekends = achieve.weekends || {};
+  const names = new Set();
+  for (const weDay of Object.values(weekends)) {
+    for (const s of (weDay.sites || [])) {
+      if (s.name) names.add(s.name);
+    }
+  }
+  return [...names];
+}
+
+// 月全体のデータを上書き保存
+function setVenueAchieve(month, data) {
   const all = Store.get(LS.venueAchieve, {});
-  all[month] = all[month] || {};
-  all[month][site] = data;
+  all[month] = data;
   Store.set(LS.venueAchieve, all);
+}
+
+// 平日1現場分を保存（部分更新）
+function setVenueAchieveWeekday(month, site, siteData) {
+  const cur = getVenueAchieve(month);
+  cur.weekday[site] = siteData;
+  setVenueAchieve(month, cur);
+}
+
+// 週末1日分のサイト配列を保存（部分更新）
+function setVenueAchieveWeekend(month, sat, sitesArray) {
+  const cur = getVenueAchieve(month);
+  cur.weekends[sat] = { sites: sitesArray };
+  setVenueAchieve(month, cur);
 }
 
 function getTalentProductivityTrend(userId, months = 6) {

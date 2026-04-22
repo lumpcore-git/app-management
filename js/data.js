@@ -784,6 +784,19 @@ function getVenueWeekendSiteNames(month) {
   return [...names];
 }
 
+// シフト登録現場 + 週末達成率データに登場した全現場名を返す（重複排除・五十音順）
+function getAllVenueWeekendSiteNames() {
+  const names = new Set(getShiftSites());
+  const allData = Store.get(LS.venueAchieve, {});
+  Object.values(allData).forEach(monthData => {
+    const weekends = monthData.weekends || {};
+    Object.values(weekends).forEach(wd => {
+      (wd.sites || []).forEach(s => { if (s.name) names.add(s.name); });
+    });
+  });
+  return [...names].sort((a, b) => a.localeCompare(b, 'ja'));
+}
+
 // 月全体のデータを上書き保存
 function setVenueAchieve(month, data) {
   const all = Store.get(LS.venueAchieve, {});

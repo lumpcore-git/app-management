@@ -1338,6 +1338,38 @@ td { padding: 12px 16px; vertical-align: middle; }
   overflow-x: auto;
 }
 
+/* ─── 週末達成率: 現場名コンボボックス ─── */
+.va-venue-combo { position: relative; display: inline-block; }
+.va-venue-dropdown {
+  position: absolute;
+  top: calc(100% + 3px);
+  left: 0;
+  z-index: 300;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  min-width: 190px;
+  max-height: 220px;
+  overflow-y: auto;
+  box-shadow: 0 8px 28px rgba(0,0,0,.5);
+}
+.va-venue-option {
+  padding: 8px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--text);
+  border-bottom: 1px solid rgba(106,128,186,.12);
+  white-space: nowrap;
+  transition: background .1s;
+}
+.va-venue-option:last-child { border-bottom: none; }
+.va-venue-option:hover, .va-venue-option.active { background: rgba(171,160,255,.22); }
+.va-venue-option-empty {
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--text-sub);
+}
+
 /* ─── SETTINGS PAGE ─── */
 .theme-option {
   border: 2px solid var(--border);

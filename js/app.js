@@ -22,9 +22,10 @@ let profileActiveTab = 'perf';
 let venueAchieveMonth = '';
 let venueMenuExpanded = false;
 // 週末グラフ用
-let venueWeekendChartMode  = 'by_weekend'; // 'by_weekend'=週末×全現場 | 'by_site'=現場×過去6ヶ月
-let venueWeekendSelectedSat  = '';          // 'by_weekend' 選択中の土曜日
-let venueWeekendSelectedSite = '';          // 'by_site' 選択中の現場名
+let venueWeekendChartMode  = 'by_weekend'; // 'by_weekend' | 'by_month_sites' | 'by_site'
+let venueWeekendSelectedSat   = '';        // 'by_weekend' 選択中の土曜日
+let venueWeekendSelectedSite  = '';        // 'by_site' 選択中の現場名
+let venueWeekendTrendMonths   = 6;         // 'by_site' 推移の期間（3/6/12）
 
 // ─── THEME ───
 function initTheme() {
@@ -3972,43 +3973,59 @@ function steApplySave() {
 
 // ── SVGチャート: 水平バー（平日現場別比較） ──
 // items: [{ label, budget, actual }]
-function _vaHBarChart(items) {
+// ── SVGチャート: 縦棒（現場別・予算vs実績・達成率） ──
+// items: [{ label, budget, actual }]
+function _vaVBarChart(items) {
   if (!items || !items.length) return '';
-  const W = 520, labelW = 120, barAreaW = 260, numW = 58, rateW = 62;
-  const rowH = 30, gap = 7;
-  const H = items.length * (rowH + gap) + 14;
-  const maxBudget = Math.max(...items.map(i => Number(i.budget) || 0), 1);
+  const padL = 22, padR = 10, padT = 38, padB = 54;
+  const barAreaH = 120;
+  const W = 500, H = padT + barAreaH + padB;
+  const n = items.length;
+  const step = (W - padL - padR) / n;
+  const barW = Math.max(14, Math.min(56, step * 0.58));
+  const maxVal = Math.max(...items.map(i => Math.max(Number(i.budget)||0, Number(i.actual)||0)), 1);
+  const baseY = padT + barAreaH;
+  const rotateLabels = n > 4;
 
-  const rows = items.map((item, i) => {
-    const y   = 7 + i * (rowH + gap);
-    const bgt = Number(item.budget) || 0;
-    const act = Number(item.actual) || 0;
-    const budgetW = bgt > 0 ? (bgt / maxBudget) * barAreaW : barAreaW * 0.06;
-    const actualW = bgt > 0 ? Math.min(act / bgt, 1.3) * budgetW : 0;
-    const rate  = calcAchieve(act, bgt);
-    const color = achieveColor(rate);
-    const cy    = y + rowH / 2;
+  const gridLines = [0.25, 0.5, 0.75, 1.0].map(p => {
+    const y = padT + barAreaH * (1 - p);
     return `
-      <text x="${labelW - 7}" y="${cy + 4}" text-anchor="end" font-size="11" fill="rgba(208,216,238,.85)">${item.label}</text>
-      <rect x="${labelW}" y="${y + 5}" width="${budgetW}" height="${rowH - 10}" rx="3" fill="rgba(255,255,255,.09)"/>
-      ${actualW > 0 ? `<rect x="${labelW}" y="${y + 5}" width="${actualW}" height="${rowH - 10}" rx="3" fill="${color}" opacity=".82"/>` : ''}
-      ${bgt > 0 ? `<line x1="${labelW + budgetW}" y1="${y + 3}" x2="${labelW + budgetW}" y2="${y + rowH - 3}" stroke="rgba(255,255,255,.22)" stroke-width="1.5" stroke-dasharray="3 2"/>` : ''}
-      <text x="${labelW + barAreaW + numW}" y="${cy + 4}" text-anchor="end" font-size="11" fill="rgba(208,216,238,.7)" font-family="'Space Grotesk',monospace">${act > 0 ? act.toLocaleString() : '—'}</text>
-      <text x="${W - 4}" y="${cy + 4}" text-anchor="end" font-size="13" font-weight="bold" fill="${color}" font-family="'Space Grotesk',monospace">${rate !== null ? rate + '%' : '—'}</text>
-    `;
+      <line x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" stroke="rgba(255,255,255,.05)" stroke-width="1"/>
+      <text x="${padL - 3}" y="${y + 4}" text-anchor="end" font-size="8" fill="rgba(208,216,238,.28)">${Math.round(p * maxVal)}</text>`;
   }).join('');
 
-  // 列ヘッダー
-  const hy = 0;
-  const header = `
-    <text x="${labelW + barAreaW + numW}" y="${hy + 10}" text-anchor="end" font-size="9" fill="rgba(208,216,238,.5)">実績</text>
-    <text x="${W - 4}" y="${hy + 10}" text-anchor="end" font-size="9" fill="rgba(208,216,238,.5)">達成率</text>
-  `;
+  const bars = items.map((item, i) => {
+    const bgt   = Number(item.budget) || 0;
+    const act   = Number(item.actual) || 0;
+    const rate  = calcAchieve(act, bgt);
+    const color = achieveColor(rate);
+    const cx = padL + step * i + step / 2;
+    const x  = cx - barW / 2;
+    const bh = bgt > 0 ? (bgt / maxVal) * barAreaH : 5;
+    const ah = bgt > 0
+      ? Math.min(act / bgt, 1.3) * bh
+      : (act > 0 ? (act / maxVal) * barAreaH : 0);
+    const budgetY = baseY - bh;
+    const actualY = baseY - ah;
+    const lbl = item.label.length > 9 ? item.label.slice(0, 8) + '…' : item.label;
+    const labelEl = rotateLabels
+      ? `<g transform="translate(${cx},${baseY + 10}) rotate(-35)"><text text-anchor="end" font-size="10" fill="rgba(208,216,238,.8)">${lbl}</text></g>`
+      : `<text x="${cx}" y="${baseY + 16}" text-anchor="middle" font-size="10" fill="rgba(208,216,238,.8)">${lbl}</text>`;
+    return `
+      <rect x="${x}" y="${budgetY}" width="${barW}" height="${bh}" rx="3" fill="rgba(255,255,255,.1)"/>
+      ${ah > 1 ? `<rect x="${x}" y="${actualY}" width="${barW}" height="${ah}" rx="3" fill="${color}" opacity=".86"/>` : ''}
+      ${bgt > 0 ? `<text x="${cx}" y="${budgetY - 4}" text-anchor="middle" font-size="9" fill="rgba(208,216,238,.42)">目標${bgt}</text>` : ''}
+      ${rate !== null
+        ? `<text x="${cx}" y="${Math.min(actualY - 5, budgetY - 16)}" text-anchor="middle" font-size="11" font-weight="bold" fill="${color}" font-family="'Space Grotesk',monospace">${rate}%</text>`
+        : (bgt > 0 ? `<text x="${cx}" y="${budgetY - 16}" text-anchor="middle" font-size="9" fill="rgba(208,216,238,.35)">—</text>` : '')}
+      ${act > 0 && ah > 14 ? `<text x="${cx}" y="${actualY + 12}" text-anchor="middle" font-size="10" fill="rgba(255,255,255,.82)" font-family="'Space Grotesk',monospace">${act}</text>` : ''}
+      ${act > 0 && ah <= 14 ? `<text x="${cx}" y="${actualY - 2}" text-anchor="middle" font-size="9" fill="rgba(208,216,238,.65)" font-family="'Space Grotesk',monospace">${act}</text>` : ''}
+      ${labelEl}`;
+  }).join('');
 
   return `<div class="va-chart-wrap">
-    <svg width="100%" viewBox="0 0 ${W} ${H + 12}" style="display:block;min-width:260px">
-      ${header}
-      <g transform="translate(0,12)">${rows}</g>
+    <svg width="100%" viewBox="0 0 ${W} ${H}" style="display:block;min-width:260px">
+      ${gridLines}${bars}
     </svg>
   </div>`;
 }
@@ -4044,8 +4061,10 @@ function _vaWeekendBarChart(weekends, weData) {
     return `
       <rect x="${x}" y="${budgetY}" width="${totalBarW}" height="${bh}" rx="3" fill="rgba(255,255,255,.09)"/>
       ${ah > 0 ? `<rect x="${x}" y="${actualY}" width="${totalBarW}" height="${ah}" rx="3" fill="${color}" opacity=".85"/>` : ''}
+      ${item.budget > 0 ? `<text x="${cx}" y="${budgetY - 3}" text-anchor="middle" font-size="9" fill="rgba(208,216,238,.42)">目標${item.budget}</text>` : ''}
+      ${item.actual > 0 && ah > 13 ? `<text x="${cx}" y="${actualY + 11}" text-anchor="middle" font-size="9" fill="rgba(255,255,255,.8)">${item.actual}</text>` : ''}
       <text x="${cx}" y="${H - 10}" text-anchor="middle" font-size="10" fill="rgba(208,216,238,.7)">${item.label}</text>
-      ${item.rate !== null ? `<text x="${cx}" y="${Math.min(actualY - 4, H - 32)}" text-anchor="middle" font-size="10" font-weight="bold" fill="${color}">${item.rate}%</text>` : ''}
+      ${item.rate !== null ? `<text x="${cx}" y="${Math.min(actualY - 4, budgetY - 14)}" text-anchor="middle" font-size="10" font-weight="bold" fill="${color}">${item.rate}%</text>` : ''}
     `;
   }).join('');
 
@@ -4109,7 +4128,7 @@ function _renderVAWeekday(achieve, canEdit) {
           <div style="font-size:11px;color:var(--text-sub);margin-top:2px">予算 ${totalBudget.toLocaleString()} / 実績 ${totalActual.toLocaleString()}</div>
         </div>
       </div>
-      ${sites.length ? _vaHBarChart(chartItems) : '<div style="color:var(--text-sub);font-size:13px">現場が登録されていません</div>'}
+      ${sites.length ? _vaVBarChart(chartItems) : '<div style="color:var(--text-sub);font-size:13px">現場が登録されていません</div>'}
     </div>
 
     <!-- 入力テーブル -->
@@ -4134,6 +4153,69 @@ function _renderVAWeekday(achieve, canEdit) {
             </table>
            </div>`}
     </div>`;
+}
+
+// ── 週末達成率: 現場名コンボボックス ──
+function _vaVenueComboHtml(inputId, value, style) {
+  return `<div class="va-venue-combo" style="${style}">
+    <input type="text" class="form-input-sm" id="${inputId}"
+           value="${value.replace(/"/g, '&quot;')}" placeholder="現場名"
+           autocomplete="off" style="width:100%"
+           oninput="_vaComboFilter('${inputId}')"
+           onfocus="_vaComboShow('${inputId}')"
+           onblur="_vaComboHide('${inputId}')">
+    <div class="va-venue-dropdown" id="${inputId}_drop" style="display:none"></div>
+  </div>`;
+}
+
+function _vaComboAll() {
+  return getAllVenueWeekendSiteNames();
+}
+
+function _vaComboRenderDrop(drop, inputId, names) {
+  if (!names.length) {
+    drop.innerHTML = '<div class="va-venue-option-empty">候補なし</div>';
+    return;
+  }
+  drop.innerHTML = names.map(n =>
+    `<div class="va-venue-option" onmousedown="event.preventDefault();_vaComboSelect('${inputId}','${n.replace(/'/g, "\\'")}')">` +
+    n + '</div>'
+  ).join('');
+}
+
+function _vaComboFilter(inputId) {
+  const input = document.getElementById(inputId);
+  const drop  = document.getElementById(inputId + '_drop');
+  if (!input || !drop) return;
+  const q = input.value.trim().toLowerCase();
+  const filtered = _vaComboAll().filter(n => !q || n.toLowerCase().includes(q));
+  _vaComboRenderDrop(drop, inputId, filtered);
+  drop.style.display = 'block';
+}
+
+function _vaComboShow(inputId) {
+  const input = document.getElementById(inputId);
+  const drop  = document.getElementById(inputId + '_drop');
+  if (!input || !drop) return;
+  const q = input.value.trim().toLowerCase();
+  const filtered = _vaComboAll().filter(n => !q || n.toLowerCase().includes(q));
+  _vaComboRenderDrop(drop, inputId, filtered);
+  drop.style.display = 'block';
+}
+
+function _vaComboHide(inputId) {
+  // mousedown の後に blur が来るので少し待つ
+  setTimeout(() => {
+    const drop = document.getElementById(inputId + '_drop');
+    if (drop) drop.style.display = 'none';
+  }, 180);
+}
+
+function _vaComboSelect(inputId, name) {
+  const input = document.getElementById(inputId);
+  if (input) { input.value = name; input.dispatchEvent(new Event('input')); }
+  const drop = document.getElementById(inputId + '_drop');
+  if (drop) drop.style.display = 'none';
 }
 
 // ── 週末ビュー ──
@@ -4169,7 +4251,7 @@ function _renderVAWeekend(achieve, canEdit) {
         <tr style="border-bottom:1px solid rgba(106,128,186,.15)">
           <td style="padding:8px 10px">
             ${canEdit
-              ? `<input type="text" class="form-input-sm" id="va_we_name_${sat}_${idx}" value="${site.name}" style="width:130px">`
+              ? _vaVenueComboHtml(`va_we_name_${sat}_${idx}`, site.name, 'width:150px')
               : `<span style="font-size:13px">${site.name}</span>`}
           </td>
           ${canEdit
@@ -4192,7 +4274,7 @@ function _renderVAWeekend(achieve, canEdit) {
     // 新規追加行（編集時のみ）
     const newRow = canEdit ? `
       <tr style="background:rgba(171,160,255,.05)">
-        <td style="padding:6px 8px"><input type="text" class="form-input-sm" id="va_we_new_name_${sat}" placeholder="現場名" style="width:130px"></td>
+        <td style="padding:6px 8px">${_vaVenueComboHtml(`va_we_new_name_${sat}`, '', 'width:150px')}</td>
         <td style="padding:6px 8px"><input type="number" class="form-input-sm" id="va_we_new_b_${sat}" placeholder="予算" min="0" style="width:80px"></td>
         <td style="padding:6px 8px"><input type="number" class="form-input-sm" id="va_we_new_a_${sat}" placeholder="実績" min="0" style="width:80px"></td>
         <td colspan="2" style="padding:6px 8px">
@@ -4330,14 +4412,15 @@ function _vaCollectAllSiteNames(monthCount = 6) {
 
 // ── 週末グラフ切り替えセクション ──
 function _renderVAWeekendChart(weekends, weAchieve, trendSiteNames) {
-  // モード切替ボタン
   const modeToggle = `
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <div class="va-view-toggle">
         <button class="va-vt-btn${venueWeekendChartMode==='by_weekend'?' is-active':''}"
           onclick="venueWeekendChartMode='by_weekend';renderVenueAchieveWeekend()">週末 × 全現場</button>
+        <button class="va-vt-btn${venueWeekendChartMode==='by_month_sites'?' is-active':''}"
+          onclick="venueWeekendChartMode='by_month_sites';renderVenueAchieveWeekend()">月間現場合計</button>
         <button class="va-vt-btn${venueWeekendChartMode==='by_site'?' is-active':''}"
-          onclick="venueWeekendChartMode='by_site';renderVenueAchieveWeekend()">現場 × 過去6ヶ月</button>
+          onclick="venueWeekendChartMode='by_site';renderVenueAchieveWeekend()">現場別推移</button>
       </div>
       ${venueWeekendChartMode === 'by_weekend' && weekends.length > 0 ? `
         <select class="form-input-sm" onchange="venueWeekendSelectedSat=this.value;renderVenueAchieveWeekend()">
@@ -4351,6 +4434,11 @@ function _renderVAWeekendChart(weekends, weAchieve, trendSiteNames) {
         <select class="form-input-sm" onchange="venueWeekendSelectedSite=this.value;renderVenueAchieveWeekend()">
           ${trendSiteNames.map(n => `<option value="${n}" ${n===venueWeekendSelectedSite?'selected':''}>${n}</option>`).join('')}
         </select>
+        <select class="form-input-sm" onchange="venueWeekendTrendMonths=parseInt(this.value);renderVenueAchieveWeekend()">
+          <option value="3" ${venueWeekendTrendMonths===3?'selected':''}>3ヶ月</option>
+          <option value="6" ${venueWeekendTrendMonths===6?'selected':''}>6ヶ月</option>
+          <option value="12" ${venueWeekendTrendMonths===12?'selected':''}>12ヶ月</option>
+        </select>
       ` : ''}
     </div>`;
 
@@ -4359,13 +4447,11 @@ function _renderVAWeekendChart(weekends, weAchieve, trendSiteNames) {
   let summaryHtml = '';
 
   if (venueWeekendChartMode === 'by_weekend') {
-    // 指定週末の全現場バー
     const sites = (weAchieve[venueWeekendSelectedSat] || {}).sites || [];
     const [, m, d] = (venueWeekendSelectedSat || '----').split('-');
     chartTitle = venueWeekendSelectedSat
       ? `${parseInt(m)}/${parseInt(d)}(土) 現場別達成率`
       : '週末を選択してください';
-
     if (sites.length) {
       const totalBudget = sites.reduce((s, x) => s + (Number(x.budget)||0), 0);
       const totalActual = sites.reduce((s, x) => s + (Number(x.actual)||0), 0);
@@ -4374,29 +4460,57 @@ function _renderVAWeekendChart(weekends, weAchieve, trendSiteNames) {
         <div style="text-align:right">
           <div style="font-size:11px;color:var(--text-sub)">合計達成率</div>
           <div style="font-family:'Space Grotesk',monospace;font-size:26px;font-weight:700;color:${achieveColor(totalRate)};line-height:1.1">${totalRate!==null?totalRate+'%':'—'}</div>
-          <div style="font-size:11px;color:var(--text-sub);margin-top:2px">予算 ${totalBudget.toLocaleString()} / 実績 ${totalActual.toLocaleString()}</div>
+          <div style="font-size:11px;color:var(--text-sub);margin-top:2px">目標 ${totalBudget.toLocaleString()} / 実績 ${totalActual.toLocaleString()}</div>
         </div>`;
-      chartHtml = _vaHBarChart(sites.map(s => ({ label: s.name, budget: Number(s.budget)||0, actual: Number(s.actual)||0 })));
+      chartHtml = _vaVBarChart(sites.map(s => ({ label: s.name, budget: Number(s.budget)||0, actual: Number(s.actual)||0 })));
     } else {
       chartHtml = `<div style="color:var(--text-sub);font-size:13px;text-align:center;padding:20px 0">この週末にはデータがありません</div>`;
     }
 
-  } else {
-    // 指定現場の過去6ヶ月推移ライン・バー
-    chartTitle = venueWeekendSelectedSite
-      ? `「${venueWeekendSelectedSite}」 週末実績 過去6ヶ月推移`
-      : '現場を選択してください';
+  } else if (venueWeekendChartMode === 'by_month_sites') {
+    // 月の全週末を現場ごとに合算して比較
+    chartTitle = '月間 現場別合計達成率';
+    const siteMap = {};
+    weekends.forEach(({ sat }) => {
+      ((weAchieve[sat] || {}).sites || []).forEach(s => {
+        if (!siteMap[s.name]) siteMap[s.name] = { budget: 0, actual: 0 };
+        siteMap[s.name].budget += Number(s.budget) || 0;
+        siteMap[s.name].actual += Number(s.actual) || 0;
+      });
+    });
+    const monthItems = Object.entries(siteMap)
+      .map(([name, v]) => ({ label: name, budget: v.budget, actual: v.actual }))
+      .sort((a, b) => b.actual - a.actual);
+    if (monthItems.length) {
+      const totalBudget = monthItems.reduce((s, x) => s + x.budget, 0);
+      const totalActual = monthItems.reduce((s, x) => s + x.actual, 0);
+      const totalRate   = calcAchieve(totalActual, totalBudget);
+      summaryHtml = `
+        <div style="text-align:right">
+          <div style="font-size:11px;color:var(--text-sub)">月間合計達成率</div>
+          <div style="font-family:'Space Grotesk',monospace;font-size:26px;font-weight:700;color:${achieveColor(totalRate)};line-height:1.1">${totalRate!==null?totalRate+'%':'—'}</div>
+          <div style="font-size:11px;color:var(--text-sub);margin-top:2px">目標 ${totalBudget.toLocaleString()} / 実績 ${totalActual.toLocaleString()}</div>
+        </div>`;
+      chartHtml = _vaVBarChart(monthItems);
+    } else {
+      chartHtml = `<div style="color:var(--text-sub);font-size:13px;text-align:center;padding:20px 0">データがありません</div>`;
+    }
 
+  } else {
+    // 指定現場の推移
+    chartTitle = venueWeekendSelectedSite
+      ? `「${venueWeekendSelectedSite}」 週末実績 過去${venueWeekendTrendMonths}ヶ月推移`
+      : '現場を選択してください';
     if (venueWeekendSelectedSite) {
-      const trend = getVenueWeekendSiteTrend(venueWeekendSelectedSite, 6);
+      const trend = getVenueWeekendSiteTrend(venueWeekendSelectedSite, venueWeekendTrendMonths);
       const totalBudget = trend.reduce((s, x) => s + x.budget, 0);
       const totalActual = trend.reduce((s, x) => s + x.actual, 0);
       const totalRate   = calcAchieve(totalActual, totalBudget);
       summaryHtml = `
         <div style="text-align:right">
-          <div style="font-size:11px;color:var(--text-sub)">6ヶ月合計達成率</div>
+          <div style="font-size:11px;color:var(--text-sub)">${venueWeekendTrendMonths}ヶ月合計達成率</div>
           <div style="font-family:'Space Grotesk',monospace;font-size:26px;font-weight:700;color:${achieveColor(totalRate)};line-height:1.1">${totalRate!==null?totalRate+'%':'—'}</div>
-          <div style="font-size:11px;color:var(--text-sub);margin-top:2px">予算 ${totalBudget.toLocaleString()} / 実績 ${totalActual.toLocaleString()}</div>
+          <div style="font-size:11px;color:var(--text-sub);margin-top:2px">目標 ${totalBudget.toLocaleString()} / 実績 ${totalActual.toLocaleString()}</div>
         </div>`;
       chartHtml = _vaTrendChart(trend);
     } else {
@@ -4442,11 +4556,13 @@ function _vaTrendChart(trend) {
     return `
       <rect x="${x}" y="${budgetY}" width="${barW}" height="${bh}" rx="3" fill="rgba(255,255,255,.09)"/>
       ${ah > 0 ? `<rect x="${x}" y="${actualY}" width="${barW}" height="${ah}" rx="3" fill="${color}" opacity=".85"/>` : ''}
+      ${t.budget > 0 ? `<text x="${cx}" y="${budgetY - 3}" text-anchor="middle" font-size="9" fill="rgba(208,216,238,.38)">目標${t.budget}</text>` : ''}
       <text x="${cx}" y="${H - 14}" text-anchor="middle" font-size="10" fill="rgba(208,216,238,.75)">${shortLabel}</text>
       ${t.rate !== null
-        ? `<text x="${cx}" y="${Math.min(actualY - 4, H - 36)}" text-anchor="middle" font-size="10" font-weight="bold" fill="${color}">${t.rate}%</text>`
-        : `<text x="${cx}" y="${budgetY - 4}" text-anchor="middle" font-size="10" fill="rgba(208,216,238,.4)">—</text>`}
-      <text x="${cx}" y="${H - 4}" text-anchor="middle" font-size="9" fill="rgba(208,216,238,.45)">${t.actual > 0 ? t.actual.toLocaleString() : ''}</text>
+        ? `<text x="${cx}" y="${Math.min(actualY - 4, budgetY - 14)}" text-anchor="middle" font-size="10" font-weight="bold" fill="${color}">${t.rate}%</text>`
+        : `<text x="${cx}" y="${budgetY - 14}" text-anchor="middle" font-size="10" fill="rgba(208,216,238,.4)">—</text>`}
+      ${t.actual > 0 && ah > 13 ? `<text x="${cx}" y="${actualY + 11}" text-anchor="middle" font-size="9" fill="rgba(255,255,255,.8)">${t.actual}</text>` : ''}
+      <text x="${cx}" y="${H - 4}" text-anchor="middle" font-size="9" fill="rgba(208,216,238,.45)">${t.actual > 0 && ah <= 13 ? t.actual.toLocaleString() : ''}</text>
     `;
   }).join('');
 

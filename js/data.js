@@ -811,6 +811,25 @@ function setVenueAchieveWeekday(month, site, siteData) {
   setVenueAchieve(month, cur);
 }
 
+// 平日1現場の詳細カテゴリを取得
+function getVenueWeekdayItems(month, site) {
+  return (getVenueAchieve(month).weekday[site] || {}).items || {};
+}
+
+// 平日1現場の詳細カテゴリを保存（SY対外合計をbudget/actualに同期）
+function setVenueWeekdayItems(month, site, items) {
+  const cur  = getVenueAchieve(month);
+  const prev = cur.weekday[site] || {};
+  const sy   = items.sy || {};
+  const syActual = [1,2,3,4,5].reduce((s, w) => s + (Number(sy[`w${w}a`]) || 0), 0);
+  cur.weekday[site] = {
+    budget: Number(sy.target) || prev.budget || 0,
+    actual: syActual || prev.actual || 0,
+    items
+  };
+  setVenueAchieve(month, cur);
+}
+
 // 週末1日分のサイト配列を保存（部分更新）
 function setVenueAchieveWeekend(month, sat, sitesArray) {
   const cur = getVenueAchieve(month);

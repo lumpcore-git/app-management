@@ -21,6 +21,7 @@ let profileActiveTab = 'perf';
 // ─── VENUE ACHIEVE STATE ───
 let venueAchieveMonth = '';
 let venueMenuExpanded = false;
+let wdEditingSite = null; // 平日: 編集中の現場名（null = 閲覧モード）
 // 週末グラフ用
 let venueWeekendChartMode  = 'by_weekend'; // 'by_weekend' | 'by_month_sites' | 'by_site'
 let venueWeekendSelectedSat   = '';        // 'by_weekend' 選択中の土曜日
@@ -4073,10 +4074,23 @@ function _vaWeekendBarChart(weekends, weData) {
   </div>`;
 }
 
+// ── 平日カテゴリ定義 ──
+const WD_CATS = [
+  { key: 'sy',        label: 'SY対外 (Y→S込み)', unit: '件',   weeks: true  },
+  { key: 'mnp',       label: 'MNP',               unit: '件',   weeks: false },
+  { key: 'shinki',    label: '新規・番号以降',      unit: '件',   weeks: false },
+  { key: 'bb',        label: 'BB',                unit: '件',   weeks: false },
+  { key: 'denki',     label: '電気',              unit: '件',   weeks: false },
+  { key: 'paypay',    label: 'PayPayカード',        unit: '件',   weeks: false },
+  { key: 'mikomi',    label: '週末見込み',         unit: '件',   weeks: false },
+  { key: 'selection', label: 'セレクション',       unit: '万円', weeks: false },
+];
+
 // ── 平日ビュー ──
 function _renderVAWeekday(achieve, canEdit) {
-  const sites = getShiftSites().filter(s => s !== '休み');
+  const sites  = getShiftSites().filter(s => s !== '休み');
   const wdData = achieve.weekday || {};
+
   const chartItems = sites.map(site => ({
     label:  site,
     budget: (wdData[site] || {}).budget || 0,
@@ -4086,39 +4100,11 @@ function _renderVAWeekday(achieve, canEdit) {
   const totalActual = chartItems.reduce((s, i) => s + i.actual, 0);
   const totalRate   = calcAchieve(totalActual, totalBudget);
 
-  const tableRows = sites.map((site, si) => {
-    const d     = wdData[site] || {};
-    const bgt   = Number(d.budget) || 0;
-    const act   = Number(d.actual) || 0;
-    const rate  = calcAchieve(act, bgt);
-    const sc    = getSiteColor(site);
-    const dot   = sc ? sc.text : 'var(--accent)';
-    return `
-      <tr style="border-bottom:1px solid rgba(106,128,186,.2)">
-        <td style="padding:10px 12px">
-          <div style="display:flex;align-items:center;gap:8px">
-            <div style="width:8px;height:8px;border-radius:50%;background:${dot};flex-shrink:0"></div>
-            <span style="font-size:13px">${site}</span>
-          </div>
-        </td>
-        ${canEdit
-          ? `<td style="padding:8px"><input type="number" class="form-input-sm" id="va_wd_b_${si}" value="${bgt || ''}" placeholder="0" min="0" style="width:88px"></td>
-             <td style="padding:8px"><input type="number" class="form-input-sm" id="va_wd_a_${si}" value="${act || ''}" placeholder="0" min="0" style="width:88px"></td>`
-          : `<td style="padding:10px 12px;font-family:'Space Grotesk',monospace;text-align:right;font-size:14px">${bgt > 0 ? bgt.toLocaleString() : '—'}</td>
-             <td style="padding:10px 12px;font-family:'Space Grotesk',monospace;text-align:right;font-size:14px">${act > 0 ? act.toLocaleString() : '—'}</td>`}
-        <td style="padding:10px 12px;min-width:140px">
-          ${rate !== null
-            ? `<div style="display:flex;align-items:center;gap:8px">
-                 <div class="va-progress-bar" style="flex:1"><div class="va-progress-fill" style="width:${Math.min(rate,100)}%;background:${achieveColor(rate)}"></div></div>
-                 <span style="font-family:'Space Grotesk',monospace;font-size:14px;font-weight:700;color:${achieveColor(rate)};min-width:44px;text-align:right">${rate}%</span>
-               </div>`
-            : `<span style="color:var(--text-sub);font-size:12px">予算未設定</span>`}
-        </td>
-      </tr>`;
-  }).join('');
+  const venueCards = sites.length === 0
+    ? `<div class="card fade-in" style="text-align:center;color:var(--text-sub);padding:20px 0">⚙ 設定 → 現場・コマ数設定 から現場を追加してください</div>`
+    : sites.map(site => _renderWdVenueCard(site, wdData[site] || {}, canEdit)).join('');
 
   return `
-    <!-- 概要チャート -->
     <div class="card fade-in">
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:14px">
         <div class="section-title" style="margin:0">平日 現場別達成率</div>
@@ -4130,28 +4116,210 @@ function _renderVAWeekday(achieve, canEdit) {
       </div>
       ${sites.length ? _vaVBarChart(chartItems) : '<div style="color:var(--text-sub);font-size:13px">現場が登録されていません</div>'}
     </div>
+    ${venueCards}`;
+}
 
-    <!-- 入力テーブル -->
-    <div class="card fade-in">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-        <div class="section-title" style="margin:0">平日 予算・実績入力</div>
-        ${canEdit ? `<button class="btn btn-primary" style="font-size:12px;padding:6px 16px" onclick="venueAchieveSaveWeekday()">保存</button>` : ''}
+// ── 現場カード（閲覧 or 編集）──
+function _renderWdVenueCard(site, siteData, canEdit) {
+  const sc  = getSiteColor(site);
+  const dot = sc ? sc.text : 'var(--accent)';
+  if (wdEditingSite === site && canEdit) {
+    return _renderWdVenueCardEdit(site, siteData, dot);
+  }
+  return _renderWdVenueCardView(site, siteData, dot, canEdit);
+}
+
+// ── 現場カード: 閲覧モード ──
+function _renderWdVenueCardView(site, siteData, dot, canEdit) {
+  const items    = siteData.items || {};
+  const hasItems = Object.keys(items).length > 0;
+  const sy       = items.sy || {};
+  const syTarget = Number(sy.target) || Number(siteData.budget) || 0;
+  const syActual = [1,2,3,4,5].reduce((s, w) => s + (Number(sy[`w${w}a`]) || 0), 0) || Number(siteData.actual) || 0;
+  const syRate   = calcAchieve(syActual, syTarget);
+  const editBtn  = canEdit
+    ? `<button class="btn btn-ghost" style="font-size:12px;padding:5px 12px" onclick="wdStartEdit('${site.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')">編集</button>`
+    : '';
+
+  const header = `
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:${hasItems?14:0}px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="width:10px;height:10px;border-radius:50%;background:${dot};flex-shrink:0"></div>
+        <div style="font-size:15px;font-weight:700">${site}</div>
       </div>
-      ${sites.length === 0
-        ? `<div style="color:var(--text-sub);font-size:13px;text-align:center;padding:20px 0">⚙ 設定 → 現場・コマ数設定 から現場を追加してください</div>`
-        : `<div style="overflow-x:auto">
-            <table style="width:100%;border-collapse:collapse">
-              <thead>
-                <tr style="border-bottom:1px solid var(--border)">
-                  <th style="padding:8px 12px;text-align:left;font-size:11px;color:var(--text-sub);font-weight:500">現場名</th>
-                  <th style="padding:8px 12px;text-align:${canEdit?'left':'right'};font-size:11px;color:var(--text-sub);font-weight:500">予算</th>
-                  <th style="padding:8px 12px;text-align:${canEdit?'left':'right'};font-size:11px;color:var(--text-sub);font-weight:500">実績</th>
-                  <th style="padding:8px 12px;text-align:left;font-size:11px;color:var(--text-sub);font-weight:500">達成率</th>
-                </tr>
-              </thead>
-              <tbody>${tableRows}</tbody>
-            </table>
-           </div>`}
+      <div style="display:flex;align-items:center;gap:12px">
+        ${syRate !== null ? `<div style="font-family:'Space Grotesk',monospace;font-size:20px;font-weight:700;color:${achieveColor(syRate)}">${syRate}%</div>` : ''}
+        ${editBtn}
+      </div>
+    </div>`;
+
+  if (!hasItems) {
+    return `<div class="card fade-in">
+      ${header}
+      ${canEdit ? '<div style="color:var(--text-sub);font-size:12px;text-align:center;padding:6px 0">編集から週次データを入力できます</div>' : ''}
+    </div>`;
+  }
+
+  // 週カラー定義 [背景色, 左ボーダー色]
+  const W_CLR = [
+    ['rgba(134,249,215,.11)', 'rgba(134,249,215,.5)'],
+    ['rgba(255,217,168,.11)', 'rgba(255,217,168,.5)'],
+    ['rgba(255,149,179,.08)', 'rgba(255,149,179,.4)'],
+    ['rgba(255,149,179,.13)', 'rgba(255,149,179,.5)'],
+    ['rgba(255,149,179,.19)', 'rgba(255,149,179,.6)'],
+  ];
+
+  const wBgt       = [1,2,3,4,5].map(w => Number(sy[`w${w}b`]) || 0);
+  const wAct       = [1,2,3,4,5].map(w => Number(sy[`w${w}a`]) || 0);
+  const activeWks  = [0,1,2,3,4].filter(i => wBgt[i] > 0 || wAct[i] > 0);
+  const showSY     = syTarget > 0 || syActual > 0 || activeWks.length > 0;
+  const sySpan     = 1 + activeWks.length;
+
+  const syRows = showSY ? `
+    <tr style="border-top:1px solid rgba(106,128,186,.2)">
+      <td rowspan="${sySpan}" style="padding:9px 12px;font-size:13px;font-weight:600;vertical-align:middle;border-right:1px solid rgba(106,128,186,.12);white-space:nowrap">SY対外</td>
+      <td style="padding:7px 8px;font-size:11px;color:var(--text-sub);text-align:center">合計</td>
+      <td style="padding:7px 10px;font-family:'Space Grotesk',monospace;font-size:12px;text-align:right;color:var(--text-sub)">${syTarget > 0 ? syTarget : '—'}</td>
+      <td style="padding:7px 10px;font-family:'Space Grotesk',monospace;font-size:13px;font-weight:600;text-align:right">${syActual > 0 ? syActual : '—'}</td>
+      <td style="padding:7px 10px;font-family:'Space Grotesk',monospace;font-size:13px;font-weight:700;text-align:right;color:${achieveColor(syRate)}">${syRate !== null ? syRate + '%' : '—'}</td>
+    </tr>
+    ${activeWks.map(i => {
+      const wb = wBgt[i], wa = wAct[i], wr = calcAchieve(wa, wb);
+      return `<tr style="background:${W_CLR[i][0]};border-top:1px solid rgba(106,128,186,.06)">
+        <td style="padding:5px 8px;font-size:12px;color:var(--text-sub);text-align:center;border-left:3px solid ${W_CLR[i][1]}">W${i+1}</td>
+        <td style="padding:5px 10px;font-family:'Space Grotesk',monospace;font-size:12px;text-align:right;color:var(--text-sub)">${wb > 0 ? wb : '—'}</td>
+        <td style="padding:5px 10px;font-family:'Space Grotesk',monospace;font-size:12px;text-align:right">${wa > 0 ? wa : '—'}</td>
+        <td style="padding:5px 10px;font-family:'Space Grotesk',monospace;font-size:12px;font-weight:600;text-align:right;color:${achieveColor(wr)}">${wr !== null ? wr + '%' : '—'}</td>
+      </tr>`;
+    }).join('')}` : '';
+
+  const catRows = WD_CATS.filter(c => !c.weeks).map(cat => {
+    const d      = items[cat.key] || {};
+    const target = Number(d.target) || 0;
+    const actual = Number(d.actual) || 0;
+    if (target === 0 && actual === 0) return '';
+    const rate = calcAchieve(actual, target);
+    return `
+      <tr style="border-top:1px solid rgba(106,128,186,.15)">
+        <td colspan="2" style="padding:8px 12px;font-size:13px">${cat.label}</td>
+        <td style="padding:8px 10px;font-family:'Space Grotesk',monospace;font-size:12px;text-align:right;color:var(--text-sub)">${target > 0 ? target + cat.unit : '—'}</td>
+        <td style="padding:8px 10px;font-family:'Space Grotesk',monospace;font-size:13px;font-weight:600;text-align:right">${actual > 0 ? actual + cat.unit : '—'}</td>
+        <td style="padding:8px 10px;font-family:'Space Grotesk',monospace;font-size:13px;font-weight:700;text-align:right;color:${achieveColor(rate)}">${rate !== null ? rate + '%' : '—'}</td>
+      </tr>`;
+  }).join('');
+
+  return `
+    <div class="card fade-in">
+      ${header}
+      <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse">
+          <thead>
+            <tr style="border-bottom:1px solid var(--border)">
+              <th style="padding:6px 12px;text-align:left;font-size:11px;color:var(--text-sub);font-weight:500">商材</th>
+              <th style="padding:6px 8px;text-align:center;font-size:11px;color:var(--text-sub);font-weight:500;width:38px">週</th>
+              <th style="padding:6px 10px;text-align:right;font-size:11px;color:var(--text-sub);font-weight:500">目標</th>
+              <th style="padding:6px 10px;text-align:right;font-size:11px;color:var(--text-sub);font-weight:500">実績</th>
+              <th style="padding:6px 10px;text-align:right;font-size:11px;color:var(--text-sub);font-weight:500;min-width:56px">達成率</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${syRows}
+            ${catRows}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+// ── 現場カード: 編集モード ──
+function _renderWdVenueCardEdit(site, siteData, dot) {
+  const items = siteData.items || {};
+  const sy    = items.sy || {};
+
+  const weekInputs = [1,2,3,4,5].map(w => `
+    <tr>
+      <td style="padding:5px 12px 5px 0;font-size:13px;color:var(--text-sub);white-space:nowrap">W${w}</td>
+      <td style="padding:4px 6px">
+        <div style="display:flex;align-items:center;gap:4px">
+          <input type="number" class="form-input-sm" id="wd_sy_w${w}b" value="${Number(sy[`w${w}b`])||''}" placeholder="0" min="0" style="width:72px">
+          <span style="font-size:11px;color:var(--text-sub)">件</span>
+        </div>
+      </td>
+      <td style="padding:4px 6px">
+        <div style="display:flex;align-items:center;gap:4px">
+          <input type="number" class="form-input-sm" id="wd_sy_w${w}a" value="${Number(sy[`w${w}a`])||''}" placeholder="0" min="0" style="width:72px">
+          <span style="font-size:11px;color:var(--text-sub)">件</span>
+        </div>
+      </td>
+    </tr>`).join('');
+
+  const otherInputs = WD_CATS.filter(c => !c.weeks).map(cat => {
+    const d = items[cat.key] || {};
+    return `
+      <tr style="border-top:1px solid rgba(106,128,186,.15)">
+        <td style="padding:8px 12px;font-size:13px;white-space:nowrap">${cat.label}</td>
+        <td style="padding:6px 8px">
+          <div style="display:flex;align-items:center;gap:4px">
+            <input type="number" class="form-input-sm" id="wd_${cat.key}_t" value="${Number(d.target)||''}" placeholder="0" min="0" style="width:80px">
+            <span style="font-size:11px;color:var(--text-sub)">${cat.unit}</span>
+          </div>
+        </td>
+        <td style="padding:6px 8px">
+          <div style="display:flex;align-items:center;gap:4px">
+            <input type="number" class="form-input-sm" id="wd_${cat.key}_a" value="${Number(d.actual)||''}" placeholder="0" min="0" style="width:80px">
+            <span style="font-size:11px;color:var(--text-sub)">${cat.unit}</span>
+          </div>
+        </td>
+      </tr>`;
+  }).join('');
+
+  return `
+    <div class="card fade-in" style="border:1px solid var(--accent)">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:18px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="width:10px;height:10px;border-radius:50%;background:${dot};flex-shrink:0"></div>
+          <div style="font-size:15px;font-weight:700">${site}</div>
+          <span style="font-size:11px;background:rgba(171,160,255,.2);color:var(--accent);padding:2px 8px;border-radius:20px">編集中</span>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-ghost" style="font-size:12px;padding:5px 12px" onclick="wdCancelEdit()">キャンセル</button>
+          <button class="btn btn-primary" style="font-size:12px;padding:5px 14px" onclick="wdSaveEdit('${site.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')">保存</button>
+        </div>
+      </div>
+
+      <div style="margin-bottom:16px">
+        <div style="font-size:12px;font-weight:600;color:var(--accent2);margin-bottom:8px">SY対外 (Y→S込み)</div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+          <span style="font-size:13px;color:var(--text-sub)">月間目標:</span>
+          <input type="number" class="form-input-sm" id="wd_sy_target" value="${Number(sy.target)||''}" placeholder="0" min="0" style="width:88px">
+          <span style="font-size:12px;color:var(--text-sub)">件</span>
+        </div>
+        <div style="overflow-x:auto">
+          <table style="border-collapse:collapse">
+            <thead>
+              <tr>
+                <th style="padding:4px 12px 4px 0;text-align:left;font-size:11px;color:var(--text-sub);font-weight:500">週</th>
+                <th style="padding:4px 8px;font-size:11px;color:var(--text-sub);font-weight:500">目標</th>
+                <th style="padding:4px 8px;font-size:11px;color:var(--text-sub);font-weight:500">実績</th>
+              </tr>
+            </thead>
+            <tbody>${weekInputs}</tbody>
+          </table>
+        </div>
+      </div>
+
+      <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse">
+          <thead>
+            <tr style="border-bottom:1px solid var(--border)">
+              <th style="padding:6px 12px;text-align:left;font-size:11px;color:var(--text-sub);font-weight:500">カテゴリ</th>
+              <th style="padding:6px 8px;font-size:11px;color:var(--text-sub);font-weight:500">目標</th>
+              <th style="padding:6px 8px;font-size:11px;color:var(--text-sub);font-weight:500">実績</th>
+            </tr>
+          </thead>
+          <tbody>${otherInputs}</tbody>
+        </table>
+      </div>
     </div>`;
 }
 
@@ -4589,17 +4757,41 @@ function _vaTrendChart(trend) {
 
 // ── 保存関数 ──
 
-// 平日: 全現場をまとめて保存
-function venueAchieveSaveWeekday() {
-  const sites  = getShiftSites().filter(s => s !== '休み');
-  const cur    = getVenueAchieve(venueAchieveMonth);
-  sites.forEach((site, si) => {
-    const budget = parseInt(document.getElementById(`va_wd_b_${si}`)?.value) || 0;
-    const actual = parseInt(document.getElementById(`va_wd_a_${si}`)?.value) || 0;
-    cur.weekday[site] = { budget, actual };
-  });
-  setVenueAchieve(venueAchieveMonth, cur);
-  showToast('平日達成率を保存しました', 'success');
+// 平日: 編集開始
+function wdStartEdit(site) {
+  wdEditingSite = site;
+  renderVenueAchieveWeekday();
+}
+
+// 平日: 編集キャンセル
+function wdCancelEdit() {
+  wdEditingSite = null;
+  renderVenueAchieveWeekday();
+}
+
+// 平日: 現場カードを保存
+function wdSaveEdit(site) {
+  const g = id => parseFloat(document.getElementById(id)?.value) || 0;
+  const items = {
+    sy: {
+      target: g('wd_sy_target'),
+      w1b: g('wd_sy_w1b'), w1a: g('wd_sy_w1a'),
+      w2b: g('wd_sy_w2b'), w2a: g('wd_sy_w2a'),
+      w3b: g('wd_sy_w3b'), w3a: g('wd_sy_w3a'),
+      w4b: g('wd_sy_w4b'), w4a: g('wd_sy_w4a'),
+      w5b: g('wd_sy_w5b'), w5a: g('wd_sy_w5a'),
+    },
+    mnp:       { target: g('wd_mnp_t'),       actual: g('wd_mnp_a')       },
+    shinki:    { target: g('wd_shinki_t'),     actual: g('wd_shinki_a')    },
+    bb:        { target: g('wd_bb_t'),         actual: g('wd_bb_a')        },
+    denki:     { target: g('wd_denki_t'),      actual: g('wd_denki_a')     },
+    paypay:    { target: g('wd_paypay_t'),     actual: g('wd_paypay_a')    },
+    mikomi:    { target: g('wd_mikomi_t'),     actual: g('wd_mikomi_a')    },
+    selection: { target: g('wd_selection_t'),  actual: g('wd_selection_a') },
+  };
+  setVenueWeekdayItems(venueAchieveMonth, site, items);
+  wdEditingSite = null;
+  showToast(`${site}の平日データを保存しました`, 'success');
   renderVenueAchieveWeekday();
 }
 

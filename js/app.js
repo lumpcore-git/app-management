@@ -997,6 +997,16 @@ function renderMobileReportPage() {
     .filter(r => !r.type || r.type === 'mobile')
     .sort((a, b) => b.date.localeCompare(a.date));
 
+  // 今日のシフトから現場を自動取得
+  const todayShift   = getShiftForUser(CU.id, todayStr());
+  const initialSite  = (todayShift && todayShift.site && todayShift.site !== '休み') ? todayShift.site : '';
+  const siteHint     = todayShift
+    ? (todayShift.site === '休み'
+        ? '本日は休日シフトです'
+        : `シフトから自動入力 (${[todayShift.start, todayShift.end].filter(Boolean).join('〜')})`)
+    : '';
+  const allSites = getShiftSites().filter(s => s !== '休み');
+
   // グループ別にフィールドを生成
   const groups = [...new Set(PRODUCTS.map(p => p.group))];
   const formFields = groups.map(g => {
@@ -1038,9 +1048,23 @@ function renderMobileReportPage() {
         </div>
       </div>
 
-      <div class="form-group" style="margin-bottom:20px">
-        <label class="form-label">日付</label>
-        <input type="date" class="form-input" id="repDate" value="${todayStr()}" style="max-width:200px">
+      <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:20px">
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label">日付</label>
+          <input type="date" class="form-input" id="repDate" value="${todayStr()}"
+                 style="max-width:200px" onchange="updateSiteFromShift(this.value)">
+        </div>
+        <div class="form-group" style="margin-bottom:0;flex:1;min-width:180px">
+          <label class="form-label">現場</label>
+          <input type="text" class="form-input" id="repSite"
+                 value="${initialSite.replace(/"/g,'&quot;')}"
+                 placeholder="現場名を入力または選択"
+                 list="repSiteList" autocomplete="off">
+          <datalist id="repSiteList">
+            ${allSites.map(s => `<option value="${s.replace(/"/g,'&quot;')}">`).join('')}
+          </datalist>
+          ${siteHint ? `<div style="font-size:11px;color:var(--text-sub);margin-top:4px" id="repSiteHint">${siteHint}</div>` : `<div style="font-size:11px;color:var(--text-sub);margin-top:4px" id="repSiteHint"></div>`}
+        </div>
       </div>
 
       ${formFields}
@@ -1061,7 +1085,7 @@ function renderMobileReportPage() {
           <table>
             <thead>
               <tr>
-                <th>日付</th><th>合計PT</th><th>SBMNP</th><th>YMNP</th><th>Y→S</th>
+                <th>日付</th><th>現場</th><th>合計PT</th><th>SBMNP</th><th>YMNP</th><th>Y→S</th>
                 <th>SB新規</th><th>YM新規</th><th>光/AIR</th><th>メモ</th><th></th>
               </tr>
             </thead>
@@ -1069,6 +1093,7 @@ function renderMobileReportPage() {
               ${myReports.map(r => `
                 <tr>
                   <td>${formatDate(r.date)}</td>
+                  <td style="color:var(--text-sub);white-space:nowrap">${r.site || '—'}</td>
                   <td><strong style="color:var(--accent)">${calcPoints(r).toFixed(1)}pt</strong></td>
                   <td>${r.sbmnp || 0}</td>
                   <td>${r.ymnp || 0}</td>
@@ -1088,6 +1113,21 @@ function renderMobileReportPage() {
   `;
 }
 
+// 日付変更時にシフトから現場を自動入力
+function updateSiteFromShift(dateStr) {
+  const shift = getShiftForUser(CU.id, dateStr);
+  const inp   = document.getElementById('repSite');
+  const hint  = document.getElementById('repSiteHint');
+  if (!inp) return;
+  if (shift && shift.site && shift.site !== '休み') {
+    inp.value = shift.site;
+    if (hint) hint.textContent = `シフトから自動入力 (${[shift.start, shift.end].filter(Boolean).join('〜')})`;
+  } else {
+    inp.value = '';
+    if (hint) hint.textContent = (shift && shift.site === '休み') ? '本日は休日シフトです' : '';
+  }
+}
+
 function updatePtPreview() {
   const mock = {};
   PRODUCTS.forEach(p => { mock[p.key] = Number(document.getElementById(`f_${p.key}`)?.value || 0); });
@@ -1102,7 +1142,8 @@ function submitMobileReport() {
 
   if (!date) { showToast('日付を選択してください', 'error'); return; }
 
-  const report = { userId: CU.id, date, memo, type: 'mobile' };
+  const site   = document.getElementById('repSite')?.value?.trim() || '';
+  const report = { userId: CU.id, date, memo, type: 'mobile', site };
   PRODUCTS.forEach(p => {
     report[p.key] = Number(document.getElementById(`f_${p.key}`)?.value || 0);
   });

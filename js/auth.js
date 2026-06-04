@@ -45,6 +45,26 @@ function requireAuth() {
   return user;
 }
 
+// ─── ENTRA ID 認証 ───
+// /.auth/me からログイン中のMicrosoftアカウントを取得し、emailで紐付けてセッションを作成する
+async function tryEntraIdLogin() {
+  if (getSession()) return; // すでにセッションあり
+  try {
+    const res = await fetch('/.auth/me');
+    if (!res.ok) return;
+    const data = await res.json();
+    const principal = data.clientPrincipal;
+    if (!principal) return;
+    const email = principal.userDetails;
+    const user = getUsers().find(u => u.email && u.email.toLowerCase() === email.toLowerCase());
+    if (user) {
+      sessionStorage.setItem(LS.session, JSON.stringify({ userId: user.id }));
+    }
+  } catch (_) {
+    // ローカル環境など /.auth/me が存在しない場合は無視
+  }
+}
+
 // ─── PERMISSION HELPERS ───
 function roleLevel(role) {
   return ROLES[role]?.level || 0;

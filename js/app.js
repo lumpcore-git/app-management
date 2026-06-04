@@ -17,6 +17,7 @@ let shiftPlanWeekdayOnly = false;  // 土日非表示トグル
 // ─── PROFILE STATE ───
 let profileUserId = '';
 let profileActiveTab = 'perf';
+let mbtiEditMode = false;
 
 // ─── VENUE ACHIEVE STATE ───
 let venueAchieveMonth = '';
@@ -27,6 +28,9 @@ let venueWeekendChartMode  = 'by_weekend'; // 'by_weekend' | 'by_month_sites' | 
 let venueWeekendSelectedSat   = '';        // 'by_weekend' 選択中の土曜日
 let venueWeekendSelectedSite  = '';        // 'by_site' 選択中の現場名
 let venueWeekendTrendMonths   = 6;         // 'by_site' 推移の期間（3/6/12）
+
+// ─── DASHBOARD NOTIF/TASK TAB ───
+let _dashNotifTab = 'notif'; // 'notif' | 'task'
 
 // ─── THEME ───
 function initTheme() {
@@ -51,9 +55,10 @@ function _syncThemeBtn(theme) {
 }
 
 // ─── INIT ───
-window.addEventListener('DOMContentLoaded', () => {
+window.addEventListener('DOMContentLoaded', async () => {
   initTheme();
   initData();
+  await tryEntraIdLogin();
   CU = requireAuth();
   if (!CU) return;
 
@@ -95,6 +100,7 @@ function renderSidebar() {
   const level = roleLevel(CU.role);
   const hasReport = !!CU.reportType;
   const canSeeTeam = (level >= 2 && CU.dept === 'mobile') || level >= 5;
+  
   const canSetTargets = (level >= 4 && CU.dept === 'mobile') || level >= 5;
   const hash = location.hash.replace('#', '') || 'dashboard';
   const isShiftPage  = hash === 'shifts-week' || hash === 'shifts-month' || hash === 'shifts-plan';
@@ -355,48 +361,130 @@ function _notificationsCard() {
   const notifs = getNotificationsForUser(CU.id);
   const level = roleLevel(CU.role);
   const unreadCount = notifs.filter(n => !n.readBy[CU.id]).length;
+  const incompleteTasks = getIncompleteTaskCount(CU.id);
+  const isTaskTab = _dashNotifTab === 'task';
 
   return `
     <div class="card fade-in">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
-        <div style="display:flex;align-items:center;gap:8px">
-          <div class="section-title" style="margin-bottom:0">🔔 お知らせ</div>
-          ${unreadCount > 0 ? `<span class="notif-unread-chip">${unreadCount}件未読</span>` : ''}
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <div style="display:flex;align-items:center;gap:2px">
+          <button class="dash-tab-btn ${!isTaskTab ? 'active' : ''}" onclick="_switchDashTab('notif')">
+            🔔 お知らせ${unreadCount > 0 ? `<span class="notif-unread-chip" style="margin-left:2px">${unreadCount}</span>` : ''}
+          </button>
+          <button class="dash-tab-btn ${isTaskTab ? 'active' : ''}" onclick="_switchDashTab('task')">
+            📋 タスク${incompleteTasks > 0 ? `<span class="task-count-chip">${incompleteTasks}</span>` : ''}
+          </button>
         </div>
         <div style="display:flex;gap:8px;align-items:center">
-          ${unreadCount > 0 ? `<button class="btn btn-ghost" style="font-size:12px;padding:5px 10px" onclick="markAllReadAndRefresh()">すべて既読</button>` : ''}
-          ${level >= 4 ? `<button class="btn btn-primary" style="font-size:12px;padding:5px 12px" onclick="showSendNotificationModal()">📨 お知らせを送る</button>` : ''}
+          ${!isTaskTab && unreadCount > 0 ? `<button class="btn btn-ghost" style="font-size:12px;padding:5px 10px" onclick="markAllReadAndRefresh()">すべて既読</button>` : ''}
+          ${level >= 4 ? (isTaskTab
+            ? `<button class="btn btn-primary" style="font-size:12px;padding:5px 12px" onclick="showCreateTaskModal()">＋ タスクを作る</button>`
+            : `<button class="btn btn-primary" style="font-size:12px;padding:5px 12px" onclick="showSendNotificationModal()">📨 お知らせを送る</button>`
+          ) : ''}
         </div>
       </div>
-      ${notifs.length === 0 ? `
-        <div class="empty-state" style="padding:24px 0">
-          <div style="font-size:28px;margin-bottom:8px">📭</div>
-          お知らせはありません
-        </div>
-      ` : `
-        <div style="display:flex;flex-direction:column;gap:8px">
-          ${notifs.slice(0, 10).map(n => {
-            const isUnread = !n.readBy[CU.id];
-            const from = getUserById(n.fromUserId);
-            return `
-              <div class="notif-item ${isUnread ? 'notif-unread' : ''}" onclick="markNotifReadAndRefresh('${n.id}')">
-                <div style="display:flex;align-items:flex-start;gap:10px">
-                  ${isUnread
-                    ? `<span class="notif-dot"></span>`
-                    : `<span style="width:8px;flex-shrink:0;margin-top:5px"></span>`}
-                  <div style="flex:1;min-width:0">
-                    <div style="font-weight:${isUnread ? '700' : '500'};font-size:14px;margin-bottom:2px">${n.title}</div>
-                    ${n.body ? `<div style="font-size:12px;color:var(--text-sub);margin-bottom:4px">${n.body}</div>` : ''}
-                    <div style="font-size:11px;color:var(--text-sub)">${from?.name || '—'} · ${_timeAgo(n.createdAt)}</div>
+
+      ${isTaskTab ? _tasksPanel() : `
+        ${notifs.length === 0 ? `
+          <div class="empty-state" style="padding:24px 0">
+            <div style="font-size:28px;margin-bottom:8px">📭</div>
+            お知らせはありません
+          </div>
+        ` : `
+          <div style="display:flex;flex-direction:column;gap:8px">
+            ${notifs.slice(0, 10).map(n => {
+              const isUnread = !n.readBy[CU.id];
+              const from = getUserById(n.fromUserId);
+              return `
+                <div class="notif-item ${isUnread ? 'notif-unread' : ''}" onclick="markNotifReadAndRefresh('${n.id}')">
+                  <div style="display:flex;align-items:flex-start;gap:10px">
+                    ${isUnread
+                      ? `<span class="notif-dot"></span>`
+                      : `<span style="width:8px;flex-shrink:0;margin-top:5px"></span>`}
+                    <div style="flex:1;min-width:0">
+                      <div style="font-weight:${isUnread ? '700' : '500'};font-size:14px;margin-bottom:2px">${n.title}</div>
+                      ${n.body ? `<div style="font-size:12px;color:var(--text-sub);margin-bottom:4px">${n.body}</div>` : ''}
+                      <div style="font-size:11px;color:var(--text-sub)">${from?.name || '—'} · ${_timeAgo(n.createdAt)}</div>
+                    </div>
+                    ${isUnread ? `<span style="font-size:10px;color:var(--accent);flex-shrink:0;margin-top:4px">タップで既読</span>` : ''}
                   </div>
-                  ${isUnread ? `<span style="font-size:10px;color:var(--accent);flex-shrink:0;margin-top:4px">タップで既読</span>` : ''}
                 </div>
-              </div>
-            `;
-          }).join('')}
-          ${notifs.length > 10 ? `<div style="text-align:center;font-size:12px;color:var(--text-sub);padding:8px">他 ${notifs.length - 10}件</div>` : ''}
-        </div>
+              `;
+            }).join('')}
+            ${notifs.length > 10 ? `<div style="text-align:center;font-size:12px;color:var(--text-sub);padding:8px">他 ${notifs.length - 10}件</div>` : ''}
+          </div>
+        `}
       `}
+    </div>
+  `;
+}
+
+function _tasksPanel() {
+  const level = roleLevel(CU.role);
+  const tasks = getTasksForUser(CU.id);
+  if (tasks.length === 0) {
+    return `<div class="empty-state" style="padding:24px 0">
+      <div style="font-size:28px;margin-bottom:8px">✅</div>
+      割り当てられたタスクはありません
+    </div>`;
+  }
+  const HORIZONS = [
+    { key: 'daily',   label: '日次コミット', colorVar: '--danger',  icon: '🔴' },
+    { key: 'weekly',  label: '週次コミット', colorVar: '--warn',    icon: '🟡' },
+    { key: 'monthly', label: '月次コミット', colorVar: '--accent2', icon: '🔵' },
+  ];
+  return HORIZONS.map(({ key, label, colorVar, icon }) => {
+    const group = tasks.filter(t => t.horizon === key);
+    if (group.length === 0) return '';
+    const pending = group.filter(t => !t.doneBy[CU.id]).length;
+    return `
+      <div style="margin-bottom:16px">
+        <div style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(${colorVar});margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid rgba(106,128,186,.2)">
+          ${icon} ${label}
+          ${pending > 0
+            ? `<span style="font-weight:400;color:var(--text-sub);font-size:11px">（未完了 ${pending}件）</span>`
+            : `<span style="font-size:11px;color:var(--green);font-weight:400">✓ すべて完了</span>`}
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          ${group.map(t => _taskItem(t, level)).join('')}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function _taskItem(t, level) {
+  const isDone = !!t.doneBy[CU.id];
+  const from = getUserById(t.fromUserId);
+  const allUsers = getUsers();
+  const targetIds = t.toUserIds.includes('all') ? allUsers.map(u => u.id) : t.toUserIds;
+  const doneCount = targetIds.filter(uid => t.doneBy[uid]).length;
+  const today = todayStr();
+  const isOverdue = !isDone && t.dueDate && t.dueDate < today;
+  const dueLabelText = t.dueDate === today ? '今日まで' : (t.dueDate ? t.dueDate.slice(5).replace('-', '/') + 'まで' : '');
+  const canDelete = level >= 5 || t.fromUserId === CU.id;
+
+  return `
+    <div class="task-item${isDone ? ' task-done' : ''}">
+      <div style="display:flex;align-items:flex-start;gap:10px">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:${isDone ? '400' : '600'};font-size:14px;margin-bottom:3px;${isDone ? 'text-decoration:line-through;color:var(--text-sub)' : ''}">
+            ${t.title}
+          </div>
+          ${t.body ? `<div style="font-size:12px;color:var(--text-sub);margin-bottom:4px">${t.body}</div>` : ''}
+          <div style="font-size:11px;color:var(--text-sub);display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <span>${from?.name || '—'}</span>
+            ${dueLabelText ? `<span style="color:${isOverdue ? 'var(--danger)' : 'var(--text-sub)'}">${isOverdue ? '⚠ ' : ''}${dueLabelText}</span>` : ''}
+            ${level >= 4 ? `<span style="color:var(--accent)">${doneCount}/${targetIds.length}人完了</span>` : ''}
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0;align-items:flex-end">
+          ${isDone
+            ? `<button class="btn btn-ghost" style="font-size:11px;padding:4px 10px;color:var(--green)" onclick="unmarkTaskDoneAndRefresh('${t.id}')">✓ 完了済み</button>`
+            : `<button class="btn btn-primary" style="font-size:11px;padding:5px 12px" onclick="markTaskDoneAndRefresh('${t.id}')">完了にする</button>`}
+          ${canDelete ? `<button class="btn btn-ghost" style="font-size:10px;padding:2px 8px;color:var(--danger)" onclick="deleteTaskAndRefresh('${t.id}')">削除</button>` : ''}
+        </div>
+      </div>
     </div>
   `;
 }
@@ -413,6 +501,11 @@ function _timeAgo(isoString) {
   return isoString.slice(0, 10).replace(/-/g, '/');
 }
 
+function _switchDashTab(tab) {
+  _dashNotifTab = tab;
+  renderDashboard();
+}
+
 function markNotifReadAndRefresh(notifId) {
   markNotificationRead(notifId, CU.id);
   _updateNotifBadge();
@@ -422,6 +515,126 @@ function markNotifReadAndRefresh(notifId) {
 function markAllReadAndRefresh() {
   markAllNotificationsRead(CU.id);
   _updateNotifBadge();
+  renderDashboard();
+}
+
+function markTaskDoneAndRefresh(taskId) {
+  markTaskDone(taskId, CU.id);
+  renderDashboard();
+}
+function unmarkTaskDoneAndRefresh(taskId) {
+  unmarkTaskDone(taskId, CU.id);
+  renderDashboard();
+}
+function deleteTaskAndRefresh(taskId) {
+  deleteTask(taskId);
+  renderDashboard();
+}
+
+function showCreateTaskModal() {
+  const users = getUsers().filter(u => u.id !== CU.id);
+  showModal(`
+    <div class="modal-title">📋 タスク / コミットを作成</div>
+    <div style="display:flex;flex-direction:column;gap:16px;margin-top:16px">
+
+      <div class="form-group">
+        <label class="form-label">宛先</label>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;margin-bottom:8px">
+          <input type="checkbox" id="task_to_all" onchange="toggleTaskToAll(this)">
+          <span style="font-weight:600;color:var(--accent)">全員に割り当て</span>
+        </label>
+        <div id="task_recipients" style="display:flex;flex-direction:column;gap:2px;max-height:200px;overflow-y:auto;background:var(--surface2);border-radius:8px;padding:8px;border:1px solid var(--border)">
+          ${users.map(u => `
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;padding:5px 6px;border-radius:6px" onmouseover="this.style.background='var(--surface)'" onmouseout="this.style.background=''">
+              <input type="checkbox" name="task_to" value="${u.id}">
+              <span style="width:8px;height:8px;border-radius:50%;background:${ROLES[u.role]?.color || '#888'};flex-shrink:0"></span>
+              <span>${u.name}</span>
+              <span style="font-size:11px;color:var(--text-sub);margin-left:auto">${getUserDisplayRole(u)}</span>
+            </label>
+          `).join('')}
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">コミット種別</label>
+        <div style="display:flex;gap:8px">
+          ${[
+            ['daily',   '日次', '#ff95b3', 'rgba(255,149,179,.12)'],
+            ['weekly',  '週次', '#ffd9a8', 'rgba(255,217,168,.12)'],
+            ['monthly', '月次', '#80f1ff', 'rgba(128,241,255,.12)'],
+          ].map(([val, label, color, bg], i) => `
+            <label id="task_horizon_label_${val}" style="flex:1;display:flex;align-items:center;justify-content:center;gap:5px;cursor:pointer;padding:10px 6px;border-radius:8px;border:2px solid ${i === 0 ? color : 'var(--border)'};background:${i === 0 ? bg : 'var(--surface2)'};transition:all .15s;text-align:center">
+              <input type="radio" name="task_horizon" value="${val}" ${i === 0 ? 'checked' : ''} onchange="updateTaskHorizonStyle()" style="display:none">
+              <span style="font-weight:700;font-size:13px;color:${color}">${label}</span>
+            </label>
+          `).join('')}
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">タイトル</label>
+        <input type="text" class="form-input" id="task_title" placeholder="例：今日のMNP目標を達成する">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">詳細（任意）</label>
+        <textarea class="form-textarea" id="task_body" placeholder="補足があれば..."></textarea>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:20px;justify-content:flex-end">
+      <button class="btn btn-ghost" onclick="closeModal()">キャンセル</button>
+      <button class="btn btn-primary" onclick="submitTask()">📋 作成する</button>
+    </div>
+  `);
+}
+
+function toggleTaskToAll(checkbox) {
+  const div = document.getElementById('task_recipients');
+  div.style.opacity = checkbox.checked ? '0.4' : '1';
+  div.style.pointerEvents = checkbox.checked ? 'none' : '';
+}
+
+function updateTaskHorizonStyle() {
+  const COLORS = {
+    daily:   { border: '#ff95b3', bg: 'rgba(255,149,179,.12)' },
+    weekly:  { border: '#ffd9a8', bg: 'rgba(255,217,168,.12)' },
+    monthly: { border: '#80f1ff', bg: 'rgba(128,241,255,.12)' },
+  };
+  const selected = document.querySelector('input[name="task_horizon"]:checked')?.value;
+  Object.entries(COLORS).forEach(([val, c]) => {
+    const label = document.getElementById(`task_horizon_label_${val}`);
+    if (!label) return;
+    if (val === selected) {
+      label.style.borderColor = c.border;
+      label.style.background = c.bg;
+    } else {
+      label.style.borderColor = 'var(--border)';
+      label.style.background = 'var(--surface2)';
+    }
+  });
+}
+
+function submitTask() {
+  const toAll = document.getElementById('task_to_all').checked;
+  const title = document.getElementById('task_title').value.trim();
+  const body  = document.getElementById('task_body').value.trim();
+  const horizon = document.querySelector('input[name="task_horizon"]:checked')?.value || 'daily';
+
+  if (!title) { showToast('タイトルを入力してください', 'error'); return; }
+
+  let toUserIds;
+  if (toAll) {
+    toUserIds = ['all'];
+  } else {
+    const checked = [...document.querySelectorAll('input[name="task_to"]:checked')];
+    toUserIds = checked.map(c => c.value);
+    if (toUserIds.length === 0) { showToast('宛先を選択してください', 'error'); return; }
+  }
+
+  addTask(CU.id, toUserIds, title, body, horizon);
+  closeModal();
+  showToast('タスクを作成しました ✓', 'success');
+  _dashNotifTab = 'task';
   renderDashboard();
 }
 
@@ -3272,6 +3485,9 @@ function renderProfile() {
       ${inp('nextRoleCandidate', card.nextRoleCandidate, '例: イベントCL → チーフ候補')}
     </div>`;
 
+  // ── MBTIタブ ──
+  const mbtiBlock = buildMbtiView(getMbti(user.id), canManagerApprove, user.id);
+
   // ── 生産性スコア（左カラム） ──
   const prodScore = !agg && !isRefa ? '—'
     : isRefa ? (refaAmt > 0 ? (refaAmt / 10000).toFixed(1) + '万' : '—')
@@ -3342,6 +3558,7 @@ function renderProfile() {
             <button class="profile-tab ${profileActiveTab === 'skill' ? 'active' : ''}" onclick="switchProfileTab('skill')">スキル</button>
             <button class="profile-tab ${profileActiveTab === 'history' ? 'active' : ''}" onclick="switchProfileTab('history')">経歴・面談</button>
             <button class="profile-tab ${profileActiveTab === 'msg' ? 'active' : ''}" onclick="switchProfileTab('msg')">メッセージ</button>
+            <button class="profile-tab ${profileActiveTab === 'mbti' ? 'active' : ''}" onclick="switchProfileTab('mbti')">MBTI</button>
           </div>
 
           <div class="profile-panel${profileActiveTab === 'perf' ? '' : ' hidden'}" id="pp_perf">
@@ -3361,6 +3578,10 @@ function renderProfile() {
           <div class="profile-panel${profileActiveTab === 'msg' ? '' : ' hidden'}" id="pp_msg">
             ${msgBlock}
           </div>
+
+          <div class="profile-panel${profileActiveTab === 'mbti' ? '' : ' hidden'}" id="pp_mbti">
+            ${mbtiBlock}
+          </div>
         </div>
       </div>
     </div>
@@ -3372,12 +3593,190 @@ function switchProfileTab(tab) {
   document.querySelectorAll('.profile-tab').forEach(b => {
     b.classList.toggle('active', b.getAttribute('onclick')?.includes(`'${tab}'`));
   });
-  ['perf', 'skill', 'history', 'msg'].forEach(t => {
+  ['perf', 'skill', 'history', 'msg', 'mbti'].forEach(t => {
     const p = document.getElementById('pp_' + t);
     if (p) p.classList.toggle('hidden', t !== tab);
   });
   const layout = document.querySelector('.profile-layout');
   if (layout) layout.classList.toggle('skill-active', tab === 'skill');
+}
+
+// ─────────────────────────────────────────────
+// MBTI ヘルパー
+// ─────────────────────────────────────────────
+const MBTI_TYPES = {
+  INTJ:'建築家', INTP:'論理学者', ENTJ:'指揮官', ENTP:'討論者',
+  INFJ:'提唱者', INFP:'仲介者',  ENFJ:'主人公',  ENFP:'運動家',
+  ISTJ:'管理者', ISFJ:'擁護者',  ESTJ:'幹部',    ESFJ:'領事',
+  ISTP:'巨匠',   ISFP:'冒険家',  ESTP:'起業家',  ESFP:'エンターテイナー',
+};
+const MBTI_GROUPS = [
+  { key:'analyst',  label:'分析家', color:'#8b6fac', roles:['INTJ','INTP','ENTJ','ENTP'] },
+  { key:'diplomat', label:'外交官', color:'#3aad78', roles:['INFJ','INFP','ENFJ','ENFP'] },
+  { key:'sentinel', label:'番人',   color:'#4fa8d2', roles:['ISTJ','ISFJ','ESTJ','ESFJ'] },
+  { key:'explorer', label:'探検家', color:'#d4a830', roles:['ISTP','ISFP','ESTP','ESFP'] },
+];
+// 軸の左右順序は 16personalities 準拠（N左/S右、T左/F右）
+// 各軸に独立した色を割り当て
+const MBTI_AXES = [
+  { key:'ei', left:'E', leftJa:'外向型', right:'I', rightJa:'内向型', color:'#4ecdc4' },
+  { key:'sn', left:'N', leftJa:'直感型', right:'S', rightJa:'感覚型', color:'#f0b429' },
+  { key:'ft', left:'T', leftJa:'思考型', right:'F', rightJa:'感情型', color:'#38c96e' },
+  { key:'jp', left:'J', leftJa:'計画型', right:'P', rightJa:'探索型', color:'#9775fa' },
+];
+const MBTI_ID_COLOR = '#ff6b81';
+
+function getMbtiGroup(type4) {
+  return MBTI_GROUPS.find(g => g.roles.includes(type4)) || { label:'不明', color:'#6a80ba' };
+}
+
+// ── バー1本分のHTML ──
+function _mbtiBarRow(leftLetter, leftJa, rightLetter, rightJa, d, color) {
+  const isLeftDom = d && d.pole === leftLetter;
+  const pct = d?.pct ?? 50;
+  const domJa = isLeftDom ? leftJa : rightJa;
+  // ドットは優勢な極の端に近い位置: 左優勢なら左寄り、右優勢なら右寄り
+  // pct=91(E左) → dotLeft=9(左端近く), pct=82(P右) → dotLeft=82(右端近く)
+  const dotLeft = isLeftDom ? (100 - pct) : pct;
+  // フィルは優勢でない側から伸びて、ドット位置まで埋める（太いバーで強さを表現）
+  const fillCss = isLeftDom ? `right:0;width:${pct}%` : `left:0;width:${pct}%`;
+  return `
+    <div class="mbti-axis-block">
+      <div class="mbti-axis-dom" style="text-align:${isLeftDom ? 'left' : 'right'};color:${color}">
+        <strong>${pct}%</strong> ${domJa}
+      </div>
+      <div class="mbti-bar-container">
+        <div class="mbti-bar-bg" style="background:${color}28"></div>
+        <div class="mbti-bar-fill" style="background:${color};${fillCss}"></div>
+        <div class="mbti-dot" style="border-color:${color};left:${dotLeft}%"></div>
+      </div>
+      <div class="mbti-axis-foot">
+        <span class="${isLeftDom ? 'mbti-foot-dom' : ''}">${leftJa}</span>
+        <span class="${!isLeftDom ? 'mbti-foot-dom' : ''}">${rightJa}</span>
+      </div>
+    </div>`;
+}
+
+// ── 表示パネル（ビューモード）──
+function buildMbtiView(mbti, isAdmin, userId) {
+  const editBtn = isAdmin
+    ? `<button class="btn btn-ghost mbti-edit-open-btn" onclick="openMbtiEdit()">編集</button>`
+    : '';
+
+  if (!mbti) {
+    return `
+      <div class="mbti-panel">
+        <div class="mbti-panel-topbar">${editBtn}</div>
+        <div class="mbti-empty">MBTIデータ未登録</div>
+      </div>`;
+  }
+
+  // type4 はデータの pole を直接連結（軸の left/right 定義と独立）
+  const ei = mbti.ei || {}; const sn = mbti.sn || {};
+  const ft = mbti.ft || {}; const jp = mbti.jp || {};
+  const type4    = (ei.pole||'?') + (sn.pole||'?') + (ft.pole||'?') + (jp.pole||'?');
+  const idData   = mbti.id || {};
+  const idPole   = idData.pole || 'A';
+  const typeName = MBTI_TYPES[type4] || type4;
+  const group    = getMbtiGroup(type4);
+  const idLabel  = idPole === 'A' ? '積極型' : '慎重型';
+
+  const axesBars = MBTI_AXES.map(a =>
+    _mbtiBarRow(a.left, a.leftJa, a.right, a.rightJa, mbti[a.key], a.color)
+  ).join('');
+  const idBar = _mbtiBarRow('A', '積極型', 'T', '慎重型', idData, MBTI_ID_COLOR);
+
+  return `
+    <div class="mbti-panel">
+      <div class="mbti-panel-topbar">${editBtn}</div>
+
+      <div class="mbti-hero">
+        <div class="mbti-code-block" style="background:${group.color}1e;border:2px solid ${group.color}70">
+          <span class="mbti-code-main" style="color:${group.color}">${type4}</span><span class="mbti-code-id" style="color:${group.color}">-${idPole}</span>
+        </div>
+        <div class="mbti-hero-meta">
+          <div class="mbti-type-name">${typeName}</div>
+          <div class="mbti-chips">
+            <span class="mbti-chip" style="background:${group.color}22;color:${group.color};border-color:${group.color}50">${group.label}</span>
+            <span class="mbti-chip" style="background:${MBTI_ID_COLOR}1a;color:${MBTI_ID_COLOR};border-color:${MBTI_ID_COLOR}44">${idLabel}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="mbti-divider"></div>
+
+      <div class="mbti-section-hd">性格の4軸</div>
+      <div class="mbti-axes-list">${axesBars}</div>
+
+      <div class="mbti-section-hd" style="margin-top:4px">アイデンティティ</div>
+      <div class="mbti-axes-list">${idBar}</div>
+    </div>`;
+}
+
+// ── 編集フォーム ──
+function buildMbtiEditForm(mbti, userId) {
+  const row = (key, lo, loja, ro, roja, cur) => {
+    const pole = cur?.pole || lo;
+    const pct  = cur?.pct  || '';
+    return `
+      <div class="mbti-ef-row">
+        <span class="mbti-ef-label">${loja} <em>${lo}</em> / ${roja} <em>${ro}</em></span>
+        <div class="mbti-ef-inputs">
+          <select class="form-input mbti-ef-sel" id="mbti_${key}_pole">
+            <option value="${lo}" ${pole===lo?'selected':''}>${lo} ${loja}</option>
+            <option value="${ro}" ${pole===ro?'selected':''}>${ro} ${roja}</option>
+          </select>
+          <div class="mbti-ef-pct-wrap">
+            <input type="number" class="form-input mbti-ef-pct" id="mbti_${key}_pct"
+              min="51" max="100" value="${pct}" placeholder="51–100">
+            <span class="mbti-ef-unit">%</span>
+          </div>
+        </div>
+      </div>`;
+  };
+  return `
+    <div class="mbti-edit-panel">
+      <div class="mbti-ef-hint">優勢な側を選び、パーセンテージ（51〜100）を入力してください。</div>
+      ${MBTI_AXES.map(a => row(a.key, a.left, a.leftJa, a.right, a.rightJa, mbti?.[a.key])).join('')}
+      ${row('id', 'A', '積極', 'T', '慎重', mbti?.id)}
+      <div class="mbti-ef-actions">
+        <button class="btn btn-ghost" onclick="cancelMbtiEdit()">キャンセル</button>
+        <button class="btn btn-primary" onclick="saveMbtiData('${userId}')">保存する</button>
+      </div>
+    </div>`;
+}
+
+function openMbtiEdit() {
+  mbtiEditMode = true;
+  const p = document.getElementById('pp_mbti');
+  if (p) p.innerHTML = buildMbtiEditForm(getMbti(profileUserId), profileUserId);
+}
+
+function cancelMbtiEdit() {
+  mbtiEditMode = false;
+  const p = document.getElementById('pp_mbti');
+  if (p) p.innerHTML = buildMbtiView(getMbti(profileUserId), roleLevel(CU.role) >= 5, profileUserId);
+}
+
+function saveMbtiData(userId) {
+  const keys = ['ei', 'sn', 'ft', 'jp', 'id'];
+  const mbtiData = {};
+  for (const key of keys) {
+    const poleEl = document.getElementById('mbti_' + key + '_pole');
+    const pctEl  = document.getElementById('mbti_' + key + '_pct');
+    if (!poleEl || !pctEl) continue;
+    const pct = parseInt(pctEl.value, 10);
+    if (!poleEl.value || isNaN(pct) || pct < 51 || pct > 100) {
+      showToast('51〜100の数値を入力してください', 'error');
+      return;
+    }
+    mbtiData[key] = { pole: poleEl.value, pct };
+  }
+  setMbti(userId, mbtiData);
+  mbtiEditMode = false;
+  const p = document.getElementById('pp_mbti');
+  if (p) p.innerHTML = buildMbtiView(getMbti(userId), roleLevel(CU.role) >= 5, userId);
+  showToast('MBTIを保存しました', 'success');
 }
 
 function saveProfileCard(userId) {

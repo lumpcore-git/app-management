@@ -38,6 +38,18 @@
       ログイン
     </button>
 
+    <div style="display:flex;align-items:center;gap:8px;margin-top:20px;color:var(--text-sub);font-size:13px">
+      <div style="flex:1;height:1px;background:var(--border)"></div>
+      または
+      <div style="flex:1;height:1px;background:var(--border)"></div>
+    </div>
+
+    <button class="btn"
+      style="width:100%;margin-top:12px;padding:12px;font-size:15px;justify-content:center;background:var(--surface2);border:1px solid var(--border);color:var(--text)"
+      onclick="location.href='/.auth/login/aad?post_login_redirect_uri=/app.html'">
+      🏢 Microsoft アカウントでログイン
+    </button>
+
     <div class="login-hint">
       初回ログインパスワード: <strong>lamp1234</strong>
     </div>
@@ -54,6 +66,21 @@
   if (getSession()) {
     location.href = 'app.html';
   }
+
+  // Entra ID でログイン済みかチェックし、emailで紐付けてアプリへ
+  fetch('/.auth/me')
+    .then(r => r.ok ? r.json() : null)
+    .then(data => {
+      const principal = data?.clientPrincipal;
+      if (!principal) return;
+      const email = principal.userDetails;
+      const user = getUsers().find(u => u.email && u.email.toLowerCase() === email.toLowerCase());
+      if (user) {
+        sessionStorage.setItem(LS.session, JSON.stringify({ userId: user.id }));
+        location.href = 'app.html';
+      }
+    })
+    .catch(() => {});  // ローカル環境では無視
 
   // ユーザー一覧をドロップダウンに追加
   (function populateUsers() {

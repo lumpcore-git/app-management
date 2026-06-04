@@ -48,7 +48,7 @@ const INITIAL_USERS = [
   { id: 'u25', name: '瀬之口百合香', role: 'cotton_candy', dept: 'event_promo', reportType: null,     pw: 'lamp1234' },
 
   // ── 人財部 ──
-  { id: 'u26', name: '廣瀬',     role: 'admin',    dept: 'hr', reportType: null, jobTitle: 'IT / イベントCL',  pw: 'lamp1234' },
+  { id: 'u26', name: '廣瀬',     role: 'admin',    dept: 'hr', reportType: null, jobTitle: 'IT / イベントCL',  email: 't.hirose@lumpcore.co.jp', pw: 'lamp1234' },
   { id: 'u27', name: '三瓶久',   role: 'hr_staff', dept: 'hr', reportType: null, jobTitle: '総務',              pw: 'lamp1234' },
   { id: 'u28', name: '吉田悠人',   role: 'hr_staff', dept: 'hr', reportType: null, jobTitle: '採用',              pw: 'lamp1234' },
   { id: 'u29', name: '岩淵由佳',   role: 'hr_staff', dept: 'hr', reportType: null, jobTitle: '採用',              pw: 'lamp1234' },
@@ -75,6 +75,7 @@ const LS = {
   skillTemplate:  'lc_skill_template',
   skillEval:      'lc_skill_eval',
   notifications:  'lc_notifications',
+  tasks:          'lc_tasks',
   venueAchieve:   'lc_venue_achieve',
   session:        'lc_session',
   version:        'lc_version',
@@ -132,6 +133,21 @@ function initData() {
   if (!Store.get(LS.shiftSites))      Store.set(LS.shiftSites, DEFAULT_SHIFT_SITES);
   if (!Store.get(LS.shiftSchedules))  Store.set(LS.shiftSchedules, buildInitialShiftSchedules());
   if (!Store.get(LS.shiftVenuePlans)) Store.set(LS.shiftVenuePlans, {});
+
+  // MBTIサンプルデータ（未設定時のみ）
+  const _mbtiSeeds = {
+    u1:  { ei:{pole:'E',pct:91}, sn:{pole:'S',pct:65}, ft:{pole:'F',pct:71}, jp:{pole:'P',pct:82}, id:{pole:'A',pct:86} }, // 北村晃平 ESFP-A
+    u26: { ei:{pole:'E',pct:83}, sn:{pole:'N',pct:100},ft:{pole:'F',pct:80}, jp:{pole:'P',pct:86}, id:{pole:'A',pct:58} }, // 廣瀬 ENFP-A
+  };
+  const _talentCards = Store.get(LS.talent, {});
+  let _talentChanged = false;
+  for (const [uid, mbtiData] of Object.entries(_mbtiSeeds)) {
+    if (!_talentCards[uid]?.mbti) {
+      _talentCards[uid] = { ...(_talentCards[uid] || {}), mbti: mbtiData, updatedAt: new Date().toISOString() };
+      _talentChanged = true;
+    }
+  }
+  if (_talentChanged) Store.set(LS.talent, _talentCards);
 }
 
 function _migrate() {
@@ -512,6 +528,16 @@ function setTalentCard(userId, data) {
   saveTalentCards(cards);
 }
 
+// ─── MBTI ───
+// mbti: { ei:{pole:'E'|'I',pct:0-100}, sn:{pole:'S'|'N',pct}, ft:{pole:'F'|'T',pct},
+//          jp:{pole:'J'|'P',pct}, id:{pole:'A'|'T',pct} }
+function getMbti(userId) {
+  return getTalentCard(userId).mbti || null;
+}
+function setMbti(userId, mbtiData) {
+  setTalentCard(userId, { mbti: mbtiData });
+}
+
 // ─── JOB HISTORY (ジョブ経歴) ───
 // lc_job_history: { [userId]: [ { id, date, role, dept, memo, createdAt } ] }
 // date: 'YYYY-MM'  role: 表示用役職テキスト  dept: 事業部テキスト
@@ -691,6 +717,81 @@ function markAllNotificationsRead(userId) {
 }
 function getUnreadCount(userId) {
   return getNotificationsForUser(userId).filter(n => !n.readBy[userId]).length;
+}
+
+// ─── TASKS (タスク / コミット管理) ───
+// lc_tasks: [{
+//   id, fromUserId, toUserIds,
+//   title, body,
+//   horizon: 'daily' | 'weekly' | 'monthly',
+//   dueDate: 'YYYY-MM-DD',
+//   doneBy: { userId: ISO },
+//   createdAt
+// }]
+function getTasks() {
+  return Store.get(LS.tasks, []);
+}
+function saveTasks(tasks) {
+  Store.set(LS.tasks, tasks);
+}
+function _calcTaskDueDate(horizon) {
+  const today = new Date();
+  if (horizon === 'daily') {
+    return todayStr();
+  } else if (horizon === 'weekly') {
+    const day = today.getDay();
+    const diff = day === 0 ? 0 : 7 - day;
+    const end = new Date(today);
+    end.setDate(today.getDate() + diff);
+    return end.toISOString().slice(0, 10);
+  } else if (horizon === 'monthly') {
+    const end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+    return end.toISOString().slice(0, 10);
+  }
+  return todayStr();
+}
+function getTasksForUser(userId) {
+  const ORDER = { daily: 0, weekly: 1, monthly: 2 };
+  return getTasks()
+    .filter(t => t.toUserIds.includes('all') || t.toUserIds.includes(userId))
+    .sort((a, b) => {
+      const ho = (ORDER[a.horizon] ?? 3) - (ORDER[b.horizon] ?? 3);
+      if (ho !== 0) return ho;
+      return b.createdAt.localeCompare(a.createdAt);
+    });
+}
+function addTask(fromUserId, toUserIds, title, body, horizon) {
+  const tasks = getTasks();
+  const t = {
+    id: 'tk' + Date.now(),
+    fromUserId,
+    toUserIds,
+    title,
+    body: body || '',
+    horizon,
+    dueDate: _calcTaskDueDate(horizon),
+    doneBy: {},
+    createdAt: new Date().toISOString(),
+  };
+  tasks.push(t);
+  saveTasks(tasks);
+  return t;
+}
+function markTaskDone(taskId, userId) {
+  const tasks = getTasks();
+  const t = tasks.find(x => x.id === taskId);
+  if (t) { t.doneBy[userId] = new Date().toISOString(); saveTasks(tasks); }
+}
+function unmarkTaskDone(taskId, userId) {
+  const tasks = getTasks();
+  const t = tasks.find(x => x.id === taskId);
+  if (t && t.doneBy[userId]) { delete t.doneBy[userId]; saveTasks(tasks); }
+}
+function deleteTask(taskId) {
+  saveTasks(getTasks().filter(t => t.id !== taskId));
+}
+function getIncompleteTaskCount(userId) {
+  return getTasksForUser(userId).filter(t => !t.doneBy[userId]).length;
 }
 
 // ─── TALENT: 直近N か月の生産性推移を返す ───

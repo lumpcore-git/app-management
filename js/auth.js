@@ -56,7 +56,7 @@ async function tryEntraIdLogin() {
     const principal = data.clientPrincipal;
     if (!principal) return;
     const email = principal.userDetails;
-    const user = getUsers().find(u => u.email && u.email.toLowerCase() === email.toLowerCase());
+    const user = getUserByEmail(email);
     if (user) {
       sessionStorage.setItem(LS.session, JSON.stringify({ userId: user.id }));
     }

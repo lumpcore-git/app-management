@@ -183,6 +183,17 @@ function saveUsers(users) {
 function getUserById(id) {
   return getUsers().find(u => u.id === id) || null;
 }
+function getUserByEmail(email) {
+  if (!email) return null;
+  const lower = email.toLowerCase();
+  // ストアのユーザーデータに email フィールドがあれば優先
+  const stored = getUsers().find(u => u.email && u.email.toLowerCase() === lower);
+  if (stored) return stored;
+  // INITIAL_USERS で email を照合し、対応するストアのユーザーを返す（localStorage が古い場合の対応）
+  const initial = INITIAL_USERS.find(u => u.email && u.email.toLowerCase() === lower);
+  if (initial) return getUserById(initial.id);
+  return null;
+}
 // 表示用の役職名（jobTitle優先、なければROLESのlabel）
 function getUserDisplayRole(user) {
   return user.jobTitle || ROLES[user.role]?.label || user.role;

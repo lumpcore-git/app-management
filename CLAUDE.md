@@ -4,6 +4,8 @@
 社内向けWebアプリ（Teamsの代替）。モバイル事業部を中心とした実績管理システム。
 バックエンドなし・localStorageのみのプロトタイプ。将来的に Azure (Cosmos DB + Entra ID) 移行予定。
 
+**会社名の正しい表記:** `lumpcore`（lump + core）。`lampcore` は誤り。ドメインは `lumpcore.co.jp`。Azureリソース名に `lampcore` と誤記したものがあるが（lampcore-cosmos, lampcore-app, rg-lampcore）、動作上は問題なし。
+
 ---
 
 ## ファイル構成

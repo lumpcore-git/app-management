@@ -2,7 +2,5 @@
   "name": "lumpcore-api",
   "version": "1.0.0",
   "description": "LUMP CORE API",
-  "dependencies": {
-    "@azure/cosmos": "^4.0.0"
-  }
+  "dependencies": {}
 }

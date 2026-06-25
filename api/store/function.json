@@ -6,7 +6,7 @@
       "direction": "in",
       "name": "req",
       "methods": ["get", "post", "delete"],
-      "route": "store/{key}"
+      "route": "store"
     },
     {
       "type": "http",

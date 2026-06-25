@@ -76,7 +76,7 @@ async function deleteDoc(container) {
 }
 
 module.exports = async function(context, req) {
-  const storeKey = req.params.key;
+  const storeKey = req.params?.key ?? req.query?.key;
   const config = CONTAINERS[storeKey];
   if (!config) {
     context.res = { status: 400, body: { error: 'Unknown key: ' + storeKey } };

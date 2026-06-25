@@ -1,7 +1,7 @@
 {
   "name": "lumpcore-api",
   "version": "1.0.0",
-  "main": "src/functions/*.js",
+  "main": "index.js",
   "dependencies": {
     "@azure/functions": "^4.0.0"
   }

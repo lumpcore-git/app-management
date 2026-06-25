@@ -2,6 +2,9 @@
   "name": "lumpcore-api",
   "version": "1.0.0",
   "main": "index.js",
+  "engines": {
+    "node": "~18"
+  },
   "dependencies": {
     "@azure/functions": "^4.0.0"
   }

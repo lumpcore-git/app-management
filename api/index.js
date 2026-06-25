@@ -21,7 +21,7 @@ const CONTAINERS = {
 };
 
 function authHeader(verb, resourceType, resourceId, date) {
-  const text = `${verb}\n${resourceType}\n${resourceId}\n${date}\n\n`;
+  const text = `${verb}\n${resourceType}\n${resourceId}\n${date.toLowerCase()}\n\n`;
   const sig = crypto.createHmac('sha256', Buffer.from(ACCOUNT_KEY, 'base64'))
     .update(text).digest('base64');
   return encodeURIComponent(`type=master&ver=1.0&sig=${sig}`);

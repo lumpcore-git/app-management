@@ -43,22 +43,45 @@ async function getDoc(container) {
   return res.json();
 }
 
-async function upsertDoc(container, pkField, doc) {
-  const resourceId = `dbs/${DB}/colls/${container}`;
-  const date = new Date().toUTCString();
-  const res = await fetch(`${ENDPOINT}/${resourceId}/docs`, {
-    method: 'POST',
+async function saveDoc(container, doc) {
+  const docResourceId = `dbs/${DB}/colls/${container}/docs/${DOC_ID}`;
+  const collResourceId = `dbs/${DB}/colls/${container}`;
+  const commonHeaders = {
+    'x-ms-version': '2018-12-31',
+    'x-ms-documentdb-partitionkey': JSON.stringify([DOC_ID]),
+    'Content-Type': 'application/json',
+  };
+
+  // まずPUTで上書きを試みる
+  const date1 = new Date().toUTCString();
+  const putRes = await fetch(`${ENDPOINT}/${docResourceId}`, {
+    method: 'PUT',
     headers: {
-      'Authorization': authHeader('post', 'docs', resourceId, date),
-      'x-ms-date': date,
-      'x-ms-version': '2018-12-31',
-      'x-ms-documentdb-partitionkey': JSON.stringify([DOC_ID]),
-      'x-ms-documentdb-is-upsert': 'true',
-      'Content-Type': 'application/json',
+      ...commonHeaders,
+      'Authorization': authHeader('put', 'docs', docResourceId, date1),
+      'x-ms-date': date1,
     },
-    body: JSON.stringify(doc)
+    body: JSON.stringify(doc),
   });
-  if (!res.ok) throw new Error(await res.text());
+  if (putRes.ok) return;
+
+  // ドキュメントが存在しない場合はPOSTで新規作成
+  if (putRes.status === 404) {
+    const date2 = new Date().toUTCString();
+    const postRes = await fetch(`${ENDPOINT}/${collResourceId}/docs`, {
+      method: 'POST',
+      headers: {
+        ...commonHeaders,
+        'Authorization': authHeader('post', 'docs', collResourceId, date2),
+        'x-ms-date': date2,
+      },
+      body: JSON.stringify(doc),
+    });
+    if (!postRes.ok) throw new Error(await postRes.text());
+    return;
+  }
+
+  throw new Error(await putRes.text());
 }
 
 async function deleteDoc(container) {
@@ -93,7 +116,7 @@ app.http('store', {
       } else if (request.method === 'POST') {
         const body = await request.json();
         const docBody = { id: DOC_ID, [config.pk]: DOC_ID, data: body };
-        await upsertDoc(config.name, config.pk, docBody);
+        await saveDoc(config.name, docBody);
         return { status: 200, jsonBody: { ok: true } };
       } else if (request.method === 'DELETE') {
         await deleteDoc(config.name);

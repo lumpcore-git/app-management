@@ -192,3 +192,102 @@ body {
 
 /* ─── HIDDEN ─── */
 .hidden { display: none !important; }
+
+/* ─── BOTTOM NAV (mobile only) ─── */
+.bottomnav {
+  display: none;
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  z-index: 200;
+  padding: 0 4px;
+  padding-bottom: env(safe-area-inset-bottom, 0);
+  height: 60px;
+  align-items: stretch;
+}
+.bottomnav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 6px 4px;
+  cursor: pointer;
+  border-radius: 10px;
+  color: var(--text-sub);
+  font-size: 10px;
+  font-weight: 500;
+  min-width: 0;
+  transition: color .15s;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+.bottomnav-item .bn-icon { font-size: 20px; line-height: 1; }
+.bottomnav-item.active { color: var(--accent); }
+.bottomnav-item:active { opacity: 0.6; }
+
+/* ─── BOTTOM SHEET (more menu) ─── */
+.sheet-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, .55);
+  z-index: 400;
+  display: flex;
+  align-items: flex-end;
+}
+.sheet {
+  width: 100%;
+  background: var(--surface);
+  border-radius: 20px 20px 0 0;
+  padding: 8px 12px calc(20px + env(safe-area-inset-bottom, 0));
+}
+.sheet-handle {
+  width: 40px; height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  margin: 0 auto 12px;
+}
+.sheet-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 13px 8px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 15px;
+  color: var(--text);
+  transition: background .15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.sheet-item:active { background: var(--surface2); }
+.sheet-item.active { color: var(--accent); }
+.sheet-item .si-icon { font-size: 20px; width: 28px; text-align: center; line-height: 1; }
+.sheet-item-logout {
+  color: var(--danger);
+  border-top: 1px solid var(--border);
+  margin-top: 4px;
+}
+
+/* ─── RESPONSIVE (mobile ≤ 767px) ─── */
+@media (max-width: 767px) {
+  .layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: 52px 1fr;
+  }
+  .sidebar { display: none; }
+  .main {
+    padding: 16px;
+    padding-bottom: calc(68px + env(safe-area-inset-bottom, 0));
+  }
+  .topbar {
+    padding: 0 12px;
+    height: 52px;
+    gap: 10px;
+  }
+  .topbar-logo { font-size: 15px; }
+  .topbar-name, .topbar-role { display: none; }
+  .btn-logout { display: none; }
+  .bottomnav { display: flex; }
+}

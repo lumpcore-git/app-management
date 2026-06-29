@@ -66,6 +66,7 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   renderTopbar();
   renderSidebar();
+  renderBottomNav();
 
   window.addEventListener('hashchange', route);
   route();
@@ -252,6 +253,96 @@ function route() {
     settings:       renderSettings,
   };
   (pages[hash] || renderDashboard)();
+  renderBottomNav();
+}
+
+// ─── BOTTOM NAV (mobile) ───
+function renderBottomNav() {
+  const el = document.getElementById('bottomnav');
+  if (!el) return;
+
+  const level = roleLevel(CU.role);
+  const hasReport = !!CU.reportType;
+  const canSeeTeam = (level >= 2 && CU.dept === 'mobile') || level >= 5;
+  const hash = location.hash.replace('#', '') || 'dashboard';
+
+  const isShiftHash  = hash === 'shifts-week' || hash === 'shifts-month' || hash === 'shifts-plan' || hash === 'shifts';
+  const isVenueHash  = hash === 'venue-achieve-weekday' || hash === 'venue-achieve-weekend' || hash === 'venue-achieve';
+
+  const primary = [
+    { id: 'dashboard',  icon: '🏠', label: 'ダッシュ',
+      active: hash === 'dashboard' },
+    hasReport && { id: 'report', icon: '📝', label: '報告',
+      active: hash === 'report' },
+    { id: 'shifts-week', icon: '🗓️', label: 'シフト',
+      active: isShiftHash },
+    canSeeTeam && { id: 'team', icon: '👥', label: 'チーム',
+      active: hash === 'team' },
+  ].filter(Boolean).slice(0, 4);
+
+  const moreIds = ['ranking', 'targets', 'venue-achieve-weekday', 'talent', 'members', 'settings'];
+  const moreActive = moreIds.some(id => {
+    if (id === 'venue-achieve-weekday') return isVenueHash;
+    return hash === id;
+  }) || hash === 'profile';
+
+  el.innerHTML = [
+    ...primary.map(item => `
+      <div class="bottomnav-item ${item.active ? 'active' : ''}" onclick="navigate('${item.id}')">
+        <span class="bn-icon">${item.icon}</span>
+        <span>${item.label}</span>
+      </div>`),
+    `<div class="bottomnav-item ${moreActive ? 'active' : ''}" onclick="showMoreSheet()">
+      <span class="bn-icon">☰</span>
+      <span>メニュー</span>
+    </div>`,
+  ].join('');
+}
+
+function showMoreSheet() {
+  if (document.getElementById('moreSheet')) return;
+
+  const level = roleLevel(CU.role);
+  const canSeeTeam  = (level >= 2 && CU.dept === 'mobile') || level >= 5;
+  const canSetTargets = (level >= 4 && CU.dept === 'mobile') || level >= 5;
+  const hash = location.hash.replace('#', '') || 'dashboard';
+  const isVenueHash = hash === 'venue-achieve-weekday' || hash === 'venue-achieve-weekend' || hash === 'venue-achieve';
+
+  const items = [
+    canSeeTeam    && { id: 'ranking',              icon: '🏆', label: 'ランキング' },
+    canSetTargets && { id: 'targets',              icon: '🎯', label: '目標設定' },
+                     { id: 'venue-achieve-weekday', icon: '📊', label: '現場達成率' },
+    level >= 4    && { id: 'talent',               icon: '📋', label: '人財カルテ' },
+    level >= 5    && { id: 'members',              icon: '⚙️', label: 'メンバー管理' },
+                     { id: 'settings',             icon: '🔧', label: '設定' },
+  ].filter(Boolean);
+
+  const overlay = document.createElement('div');
+  overlay.id = 'moreSheet';
+  overlay.className = 'sheet-overlay';
+  overlay.innerHTML = `
+    <div class="sheet">
+      <div class="sheet-handle"></div>
+      ${items.map(item => {
+        const isVenue = item.id === 'venue-achieve-weekday';
+        const active = isVenue ? isVenueHash : hash === item.id;
+        return `<div class="sheet-item ${active ? 'active' : ''}" onclick="closeMoreSheet(); navigate('${item.id}')">
+          <span class="si-icon">${item.icon}</span>
+          <span>${item.label}</span>
+        </div>`;
+      }).join('')}
+      <div class="sheet-item sheet-item-logout" onclick="closeMoreSheet(); logout()">
+        <span class="si-icon">🚪</span>
+        <span>ログアウト</span>
+      </div>
+    </div>`;
+  overlay.addEventListener('click', e => { if (e.target === overlay) closeMoreSheet(); });
+  document.body.appendChild(overlay);
+}
+
+function closeMoreSheet() {
+  const el = document.getElementById('moreSheet');
+  if (el) el.remove();
 }
 
 function toggleShiftMenu() {

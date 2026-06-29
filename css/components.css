@@ -1709,3 +1709,45 @@ td { padding: 12px 16px; vertical-align: middle; }
   .mbti-ef-row { flex-direction: column; align-items: flex-start; }
 }
 
+/* ─── MOBILE COMPONENT OVERRIDES (≤ 767px) ─── */
+@media (max-width: 767px) {
+  /* カード */
+  .card { padding: 16px; }
+  .card .table-wrap { margin: 0 -16px -16px; }
+
+  /* KPIグリッド: 4列 → 2列 */
+  .kpi-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .kpi-card { padding: 14px; }
+  .kpi-value { font-size: 26px; }
+
+  /* テーブル横スクロール */
+  .table-wrap { overflow-x: auto; }
+
+  /* ボタン: タップ領域を広げる */
+  .btn { padding: 10px 16px; font-size: 14px; }
+  .btn-icon { padding: 8px; font-size: 16px; }
+
+  /* フォーム */
+  .form-input, .form-select, .form-textarea {
+    font-size: 16px; /* iOSでズームを防ぐ */
+    padding: 10px 12px;
+  }
+
+  /* モーダル */
+  .modal { margin: 0 8px; max-height: 85vh; }
+  .modal.modal-wide { max-width: 100%; margin: 0 4px; }
+
+  /* タブ */
+  .tab-bar { overflow-x: auto; flex-wrap: nowrap; }
+  .tab { white-space: nowrap; }
+
+  /* シフトチップ */
+  .shift-chip { font-size: 10px; max-width: 70px; }
+
+  /* セクションタイトル margin調整 */
+  .section-title { margin-bottom: 12px; }
+
+  /* フィルタ行の折り返し */
+  .page-header { flex-wrap: wrap; gap: 10px; }
+}
+

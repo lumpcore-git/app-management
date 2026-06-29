@@ -62,6 +62,8 @@ window.addEventListener('DOMContentLoaded', async () => {
   CU = requireAuth();
   if (!CU) return;
 
+  await Store.syncFromCloud();
+
   renderTopbar();
   renderSidebar();
 

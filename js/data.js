@@ -98,6 +98,13 @@ const LS = {
 //   4. 認証は auth.js 側で Azure Entra ID (旧Azure AD) に切り替える
 //      → Microsoft 365 アカウントでのシングルサインオンが使える
 //      → pw フィールドは不要になる
+// CosmosDBと同期するキー一覧（lc_theme / lc_session / lc_version は除外）
+const CLOUD_KEYS = new Set([
+  'lc_users', 'lc_reports', 'lc_targets', 'lc_shift_schedules',
+  'lc_shift_sites', 'lc_talent', 'lc_photos', 'lc_skill_template',
+  'lc_skill_eval', 'lc_venue_plans',
+]);
+
 const Store = {
   get(key, fallback = null) {
     const v = localStorage.getItem(key);
@@ -105,9 +112,32 @@ const Store = {
   },
   set(key, value) {
     localStorage.setItem(key, JSON.stringify(value));
+    if (CLOUD_KEYS.has(key)) {
+      fetch(`/api/store?key=${encodeURIComponent(key)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(value),
+      }).catch(() => {});
+    }
   },
   remove(key) {
     localStorage.removeItem(key);
+    if (CLOUD_KEYS.has(key)) {
+      fetch(`/api/store?key=${encodeURIComponent(key)}`, { method: 'DELETE' }).catch(() => {});
+    }
+  },
+  // アプリ起動時にCosmosDBから最新データをlocalStorageに同期する
+  async syncFromCloud() {
+    await Promise.all([...CLOUD_KEYS].map(async (key) => {
+      try {
+        const res = await fetch(`/api/store?key=${encodeURIComponent(key)}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data !== null) {
+          localStorage.setItem(key, JSON.stringify(data));
+        }
+      } catch (_) {}
+    }));
   },
 };
 

@@ -2,9 +2,39 @@
 
 ## プロジェクト概要
 社内向けWebアプリ（Teamsの代替）。モバイル事業部を中心とした実績管理システム。
-バックエンドなし・localStorageのみのプロトタイプ。将来的に Azure (Cosmos DB + Entra ID) 移行予定。
+**現在はAzure本番環境で稼働中。** Azure Static Web Apps + Cosmos DB + Entra ID 構成。
 
 **会社名の正しい表記:** `lumpcore`（lump + core）。`lampcore` は誤り。ドメインは `lumpcore.co.jp`。Azureリソース名に `lampcore` と誤記したものがあるが（lampcore-cosmos, lampcore-app, rg-lampcore）、動作上は問題なし。
+
+---
+
+## 現在の開発状況（2026年6月時点）
+
+### 完了済み
+- ✅ Azure Static Web Apps でホスティング（GitHub pushで自動デプロイ）
+- ✅ Entra ID（Microsoft 365）ログイン追加（パスワードログインと並存）
+- ✅ Cosmos DB 接続・読み書き動作確認済み
+- ✅ Store.syncFromCloud() でアプリ起動時にCosmosDBからデータ同期
+- ✅ Store.set/remove でデータ変更時にCosmosDBへバックグラウンド同期
+
+### 進行中・残タスク
+- 🔧 既存データのCosmosDB投入（地道に進める予定）
+- 🔧 他メンバーへのEntra IDログイン展開（data.jsにemailフィールドを追加）
+- 🔧 カスタムドメイン設定（lumpcore.co.jp）
+
+### Azure構成
+| リソース | 名前 | 備考 |
+|---------|------|------|
+| リソースグループ | rg-lumpcore | |
+| Static Web Apps | lumpcore-app | URL: `https://delightful-pebble-06bc21400.7.azurestaticapps.net` |
+| Cosmos DB | lampcore-cosmos（誤記） | DB名: `lumpcore-db` |
+| GitHub リポジトリ | lumpcore-git/app-management | |
+
+**重要:** APIは `.7.` 付きURLでのみ動作する。`.7.` なしURLではAPIが404になる。
+
+### EntraIDログイン済みユーザー
+現在 `t.hirose@lumpcore.co.jp`（廣瀬さん、u26）のみEntra IDログイン対応済み。
+他メンバーはdata.jsの該当ユーザーに `email` フィールドを追加すれば対応可能。
 
 ---
 
@@ -43,7 +73,7 @@
   dept: 'mobile',         // DEPTS のキー
   reportType: 'mobile',   // 'mobile' | 'refa' | null（報告なし）
   jobTitle: 'IT / イベントCL', // 任意。あればROLESのlabelより優先表示
-  pw: 'lamp1234'
+  pw: 'lump1234'
 }
 ```
 

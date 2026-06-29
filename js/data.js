@@ -27,39 +27,39 @@ const DEPTS = {
 // jobTitle: 表示用の役職名（任意、省略時はROLESのlabelを使用）
 const INITIAL_USERS = [
   // ── モバイル事業部 ──
-  { id: 'u1',  name: '北村晃平',   role: 'chief',        dept: 'mobile',      reportType: 'mobile', pw: 'lamp1234' },
-  { id: 'u2',  name: '立川航成',   role: 'chief',        dept: 'mobile',      reportType: 'mobile', pw: 'lamp1234' },
-  { id: 'u3',  name: '黒井彪雅',   role: 'chief',        dept: 'mobile',      reportType: 'mobile', pw: 'lamp1234' },
-  { id: 'u4',  name: '井出大凱',   role: 'event_closer', dept: 'mobile',      reportType: 'mobile', pw: 'lamp1234' },
-  { id: 'u5',  name: '小野聖斗',   role: 'event_closer', dept: 'mobile',      reportType: 'mobile', pw: 'lamp1234' },
-  { id: 'u9',  name: '木村洸稀',   role: 'closer',       dept: 'mobile',      reportType: 'mobile', pw: 'lamp1234' },
-  { id: 'u10', name: '伊能直人',   role: 'closer',       dept: 'mobile',      reportType: 'mobile', pw: 'lamp1234' },
-  { id: 'u11', name: '全賢鎭',     role: 'closer',       dept: 'mobile',      reportType: 'mobile', pw: 'lamp1234' },
-  { id: 'u15', name: '高橋茉凜',   role: 'catch',        dept: 'mobile',      reportType: 'mobile', pw: 'lamp1234' },
-  { id: 'u16', name: '有馬雄士',   role: 'catch',        dept: 'mobile',      reportType: 'mobile', pw: 'lamp1234' },
-  { id: 'u17', name: '小川翔',     role: 'catch',        dept: 'mobile',      reportType: 'mobile', pw: 'lamp1234' },
-  { id: 'u18', name: '亀田幸',     role: 'catch',        dept: 'mobile',      reportType: 'mobile', pw: 'lamp1234' },
+  { id: 'u1',  name: '北村晃平',   role: 'chief',        dept: 'mobile',      reportType: 'mobile', pw: 'lump1234' },
+  { id: 'u2',  name: '立川航成',   role: 'chief',        dept: 'mobile',      reportType: 'mobile', pw: 'lump1234' },
+  { id: 'u3',  name: '黒井彪雅',   role: 'chief',        dept: 'mobile',      reportType: 'mobile', pw: 'lump1234' },
+  { id: 'u4',  name: '井出大凱',   role: 'event_closer', dept: 'mobile',      reportType: 'mobile', pw: 'lump1234' },
+  { id: 'u5',  name: '小野聖斗',   role: 'event_closer', dept: 'mobile',      reportType: 'mobile', pw: 'lump1234' },
+  { id: 'u9',  name: '木村洸稀',   role: 'closer',       dept: 'mobile',      reportType: 'mobile', pw: 'lump1234' },
+  { id: 'u10', name: '伊能直人',   role: 'closer',       dept: 'mobile',      reportType: 'mobile', pw: 'lump1234' },
+  { id: 'u11', name: '全賢鎭',     role: 'closer',       dept: 'mobile',      reportType: 'mobile', pw: 'lump1234' },
+  { id: 'u15', name: '高橋茉凜',   role: 'catch',        dept: 'mobile',      reportType: 'mobile', pw: 'lump1234' },
+  { id: 'u16', name: '有馬雄士',   role: 'catch',        dept: 'mobile',      reportType: 'mobile', pw: 'lump1234' },
+  { id: 'u17', name: '小川翔',     role: 'catch',        dept: 'mobile',      reportType: 'mobile', pw: 'lump1234' },
+  { id: 'u18', name: '亀田幸',     role: 'catch',        dept: 'mobile',      reportType: 'mobile', pw: 'lump1234' },
 
   // ── イベントプロモーション部 ──
-  { id: 'u20', name: '川上彩香',   role: 'refa',         dept: 'event_promo', reportType: 'refa',   pw: 'lamp1234' },
-  { id: 'u21', name: '⽯原玲奈',   role: 'refa',         dept: 'event_promo', reportType: 'refa',   pw: 'lamp1234' },
-  { id: 'u22', name: '長涼香',   role: 'refa',         dept: 'event_promo', reportType: 'refa',   pw: 'lamp1234' },
-  { id: 'u24', name: '梅田莉津夢', role: 'cotton_candy', dept: 'event_promo', reportType: null,     pw: 'lamp1234' },
-  { id: 'u25', name: '瀬之口百合香', role: 'cotton_candy', dept: 'event_promo', reportType: null,     pw: 'lamp1234' },
+  { id: 'u20', name: '川上彩香',   role: 'refa',         dept: 'event_promo', reportType: 'refa',   pw: 'lump1234' },
+  { id: 'u21', name: '⽯原玲奈',   role: 'refa',         dept: 'event_promo', reportType: 'refa',   pw: 'lump1234' },
+  { id: 'u22', name: '長涼香',   role: 'refa',         dept: 'event_promo', reportType: 'refa',   pw: 'lump1234' },
+  { id: 'u24', name: '梅田莉津夢', role: 'cotton_candy', dept: 'event_promo', reportType: null,     pw: 'lump1234' },
+  { id: 'u25', name: '瀬之口百合香', role: 'cotton_candy', dept: 'event_promo', reportType: null,     pw: 'lump1234' },
 
   // ── 人財部 ──
-  { id: 'u26', name: '廣瀬',     role: 'admin',    dept: 'hr', reportType: null, jobTitle: 'IT / イベントCL',  email: 't.hirose@lumpcore.co.jp', pw: 'lamp1234' },
-  { id: 'u27', name: '三瓶久',   role: 'hr_staff', dept: 'hr', reportType: null, jobTitle: '総務',              pw: 'lamp1234' },
-  { id: 'u28', name: '吉田悠人',   role: 'hr_staff', dept: 'hr', reportType: null, jobTitle: '採用',              pw: 'lamp1234' },
-  { id: 'u29', name: '岩淵由佳',   role: 'hr_staff', dept: 'hr', reportType: null, jobTitle: '採用',              pw: 'lamp1234' },
-  { id: 'u30', name: '渡合広明', role: 'hr_staff', dept: 'hr', reportType: null, jobTitle: 'チーフトレーナー', pw: 'lamp1234' },
-  { id: 'u31', name: '堤拓樹', role: 'hr_staff', dept: 'hr', reportType: null, jobTitle: 'IT / 総務',        pw: 'lamp1234' },
+  { id: 'u26', name: '廣瀬',     role: 'admin',    dept: 'hr', reportType: null, jobTitle: 'IT / イベントCL',  email: 't.hirose@lumpcore.co.jp', pw: 'lump1234' },
+  { id: 'u27', name: '三瓶久',   role: 'hr_staff', dept: 'hr', reportType: null, jobTitle: '総務',              pw: 'lump1234' },
+  { id: 'u28', name: '吉田悠人',   role: 'hr_staff', dept: 'hr', reportType: null, jobTitle: '採用',              pw: 'lump1234' },
+  { id: 'u29', name: '岩淵由佳',   role: 'hr_staff', dept: 'hr', reportType: null, jobTitle: '採用',              pw: 'lump1234' },
+  { id: 'u30', name: '渡合広明', role: 'hr_staff', dept: 'hr', reportType: null, jobTitle: 'チーフトレーナー', pw: 'lump1234' },
+  { id: 'u31', name: '堤拓樹', role: 'hr_staff', dept: 'hr', reportType: null, jobTitle: 'IT / 総務',        pw: 'lump1234' },
 
   // ── 役員 ──
-  { id: 'u32', name: '森崎隆介', role: 'admin', dept: 'executive', reportType: null, pw: 'lamp1234' },
-  { id: 'u33', name: '鈴木克友', role: 'admin', dept: 'executive', reportType: null, pw: 'lamp1234' },
-  { id: 'u34', name: '蜂谷伸之助', role: 'admin', dept: 'executive', reportType: null, pw: 'lamp1234' },
-  { id: 'u35', name: '川喜多航', role: 'admin', dept: 'executive', reportType: null, pw: 'lamp1234' },
+  { id: 'u32', name: '森崎隆介', role: 'admin', dept: 'executive', reportType: null, pw: 'lump1234' },
+  { id: 'u33', name: '鈴木克友', role: 'admin', dept: 'executive', reportType: null, pw: 'lump1234' },
+  { id: 'u34', name: '蜂谷伸之助', role: 'admin', dept: 'executive', reportType: null, pw: 'lump1234' },
+  { id: 'u35', name: '川喜多航', role: 'admin', dept: 'executive', reportType: null, pw: 'lump1234' },
 ];
 
 // ─── STORAGE KEYS ───

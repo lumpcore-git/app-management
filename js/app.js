@@ -2801,7 +2801,7 @@ function openAddMember() {
       </div>
       <div class="form-group">
         <label class="form-label">初期パスワード</label>
-        <input type="text" class="form-input" id="newPw" value="lamp1234">
+        <input type="text" class="form-input" id="newPw" value="lump1234">
       </div>
     </div>
     <div class="modal-footer">
@@ -2817,7 +2817,7 @@ function addMember() {
   const role       = document.getElementById('newRole').value;
   const jobTitle   = document.getElementById('newJobTitle').value.trim() || undefined;
   const reportType = document.getElementById('newReportType').value || null;
-  const pw         = document.getElementById('newPw').value || 'lamp1234';
+  const pw         = document.getElementById('newPw').value || 'lump1234';
 
   if (!name) { showToast('氏名を入力してください', 'error'); return; }
 

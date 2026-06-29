@@ -4,7 +4,7 @@ const crypto = require('crypto');
 const connStr = process.env.COSMOS_CONNECTION_STRING || '';
 const ENDPOINT = (connStr.match(/AccountEndpoint=([^;]+)/)?.[1] || '').replace(/\/$/, '');
 const ACCOUNT_KEY = connStr.match(/AccountKey=([^;]+)/)?.[1] || '';
-const DB = 'lampcore-db';
+const DB = 'lumpcore-db';
 const DOC_ID = 'data';
 
 const CONTAINERS = {

@@ -3287,6 +3287,7 @@ function renderProfile() {
   const canManagerApprove = level >= 5;
   const user = getUserById(profileUserId);
   if (!user) { navigate('talent'); return; }
+  const isMobile = window.innerWidth <= 767;
 
   document.getElementById('topbarTitle').textContent = user.name;
 
@@ -3595,27 +3596,27 @@ function renderProfile() {
             ${card.joinMonth ? `<div class="profile-join">入社 ${card.joinMonth.replace('-', '年')}月<span class="profile-tenure">（${calcTenure(card.joinMonth)}）</span></div>` : ''}
           </div>
 
-          ${canEdit ? `
-          <div class="profile-left-section">
-            <div class="profile-left-label">入社年月</div>
-            <input type="month" class="form-input" id="tc_joinMonth" value="${card.joinMonth || ''}"
-              oninput="updateTenureHint('tc_joinMonth','tc_tenureHint_profile')">
-            <div id="tc_tenureHint_profile" class="tenure-hint">${card.joinMonth ? calcTenure(card.joinMonth) : ''}</div>
-          </div>` : ''}
-
-          <div class="profile-left-section">
-            <div class="profile-left-label">自己紹介 / 職務</div>
-            ${canEdit
-              ? `<textarea class="form-input" id="tc_jobDescription" rows="2" placeholder="モバイル販売 / チームリード など">${card.jobDescription || ''}</textarea>`
-              : `<div class="profile-left-text">${card.jobDescription || '—'}</div>`}
-          </div>
-
-          <div class="profile-left-section">
-            <div class="profile-left-label">今月の目標・希望</div>
-            ${canEdit
-              ? `<textarea class="form-input" id="tc_careerHope" rows="2" placeholder="例: チーフを目指したい など">${card.careerHope || ''}</textarea>`
-              : `<div class="profile-left-text">${card.careerHope || '—'}</div>`}
-          </div>
+          ${!isMobile ? `
+            ${canEdit ? `
+            <div class="profile-left-section">
+              <div class="profile-left-label">入社年月</div>
+              <input type="month" class="form-input" id="tc_joinMonth" value="${card.joinMonth || ''}"
+                oninput="updateTenureHint('tc_joinMonth','tc_tenureHint_profile')">
+              <div id="tc_tenureHint_profile" class="tenure-hint">${card.joinMonth ? calcTenure(card.joinMonth) : ''}</div>
+            </div>` : ''}
+            <div class="profile-left-section">
+              <div class="profile-left-label">自己紹介 / 職務</div>
+              ${canEdit
+                ? `<textarea class="form-input" id="tc_jobDescription" rows="2" placeholder="モバイル販売 / チームリード など">${card.jobDescription || ''}</textarea>`
+                : `<div class="profile-left-text">${card.jobDescription || '—'}</div>`}
+            </div>
+            <div class="profile-left-section">
+              <div class="profile-left-label">今月の目標・希望</div>
+              ${canEdit
+                ? `<textarea class="form-input" id="tc_careerHope" rows="2" placeholder="例: チーフを目指したい など">${card.careerHope || ''}</textarea>`
+                : `<div class="profile-left-text">${card.careerHope || '—'}</div>`}
+            </div>
+          ` : ''}
 
           <div class="profile-stats">
             <div class="profile-stat">
@@ -3631,12 +3632,45 @@ function renderProfile() {
 
         <div class="profile-right">
           <div class="profile-tabs">
+            ${isMobile ? `<button class="profile-tab ${profileActiveTab === 'info' ? 'active' : ''}" onclick="switchProfileTab('info')">👤 プロフ</button>` : ''}
             <button class="profile-tab ${profileActiveTab === 'perf' ? 'active' : ''}" onclick="switchProfileTab('perf')">実績</button>
             <button class="profile-tab ${profileActiveTab === 'skill' ? 'active' : ''}" onclick="switchProfileTab('skill')">スキル</button>
             <button class="profile-tab ${profileActiveTab === 'history' ? 'active' : ''}" onclick="switchProfileTab('history')">経歴・面談</button>
             <button class="profile-tab ${profileActiveTab === 'msg' ? 'active' : ''}" onclick="switchProfileTab('msg')">メッセージ</button>
             <button class="profile-tab ${profileActiveTab === 'mbti' ? 'active' : ''}" onclick="switchProfileTab('mbti')">MBTI</button>
           </div>
+
+          ${isMobile ? `
+          <div class="profile-panel${profileActiveTab === 'info' ? '' : ' hidden'}" id="pp_info">
+            ${canEdit ? `
+            <div class="form-group">
+              <label class="form-label">入社年月</label>
+              <input type="month" class="form-input" id="tc_joinMonth" value="${card.joinMonth || ''}"
+                oninput="updateTenureHint('tc_joinMonth','tc_tenureHint_profile')">
+              <div id="tc_tenureHint_profile" class="tenure-hint">${card.joinMonth ? calcTenure(card.joinMonth) : ''}</div>
+            </div>` : card.joinMonth ? `
+            <div class="form-group">
+              <label class="form-label">入社年月</label>
+              <div class="profile-text-val">${card.joinMonth.replace('-', '年')}月（${calcTenure(card.joinMonth)}）</div>
+            </div>` : ''}
+            <div class="form-group">
+              <label class="form-label">自己紹介 / 職務</label>
+              ${canEdit
+                ? `<textarea class="form-input" id="tc_jobDescription" rows="3" placeholder="モバイル販売 / チームリード など">${card.jobDescription || ''}</textarea>`
+                : `<div class="profile-text-val">${card.jobDescription || '—'}</div>`}
+            </div>
+            <div class="form-group">
+              <label class="form-label">今月の目標・希望</label>
+              ${canEdit
+                ? `<textarea class="form-input" id="tc_careerHope" rows="3" placeholder="例: チーフを目指したい など">${card.careerHope || ''}</textarea>`
+                : `<div class="profile-text-val">${card.careerHope || '—'}</div>`}
+            </div>
+            ${canEdit ? `
+            <div style="margin-top:8px">
+              <button class="btn btn-ghost" style="font-size:12px" onclick="uploadTalentPhoto('${user.id}')">📷 写真変更</button>
+              ${photo ? `<button class="btn btn-ghost" style="font-size:12px;color:var(--danger);margin-left:8px" onclick="removeTalentPhoto('${user.id}')">削除</button>` : ''}
+            </div>` : ''}
+          </div>` : ''}
 
           <div class="profile-panel${profileActiveTab === 'perf' ? '' : ' hidden'}" id="pp_perf">
             ${trendBlock}
@@ -3670,7 +3704,7 @@ function switchProfileTab(tab) {
   document.querySelectorAll('.profile-tab').forEach(b => {
     b.classList.toggle('active', b.getAttribute('onclick')?.includes(`'${tab}'`));
   });
-  ['perf', 'skill', 'history', 'msg', 'mbti'].forEach(t => {
+  ['info', 'perf', 'skill', 'history', 'msg', 'mbti'].forEach(t => {
     const p = document.getElementById('pp_' + t);
     if (p) p.classList.toggle('hidden', t !== tab);
   });

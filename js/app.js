@@ -814,6 +814,7 @@ function renderDashboard() {
   if (level >= 5)                   renderAdminDashboard();
   else if (CU.reportType === 'mobile') renderMobileDashboard();
   else if (CU.reportType === 'refa')   renderRefaDashboard();
+  else if (CU.reportType === 'style')  renderStyleDashboard();
   else                              renderBasicDashboard();
 }
 
@@ -835,6 +836,10 @@ function renderAdminDashboard() {
   const refaReports = allReports.filter(r => r.type === 'refa');
   const totalRefa   = refaReports.reduce((s, r) => s + (r.amount || 0), 0);
 
+  // style営業集計
+  const styleReports = allReports.filter(r => r.type === 'style');
+  const totalStyle   = styleReports.reduce((s, r) => s + (r.amount || 0), 0);
+
   // 未報告（reportTypeあるユーザー）
   const reportUsers  = users.filter(u => u.reportType);
   const reportedIds  = new Set(allReports.map(r => r.userId));
@@ -853,7 +858,7 @@ function renderAdminDashboard() {
       </div>
     </div>
 
-    <div class="kpi-grid fade-in" style="grid-template-columns:repeat(4,1fr)">
+    <div class="kpi-grid fade-in" style="grid-template-columns:repeat(5,1fr)">
       <div class="kpi-card blue">
         <div class="kpi-icon">📱</div>
         <div class="kpi-label">MNP合計</div>
@@ -871,6 +876,13 @@ function renderAdminDashboard() {
         <div class="kpi-icon">💎</div>
         <div class="kpi-label">Refa売上</div>
         <div class="kpi-value" style="font-size:22px">${formatMoney(totalRefa)}</div>
+        <div class="kpi-meta">イベントプロモーション部</div>
+      </div>
+      <div class="kpi-card" style="border-color:rgba(251,191,36,.3)">
+        <div class="kpi-card-bar" style="position:absolute;top:0;left:0;right:0;height:3px;background:#fbbf24"></div>
+        <div class="kpi-icon">✨</div>
+        <div class="kpi-label">style営業売上</div>
+        <div class="kpi-value" style="font-size:22px">${formatMoney(totalStyle)}</div>
         <div class="kpi-meta">イベントプロモーション部</div>
       </div>
       <div class="kpi-card ${unreported > 0 ? 'warn' : 'green'}">
@@ -914,7 +926,7 @@ function renderAdminDashboard() {
             <tbody>
               ${recent.map(r => {
                 const u = users.find(x => x.id === r.userId);
-                const content = r.type === 'refa'
+                const content = (r.type === 'refa' || r.type === 'style')
                   ? `${r.productName || '—'} / ${formatMoney(r.amount)}`
                   : `MNP ${r.mnp}件 / 新規 ${r.shinki}件`;
                 return `
@@ -1244,6 +1256,73 @@ function renderRefaDashboard() {
   `;
 }
 
+// ── style営業ダッシュボード ──
+function renderStyleDashboard() {
+  const month = currentMonth();
+  const myReports = getUserReportsForMonth(CU.id, month).filter(r => r.type === 'style');
+  const target = getTargetForUser(CU.id, month);
+
+  const totalAmount = myReports.reduce((s, r) => s + (r.amount || 0), 0);
+  const count = myReports.length;
+  const achieve = calcAchieve(totalAmount, target?.amountTarget);
+
+  const recent = [...myReports].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5);
+
+  document.getElementById('main').innerHTML = `
+    <div class="page-header fade-in">
+      <div>
+        <div class="page-title">こんにちは、${CU.name}さん 👋</div>
+        <div class="page-sub">${monthLabel(month)}の実績サマリー</div>
+      </div>
+      <button class="btn btn-primary" onclick="navigate('report')">📝 実績を報告する</button>
+    </div>
+
+    ${_todayShiftCard(CU.id)}
+
+    <div class="kpi-grid fade-in" style="grid-template-columns:repeat(3,1fr)">
+      <div class="kpi-card" style="position:relative;overflow:hidden">
+        <div style="position:absolute;top:0;left:0;right:0;height:3px;background:#fbbf24"></div>
+        <div class="kpi-icon">✨</div><div class="kpi-label">今月売上</div>
+        <div class="kpi-value" style="font-size:22px;color:#fbbf24">${formatMoney(totalAmount)}</div>
+        <div class="kpi-meta">${target?.amountTarget ? `目標: ${formatMoney(target.amountTarget)}` : '目標未設定'}</div>
+      </div>
+      <div class="kpi-card blue">
+        <div class="kpi-icon">📋</div><div class="kpi-label">報告件数</div>
+        <div class="kpi-value">${count}</div>
+        <div class="kpi-meta">今月の報告回数</div>
+      </div>
+      <div class="kpi-card ${achieve !== null && achieve >= 100 ? 'green' : 'warn'}">
+        <div class="kpi-icon">📊</div><div class="kpi-label">達成率</div>
+        <div class="kpi-value" style="color:${achieveColor(achieve)}">${achieve !== null ? achieve + '%' : '—'}</div>
+        <div class="kpi-meta">${target?.amountTarget ? '今月目標比' : '目標未設定'}</div>
+      </div>
+    </div>
+
+    <div class="card fade-in">
+      <div class="section-title">最近の報告</div>
+      ${recent.length === 0 ? `<div class="empty-state">まだ今月の報告がありません</div>` : `
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>日付</th><th>商材名</th><th>売上金額</th><th>メモ</th></tr></thead>
+            <tbody>
+              ${recent.map(r => `
+                <tr>
+                  <td>${formatDate(r.date)}</td>
+                  <td><strong style="color:#fbbf24">${r.productName || '—'}</strong></td>
+                  <td><strong>${formatMoney(r.amount)}</strong></td>
+                  <td style="color:var(--text-sub)">${r.memo || '—'}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      `}
+    </div>
+
+    ${_notificationsCard()}
+  `;
+}
+
 // ── 基本ダッシュボード（わたあめ師・人財部等） ──
 function renderBasicDashboard() {
   const dept = DEPTS[CU.dept];
@@ -1272,6 +1351,7 @@ function renderBasicDashboard() {
 // ═══════════════════════════════════════════════════════
 function renderReportPage() {
   if (CU.reportType === 'refa') renderRefaReportPage();
+  else if (CU.reportType === 'style') renderStyleReportPage();
   else renderMobileReportPage();
 }
 
@@ -1519,6 +1599,83 @@ function submitRefaReport() {
   renderRefaReportPage();
 }
 
+// ── style営業報告フォーム ──
+function renderStyleReportPage() {
+  const month = currentMonth();
+  const myReports = getUserReportsForMonth(CU.id, month)
+    .filter(r => r.type === 'style')
+    .sort((a, b) => b.date.localeCompare(a.date));
+
+  document.getElementById('main').innerHTML = `
+    <div class="page-header fade-in">
+      <div>
+        <div class="page-title">実績報告</div>
+        <div class="page-sub">${monthLabel(month)} — style営業の売上を入力してください</div>
+      </div>
+    </div>
+
+    <div class="card fade-in" style="max-width:600px">
+      <div class="section-title">新規報告</div>
+      <div class="form-group">
+        <label class="form-label">日付</label>
+        <input type="date" class="form-input" id="repDate" value="${todayStr()}">
+      </div>
+      <div class="form-group" style="margin-top:12px">
+        <label class="form-label">✨ 商材名</label>
+        <input type="text" class="form-input" id="repProduct" placeholder="例: ReFa STYLE">
+      </div>
+      <div class="form-group" style="margin-top:12px">
+        <label class="form-label">💴 売上金額（円）</label>
+        <input type="number" class="form-input" id="repAmount" placeholder="例: 28000" min="0">
+      </div>
+      <div class="form-group" style="margin-top:12px">
+        <label class="form-label">メモ（任意）</label>
+        <textarea class="form-textarea" id="repMemo" placeholder="一言コメントがあれば..."></textarea>
+      </div>
+      <div style="margin-top:16px">
+        <button class="btn btn-primary" onclick="submitStyleReport()">報告する</button>
+      </div>
+    </div>
+
+    <div class="card fade-in">
+      <div class="section-title">今月の報告履歴（${myReports.length}件）</div>
+      ${myReports.length === 0 ? `<div class="empty-state">今月の報告がありません</div>` : `
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>日付</th><th>商材名</th><th>売上金額</th><th>メモ</th><th></th></tr></thead>
+            <tbody>
+              ${myReports.map(r => `
+                <tr>
+                  <td>${r.date}</td>
+                  <td><strong style="color:#fbbf24">${r.productName || '—'}</strong></td>
+                  <td><strong>${formatMoney(r.amount)}</strong></td>
+                  <td style="color:var(--text-sub)">${r.memo || '—'}</td>
+                  <td><button class="btn-icon" onclick="confirmDeleteReport('${r.id}')">🗑️</button></td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      `}
+    </div>
+  `;
+}
+
+function submitStyleReport() {
+  const date        = document.getElementById('repDate').value;
+  const productName = document.getElementById('repProduct').value.trim();
+  const amount      = parseInt(document.getElementById('repAmount').value) || 0;
+  const memo        = document.getElementById('repMemo').value.trim();
+
+  if (!date) { showToast('日付を選択してください', 'error'); return; }
+  if (!productName) { showToast('商材名を入力してください', 'error'); return; }
+  if (amount <= 0) { showToast('売上金額を入力してください', 'error'); return; }
+
+  addReport({ userId: CU.id, date, productName, amount, memo, type: 'style' });
+  showToast('報告しました！');
+  renderStyleReportPage();
+}
+
 // ── 報告削除 ──
 function confirmDeleteReport(reportId) {
   showModal(`
@@ -1572,7 +1729,7 @@ function renderTeam(filterDept) {
       displayPrimary   = `${agg.sbmnp}件`;
       displaySecondary = `${agg.ymnp}件`;
       achieve = calcAchieve(totalPt, t?.ptTarget);
-    } else if (u.reportType === 'refa') {
+    } else if (u.reportType === 'refa' || u.reportType === 'style') {
       const amount = uReports.reduce((s, r) => s + (r.amount || 0), 0);
       totalPt = amount;
       displayPrimary = formatMoney(amount);
@@ -1701,6 +1858,15 @@ function renderRanking() {
     return { ...u, total };
   }).sort((a, b) => b.total - a.total);
 
+  // ── styleランキング計算 ──
+  const styleUsers = getUsers().filter(u => u.dept === 'event_promo' && u.reportType === 'style');
+  const styleReports = getReports().filter(r => r.date.startsWith(rankMonth) && r.type === 'style');
+  const styleStats = styleUsers.map(u => {
+    const uReports = styleReports.filter(r => r.userId === u.id);
+    const total = uReports.reduce((s, r) => s + (r.amount || 0), 0);
+    return { ...u, total };
+  }).sort((a, b) => b.total - a.total);
+
   // ── 商材タブ生成 ──
   const productTabs = [
     { key: '', label: '総合PT' },
@@ -1781,6 +1947,27 @@ function renderRanking() {
             </div>
             <div class="rank-stats">
               <span class="rank-total" style="color:#f472b6">${formatMoney(u.total)}</span>
+            </div>
+          </div>
+        `).join('')}
+    </div>
+    ` : ''}
+
+    ${isAdmin || CU.dept === 'event_promo' ? `
+    <!-- styleランキング -->
+    <div class="card fade-in">
+      <div class="section-title">イベントプロモーション部 — style営業売上</div>
+      ${styleStats.length === 0 ? `<div class="empty-state">${monthLabel(rankMonth)}のデータがありません</div>` :
+        styleStats.map((u, i) => `
+          <div class="rank-item ${i < 3 ? 'rank-top' : ''}" ${u.total === 0 ? 'style="opacity:.4"' : ''}>
+            <div class="rank-num">${u.total > 0 ? (medals[i] || (i + 1)) : '—'}</div>
+            <div class="avatar" style="background:${roleColor(u.role)}">${u.name[0]}</div>
+            <div class="rank-info">
+              <div class="rank-name">${u.name}</div>
+              <div class="rank-role" style="color:${roleColor(u.role)}">${getUserDisplayRole(u)}</div>
+            </div>
+            <div class="rank-stats">
+              <span class="rank-total" style="color:#fbbf24">${formatMoney(u.total)}</span>
             </div>
           </div>
         `).join('')}
@@ -1878,7 +2065,7 @@ function saveAllTargets() {
     if (u.reportType === 'mobile') {
       const pt = parseFloat(document.getElementById(`pt_${u.id}`)?.value) || 0;
       _upsertTarget(u.id, currentMonth(), { ptTarget: pt });
-    } else if (u.reportType === 'refa') {
+    } else if (u.reportType === 'refa' || u.reportType === 'style') {
       const amt = parseInt(document.getElementById(`amt_${u.id}`)?.value) || 0;
       setRefaTarget(u.id, currentMonth(), amt);
     }
@@ -2841,7 +3028,7 @@ function _roleOptions(selected) {
   ).join('');
 }
 function _reportTypeOptions(selected) {
-  return [['mobile','モバイル（MNP・新規）'],['refa','Refa営業（売上）'],['','報告なし']].map(([k, l]) =>
+  return [['mobile','モバイル（MNP・新規）'],['refa','Refa営業（売上）'],['style','style営業（売上）'],['','報告なし']].map(([k, l]) =>
     `<option value="${k}" ${(selected||'') === k ? 'selected' : ''}>${l}</option>`
   ).join('');
 }
@@ -3192,7 +3379,7 @@ function _tcCardHTML(user, canEdit) {
   const trend = getTalentProductivityTrend(user.id, 6);
   const skill = getSkillScore(user.id);
   const photo = getPhoto(user.id);
-  const isRefa = user.reportType === 'refa';
+  const isRefa = user.reportType === 'refa' || user.reportType === 'style';
 
   // 写真 or アバター
   const photoHTML = photo
@@ -3296,7 +3483,7 @@ function renderProfile() {
   const photo   = getPhoto(profileUserId);
   const ev      = getSkillEval(profileUserId);
   const tmpl    = getSkillTemplate();
-  const isRefa  = user.reportType === 'refa';
+  const isRefa  = user.reportType === 'refa' || user.reportType === 'style';
   const mon     = currentMonth();
   const reports = getUserReportsForMonth(profileUserId, mon);
   const agg     = (reports.length && !isRefa) ? aggregateReports(reports) : null;

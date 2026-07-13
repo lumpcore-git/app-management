@@ -9,6 +9,7 @@ const ROLES = {
   closer:        { label: 'クローザー',       level: 2, color: '#4f7cff' },
   catch:         { label: 'キャッチ',         level: 1, color: '#00e5c3' },
   refa:          { label: 'Refa営業',         level: 1, color: '#f472b6' },
+  style_sales:   { label: 'style営業',        level: 1, color: '#fbbf24' },
   cotton_candy:  { label: 'わたあめ師',       level: 1, color: '#60a5fa' },
   hr_staff:      { label: '人財部スタッフ',   level: 1, color: '#94a3b8' },
 };
@@ -23,7 +24,7 @@ const DEPTS = {
 
 // ─── INITIAL USERS ───
 // dept: 所属事業部
-// reportType: 'mobile' | 'refa' | null（報告なし）
+// reportType: 'mobile' | 'refa' | 'style' | null（報告なし）
 // jobTitle: 表示用の役職名（任意、省略時はROLESのlabelを使用）
 const INITIAL_USERS = [
   // ── モバイル事業部 ──
@@ -991,7 +992,7 @@ function getTalentProductivityTrend(userId, months = 6) {
     if (user.reportType === 'mobile') {
       const agg = aggregateReports(reports);
       result.push({ month, value: agg.totalPt, label: monthLabel(month) });
-    } else if (user.reportType === 'refa') {
+    } else if (user.reportType === 'refa' || user.reportType === 'style') {
       const total = reports.reduce((s, r) => s + Number(r.amount || 0), 0);
       result.push({ month, value: total, label: monthLabel(month) });
     }

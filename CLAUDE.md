@@ -71,7 +71,7 @@
   name: '北村晃平',
   role: 'chief',          // ROLES のキー
   dept: 'mobile',         // DEPTS のキー
-  reportType: 'mobile',   // 'mobile' | 'refa' | null（報告なし）
+  reportType: 'mobile',   // 'mobile' | 'refa' | 'style' | null（報告なし）
   jobTitle: 'IT / イベントCL', // 任意。あればROLESのlabelより優先表示
   pw: 'lump1234'
 }
@@ -86,6 +86,9 @@
 
 // Refa
 { id, userId, date, type: 'refa', productName, amount, memo, createdAt }
+
+// style営業（Refaと同じMTGグループ商品。フィールド構成はRefaと同一）
+{ id, userId, date, type: 'style', productName, amount, memo, createdAt }
 ```
 
 **注意:** レポートに `mnp` や `shinki` フィールドは存在しない。MNP系は `sbmnp`/`ymnp`、新規系は `sb_shinki`/`ym_shinki`。
@@ -95,7 +98,7 @@
 // モバイル（setMobileTarget で保存）
 { userId, month: '2026-03', mnpTarget: 10, shinkiTarget: 5 }
 
-// Refa（setRefaTarget で保存）
+// Refa / style営業（どちらも setRefaTarget で保存。amountTargetを共有する汎用フィールド）
 { userId, month: '2026-03', amountTarget: 100000 }
 ```
 
@@ -132,6 +135,7 @@
 | `closer` | クローザー | 2 | チーム閲覧 |
 | `catch` | キャッチ | 1 | 自分のみ |
 | `refa` | Refa営業 | 1 | 自分のみ（Refa報告） |
+| `style_sales` | style営業 | 1 | 自分のみ（style報告。Refaと同じMTGグループ商品で、報告フォーム・集計ロジックはRefaと同一構造） |
 | `cotton_candy` | わたあめ師 | 1 | 報告なし |
 | `hr_staff` | 人財部スタッフ | 1 | 報告なし |
 
@@ -140,7 +144,7 @@
 | dept | label | 備考 |
 |------|-------|------|
 | `mobile` | モバイル事業部 | MNP・新規・ポイント制 |
-| `event_promo` | イベントプロモーション部 | Refa営業 + わたあめ師 |
+| `event_promo` | イベントプロモーション部 | Refa営業 + style営業 + わたあめ師 |
 | `hr` | 人財部 | 廣瀬さん（admin）含む |
 | `executive` | 役員 | 役員4名 |
 
@@ -228,7 +232,7 @@ aggregateReports(reports)           // 複数レポートを集計（totalPt付�
 // 目標
 getTargetForUser(userId, month)     // 目標取得
 setMobileTarget(userId, month, mnpTarget, shinkiTarget) // モバイル目標保存
-setRefaTarget(userId, month, amountTarget)              // Refa目標保存
+setRefaTarget(userId, month, amountTarget)              // Refa/style営業 共通の目標保存（amountTarget）
 
 // シフト
 getShiftSites()                     // 現場一覧取得
@@ -341,6 +345,7 @@ let memberQuery = '';              // 検索クエリ
   - level≥5 → `renderAdminDashboard()`
   - reportType==='mobile' → `renderMobileDashboard()`
   - reportType==='refa' → `renderRefaDashboard()`
+  - reportType==='style' → `renderStyleDashboard()`（Refaダッシュボードと同一構造）
   - その他 → `renderBasicDashboard()`
 - **既知バグ:** adminDashboard の `totalMnp` / `totalShinki` 集計が `r.mnp`/`r.shinki` を参照しており常に0（実際のフィールドは `sbmnp`/`ymnp`/`sb_shinki`/`ym_shinki`）
 - **検索の部分更新パターン（日本語IME対応）:** 検索inputを含むページで `oninput` から全体再描画すると、日本語変換途中でDOMが差し替わりIMEが壊れる。検索時は結果エリア（tbody / グリッド）のみを更新し、inputには触れない設計にすること。人財カルテの `_refreshTalentGrid()` / メンバー管理の `_refreshMemberTable()` が参考実装。新たに検索機能を追加する場合も同じパターンに従う。
@@ -382,3 +387,5 @@ let memberQuery = '';              // 検索クエリ
 - 人財部: 6名（廣瀬さんはadminレベル）
 - 役員: 4名
 - **合計: 27名**（IDは u1〜u35 だが欠番あり。削除済みユーザーのIDは再利用しない）
+
+**役職 `style_sales`（style営業）は2026年7月に追加。** 現時点でINITIAL_USERSに該当メンバーはまだいない（ロール定義のみ）。メンバー管理画面から役職「style営業」・報告方法「style営業（売上）」を選んで追加すれば利用可能。

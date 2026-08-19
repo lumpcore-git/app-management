@@ -165,6 +165,7 @@ function renderSidebar() {
     { id: 'ranking',              icon: '🏆', label: 'ランキング',     show: canSeeTeam },
     { id: 'targets',              icon: '🎯', label: '目標設定',       show: canSetTargets },
     { id: 'venue-achieve',        icon: '📊', label: '現場達成率',     show: true },
+    { id: 'myprofile',            icon: '👤', label: 'プロフィール',   show: true },
     { id: 'talent',               icon: '📋', label: '人財カルテ',     show: level >= 4 },
     { id: 'members',              icon: '⚙️', label: 'メンバー管理',  show: level >= 5 },
     { id: 'settings',             icon: '🔧', label: '設定',           show: true },
@@ -231,18 +232,23 @@ function route() {
   if (hash === 'members' && level < 5) {
     location.hash = 'dashboard'; return;
   }
-  if (hash === 'profile' && (level < 4 || !profileUserId)) {
-    location.hash = 'talent'; return;
+  if (hash === 'profile' && !profileUserId) {
+    location.hash = level >= 4 ? 'talent' : 'dashboard'; return;
+  }
+  if (hash === 'profile' && profileUserId !== CU.id && level < 4) {
+    location.hash = 'dashboard'; return;
   }
 
   document.querySelectorAll('.nav-item, .nav-subitem').forEach(el => {
     const page = el.dataset.page;
     const isShift   = hash === 'shifts-week' || hash === 'shifts-month';
     const isProfile = hash === 'profile';
+    const isOwnProfile = isProfile && profileUserId === CU.id;
     const isVenue   = hash === 'venue-achieve-weekday' || hash === 'venue-achieve-weekend';
     const active = page === hash
       || (page === 'shifts'         && isShift)
-      || (page === 'talent'         && isProfile)
+      || (page === 'talent'         && isProfile && !isOwnProfile)
+      || (page === 'myprofile'      && isOwnProfile)
       || (page === 'venue-achieve'  && isVenue);
     el.classList.toggle('active', active);
   });
@@ -315,6 +321,7 @@ function renderBottomNav() {
 
   const isShiftHash = hash === 'shifts-week' || hash === 'shifts-month' || hash === 'shifts-plan' || hash === 'shifts';
   const isVenueHash = hash === 'venue-achieve-weekday' || hash === 'venue-achieve-weekend' || hash === 'venue-achieve';
+  const isOwnProfileHash = hash === 'profile' && profileUserId === CU.id;
 
   const items = [
     { id: 'dashboard',              icon: '🏠', label: 'ダッシュ',   active: hash === 'dashboard' },
@@ -324,7 +331,8 @@ function renderBottomNav() {
     canSeeTeam && { id: 'ranking',  icon: '🏆', label: 'ランキング', active: hash === 'ranking' },
     canSetTargets && { id: 'targets', icon: '🎯', label: '目標',     active: hash === 'targets' },
     { id: 'venue-achieve-weekday',  icon: '📊', label: '現場',       active: isVenueHash },
-    level >= 4 && { id: 'talent',   icon: '📋', label: '人財',       active: hash === 'talent' || hash === 'profile' },
+    { id: 'myprofile',              icon: '👤', label: 'プロフィール', active: isOwnProfileHash },
+    level >= 4 && { id: 'talent',   icon: '📋', label: '人財',       active: hash === 'talent' || (hash === 'profile' && !isOwnProfileHash) },
     level >= 5 && { id: 'members',  icon: '⚙️', label: 'メンバー',  active: hash === 'members' },
     { id: 'settings',               icon: '🔧', label: '設定',       active: hash === 'settings' },
   ].filter(Boolean);
@@ -392,6 +400,13 @@ function navigate(page) {
   }
   if (page === 'venue-achieve') {
     location.hash = 'venue-achieve-weekday';
+    return;
+  }
+  if (page === 'myprofile') {
+    profileUserId = CU.id;
+    profileActiveTab = window.innerWidth <= 767 ? 'info' : 'perf';
+    if (location.hash.replace('#', '') === 'profile') { route(); return; }
+    location.hash = 'profile';
     return;
   }
   location.hash = page;
@@ -3870,10 +3885,12 @@ function renderProfile() {
     : isRefa ? (refaAmt > 0 ? (refaAmt / 10000).toFixed(1) + '万' : '—')
     : agg.totalPt > 0 ? agg.totalPt.toFixed(1) + 'pt' : '—';
 
+  const isOwnProfile = profileUserId === CU.id;
+
   document.getElementById('main').innerHTML = `
     <div class="profile-page fade-in">
       <div class="profile-topbar">
-        <button class="btn btn-ghost profile-back" onclick="navigate('talent')">← 一覧へ</button>
+        ${isOwnProfile ? '' : `<button class="btn btn-ghost profile-back" onclick="navigate('talent')">← 一覧へ</button>`}
         ${canEdit ? `<button class="btn btn-primary" style="margin-left:auto" onclick="saveProfileCard('${user.id}')">保存する</button>` : ''}
       </div>
 

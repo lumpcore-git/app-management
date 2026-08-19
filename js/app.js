@@ -64,6 +64,7 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   await Store.syncFromCloud();
 
+  renderImpersonationBar();
   renderTopbar();
   renderSidebar();
   renderBottomNav();
@@ -75,6 +76,50 @@ window.addEventListener('DOMContentLoaded', async () => {
     if (e.target === e.currentTarget) closeModal();
   });
 });
+
+// ─── 代理ログイン バナー ───
+function renderImpersonationBar() {
+  const info = getImpersonationInfo();
+  const bar = document.getElementById('impersonationBar');
+  if (!info) {
+    document.body.classList.remove('impersonating');
+    bar.classList.add('hidden');
+    bar.innerHTML = '';
+    return;
+  }
+  document.body.classList.add('impersonating');
+  bar.innerHTML = `
+    <span>🎭 ${info.admin.name} が ${info.target.name} として代理ログイン中</span>
+    <button onclick="stopImpersonation(); location.href='app.html';">管理者に戻る</button>
+  `;
+  bar.classList.remove('hidden');
+}
+
+function confirmImpersonate(userId) {
+  const u = getUserById(userId);
+  if (!u) return;
+  showModal(`
+    <div class="modal-header">
+      <div style="font-size:20px">🎭</div>
+      <div class="modal-title">代理ログイン</div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <p><strong>${u.name}</strong>（${getUserDisplayRole(u)}）として代理ログインしますか？</p>
+      <p style="color:var(--text-sub);font-size:13px;margin-top:8px">画面上部に代理ログイン中の表示が常に出ます。「管理者に戻る」でいつでも復帰できます。</p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">キャンセル</button>
+      <button class="btn btn-primary" onclick="execImpersonate('${userId}')">代理ログインする</button>
+    </div>
+  `);
+}
+
+function execImpersonate(userId) {
+  const result = startImpersonation(userId);
+  if (!result.ok) { showToast(result.error, 'error'); return; }
+  location.href = 'app.html';
+}
 
 // ─── TOPBAR ───
 function renderTopbar() {
@@ -2850,17 +2895,42 @@ function _memberRowsHTML(users) {
         </div>
       </td>
       <td style="color:${DEPTS[u.dept]?.color};font-size:12px">${deptLabel(u.dept)}</td>
-      <td style="color:${roleColor(u.role)};font-size:12px">${getUserDisplayRole(u)}</td>
-      <td style="display:flex;gap:8px;align-items:center">
+      <td>
+        <select class="role-pill-select" style="color:${roleColor(u.role)};background-color:${roleColor(u.role)}22"
+          onchange="quickChangeRole('${u.id}', this.value)">${_roleOptions(u.role)}</select>
+      </td>
+      <td style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <button class="btn btn-ghost" style="font-size:12px;padding:6px 12px"
           onclick="openEditMember('${u.id}')">編集</button>
-        ${u.id !== CU.id
-          ? `<button class="btn btn-danger" style="font-size:12px;padding:6px 12px"
-              onclick="confirmDeleteMember('${u.id}')">削除</button>`
-          : '<span style="font-size:11px;color:var(--text-sub)">(自分)</span>'}
+        ${u.id !== CU.id ? `
+          <button class="btn btn-ghost" style="font-size:12px;padding:6px 12px"
+            onclick="confirmImpersonate('${u.id}')">🎭 代理ログイン</button>
+          <button class="btn btn-danger" style="font-size:12px;padding:6px 12px"
+            onclick="confirmDeleteMember('${u.id}')">削除</button>
+        ` : '<span style="font-size:11px;color:var(--text-sub)">(自分)</span>'}
       </td>
     </tr>
   `).join('');
+}
+
+// メンバー管理: 行を開かずロールだけ即時変更
+function quickChangeRole(userId, newRole) {
+  const users = getUsers();
+  const idx = users.findIndex(u => u.id === userId);
+  if (idx < 0) return;
+  if (users[idx].role === newRole) return;
+
+  users[idx] = { ...users[idx], role: newRole };
+  saveUsers(users);
+
+  if (userId === CU.id) {
+    Object.assign(CU, { role: newRole });
+    renderTopbar();
+    renderSidebar();
+  }
+
+  showToast(`${users[idx].name} のロールを「${ROLES[newRole]?.label}」に変更しました`);
+  _refreshMemberTable();
 }
 
 // 検索クエリに基づき絞り込んだユーザーを返す
@@ -2906,7 +2976,10 @@ function renderMembers() {
         <div class="page-title">メンバー管理</div>
         <div id="member-sub" class="page-sub">ユーザーの追加・編集・削除（${users.length} / ${totalAll}名）</div>
       </div>
-      <button class="btn btn-primary" onclick="openAddMember()">＋ メンバー追加</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost" onclick="openPermissionGuide()">📖 権限ガイド</button>
+        <button class="btn btn-primary" onclick="openAddMember()">＋ メンバー追加</button>
+      </div>
     </div>
     <div class="member-controls fade-in">
       <div class="tc-search-wrap" style="max-width:300px">
@@ -3026,6 +3099,45 @@ function _roleOptions(selected) {
   return Object.entries(ROLES).sort((a, b) => b[1].level - a[1].level).map(([k, v]) =>
     `<option value="${k}" ${k === selected ? 'selected' : ''}>${v.label}</option>`
   ).join('');
+}
+
+// ─── 権限ガイド（表示専用。実際の判定は route()/renderSidebar() 側が正） ───
+// 指定ロールが ROLE_CAPABILITY_RULES のうちどれに該当するかを返す
+function getRoleCapabilities(roleKey) {
+  const level = roleLevel(roleKey);
+  return ROLE_CAPABILITY_RULES.filter(rule => level >= rule.minLevel);
+}
+
+function openPermissionGuide() {
+  const roles = Object.entries(ROLES).sort((a, b) => b[1].level - a[1].level);
+  showWideModal(`
+    <div class="modal-header">
+      <div style="font-size:20px">📖</div>
+      <div class="modal-title">権限ガイド</div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="color:var(--text-sub);font-size:13px;margin-bottom:16px">各ロールでできることの一覧です（閲覧専用）。</p>
+      <div class="perm-guide-grid">
+        ${roles.map(([key, def]) => {
+          const caps = getRoleCapabilities(key);
+          return `
+            <div class="perm-guide-card">
+              <div class="perm-guide-head">
+                <span class="role-badge" style="color:${def.color}">${def.label}</span>
+                <span class="perm-guide-level">Lv.${def.level}</span>
+              </div>
+              ${caps.length
+                ? `<ul class="perm-guide-list">${caps.map(c => `<li>${c.label}${c.note ? `（${c.note}）` : ''}</li>`).join('')}</ul>`
+                : `<div class="perm-guide-empty">上記以外の権限はありません（自分の実績報告・シフト閲覧のみ）</div>`}
+            </div>`;
+        }).join('')}
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">閉じる</button>
+    </div>
+  `);
 }
 function _reportTypeOptions(selected) {
   return [['mobile','モバイル（MNP・新規）'],['refa','Refa営業（売上）'],['style','style営業（売上）'],['','報告なし']].map(([k, l]) =>

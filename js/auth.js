@@ -28,6 +28,38 @@ function logout() {
   location.href = 'index.html';
 }
 
+// ─── 代理ログイン（admin専用） ───
+// セッションは通常 { userId }。代理ログイン中は { userId: 対象者, impersonatedBy: 実際のadmin } になる。
+function startImpersonation(targetUserId) {
+  const session = getSession();
+  if (!session) return { ok: false, error: 'ログインしていません' };
+  if (session.impersonatedBy) return { ok: false, error: '既に代理ログイン中です。先に管理者へ戻ってください' };
+
+  const actingUser = getUserById(session.userId);
+  if (!actingUser || roleLevel(actingUser.role) < 5) return { ok: false, error: '権限がありません' };
+  if (targetUserId === session.userId) return { ok: false, error: '自分自身は選択できません' };
+  if (!getUserById(targetUserId)) return { ok: false, error: '対象ユーザーが見つかりません' };
+
+  sessionStorage.setItem(LS.session, JSON.stringify({ userId: targetUserId, impersonatedBy: session.userId }));
+  return { ok: true };
+}
+
+function stopImpersonation() {
+  const session = getSession();
+  if (!session?.impersonatedBy) return;
+  sessionStorage.setItem(LS.session, JSON.stringify({ userId: session.impersonatedBy }));
+}
+
+// 代理ログイン中なら { admin, target } を返す。通常セッションなら null
+function getImpersonationInfo() {
+  const session = getSession();
+  if (!session?.impersonatedBy) return null;
+  const admin = getUserById(session.impersonatedBy);
+  const target = getUserById(session.userId);
+  if (!admin || !target) return null;
+  return { admin, target };
+}
+
 // ─── AUTH GUARD ───
 // Call this on app.html load — redirects to login if not authenticated
 function requireAuth() {

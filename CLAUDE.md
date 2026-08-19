@@ -48,8 +48,8 @@
 │   ├── base.css      ← CSS変数・レイアウト・サイドバー・トップバー
 │   └── components.css ← ボタン・カード・テーブル・モーダル・タブ・トースト・シフト・人財カルテ
 └── js/
-    ├── data.js       ← データ定義・localStorage操作・ポイント計算・シフト・人財カルテ・スキル
-    ├── auth.js       ← ログイン・ログアウト・権限チェック
+    ├── data.js       ← データ定義・localStorage操作・ポイント計算・シフト・人財カルテ・スキル・権限ガイド定義
+    ├── auth.js       ← ログイン・ログアウト・権限チェック・代理ログイン
     └── app.js        ← 全ページのレンダリングロジック（SPA）
 ```
 
@@ -121,7 +121,7 @@
 ```
 
 ### DATA_VERSION
-現在: `6`。ユーザー構造を変えたら必ず上げること（マイグレーション自動実行）。
+現在: `6`。`_migrate()`（data.js）は保存済みユーザーが1件もない初回起動時のみ `INITIAL_USERS` で初期化し、それ以降は**保存済みユーザーを一切上書きしない**（`INITIAL_USERS` にしかいないIDだけ追加）。これはメンバー管理UIでのロール・名前編集がAzure移行後の唯一の正となったための変更（旧仕様は「INITIAL_USERSを直接編集してDATA_VERSIONを上げる」だったが、それだと本番でadminが行った編集がバージョンアップ時に消えてしまうため廃止した）。ユーザー構造そのもの（フィールド追加など）を変える場合のみ `DATA_VERSION` を上げる。
 
 ---
 
@@ -138,6 +138,19 @@
 | `style_sales` | style営業 | 1 | 自分のみ（style報告。Refaと同じMTGグループ商品で、報告フォーム・集計ロジックはRefaと同一構造） |
 | `cotton_candy` | わたあめ師 | 1 | 報告なし |
 | `hr_staff` | 人財部スタッフ | 1 | 報告なし |
+
+### ロール変更・権限の可視化（メンバー管理）
+- **インラインロール変更:** メンバー管理（`#members`）の一覧テーブルで、役職セルが直接 `<select>` になっており、モーダルを開かずその場でロール変更できる（`quickChangeRole(userId, newRole)`, [app.js](js/app.js)）。従来の「編集」モーダル（`openEditMember`/`saveMember`）は名前・部署・報告タイプ等をまとめて変える場合に引き続き使う。
+- **権限ガイド:** メンバー管理ページの「📖 権限ガイド」ボタン（`openPermissionGuide()`）で、9ロール全てについて「何ができるか」を一覧表示する閲覧専用モーダル。表示内容は `data.js` の `ROLE_CAPABILITY_RULES`（`minLevel`による足切り＋部署条件などの`note`）と `getRoleCapabilities(roleKey)`（app.js）で組み立てる。
+  - **注意:** これは表示専用のドキュメント目的のデータであり、実際のアクセス制御は `route()` / `renderSidebar()` / `renderBottomNav()` / `renderMobileSubtabs()` 側の条件式が正。`ROLE_CAPABILITY_RULES` を変更しても実際の権限は変わらないので、権限ロジック自体を変える場合は必ずこの4箇所（重複している）を揃えて直すこと。
+
+### 代理ログイン（admin専用）
+- admin（level 5）はメンバー管理の各行にある「🎭 代理ログイン」ボタンから、確認モーダルを経て任意のユーザーとしてアプリを閲覧できる（自分自身の行は不可）。
+- 実装は `auth.js` の `startImpersonation(targetUserId)` / `stopImpersonation()` / `getImpersonationInfo()`。セッション形式を `{ userId }` から代理ログイン中は `{ userId: 対象者, impersonatedBy: 実際のadmin }` に拡張している。開始・終了とも `location.href='app.html'` でフルリロードする方式（CUの部分差し替えより安全）。
+- 多重代理（代理ログイン中にさらに代理ログイン）は `startImpersonation()` 内で拒否。「管理者に戻る」で一度復帰してから次の代理ログインを行う。
+- Entra IDでログインするユーザーへの代理ログインも可能（`tryEntraIdLogin()` は既存セッションがあればno-opのため、代理ログイン中に自動SSOで上書きされることはない）。
+- 代理ログイン中は画面上部に常時バナー表示（`#impersonationBar`, `renderImpersonationBar()`）。`body.impersonating` クラスと `.impersonation-bar` / `body.impersonating .topbar` のCSS（`css/base.css`）で、バナーとtopbarが両方sticky表示で正しく積み重なるようにしている。
+- 代理ログイン中に到達できるページ・機能は、実際にセッションが切り替わった対象ユーザーの権限（`CU.role`）にそのまま従う（admin専用ページには当然入れない）。監査ログは実装していない（要件外）。
 
 ## 事業部
 
@@ -259,6 +272,10 @@ getSkillEval(userId)                // ユーザーのチェック状況取得
 setSkillEval(userId, evalObj)       // チェック状況保存
 getSkillScore(userId)               // {checked, total} を返す
 
+// 権限ガイド（表示専用。実際の判定はroute()/renderSidebar()側が正）
+ROLE_CAPABILITY_RULES               // data.js: [{key, label, minLevel, note?}, ...]
+getRoleCapabilities(roleKey)        // app.js: 指定ロールが該当するROLE_CAPABILITY_RULESを返す
+
 // 日付・表示
 getAvailableMonths()                // 選択可能な月一覧（降順、直近4か月は常に含む）
 currentMonth()                      // 'YYYY-MM'
@@ -270,6 +287,20 @@ isJapaneseHoliday(date)             // 祝日判定（振替休日・春分・�
 isBusinessDay(date)                 // 営業日判定（土日祝除く）
 getMondayOf(date)                   // その週の月曜日を返す
 getWeekDates(monday)                // 月曜から7日のDate配列
+```
+
+## よく使う関数（auth.js）
+
+```javascript
+getSession()                        // { userId } または代理ログイン中は { userId, impersonatedBy } を返す
+login(userId, password)             // {ok, error?}
+logout()
+requireAuth()                       // セッションからユーザー取得。未ログインならindex.htmlへリダイレクト
+tryEntraIdLogin()                   // /.auth/me からEntra IDセッションを作成（既存セッションがあればno-op）
+roleLevel(role)                     // ROLESのlevelを返す
+startImpersonation(targetUserId)    // admin専用。代理ログイン開始。{ok, error?}
+stopImpersonation()                 // 代理ログイン終了、元のadminセッションに復帰
+getImpersonationInfo()              // 代理ログイン中なら {admin, target} を返す。通常セッションならnull
 ```
 
 ---
@@ -336,9 +367,9 @@ let memberQuery = '';              // 検索クエリ
 
 ## 注意事項
 
-- **セッション管理:** sessionStorage（タブを閉じるとログアウト）。Azure移行後はEntra IDトークンに置き換わる
-- **ユーザー追加・名前変更（プロトタイプ期間のみ）:** data.jsのINITIAL_USERSを変更 → DATA_VERSIONを上げる。Azure移行後はEntra ID + Cosmos DBから取得するため、INITIAL_USERSは不要になる
-- **DATA_VERSIONマイグレーションはlocalStorage専用:** Azure移行後は不要になる。スキーマ変更のために不必要にDATA_VERSIONを上げることは避ける
+- **セッション管理:** sessionStorage（タブを閉じるとログアウト）。パスワードログイン・Entra IDログインとも通常時は `{ userId }`。admin代理ログイン中のみ `{ userId, impersonatedBy }`（[代理ログイン](#代理ログインadmin専用)参照）
+- **ユーザー追加・名前変更・ロール変更:** メンバー管理画面（`#members`）から行うのが唯一の正しい方法。data.jsのINITIAL_USERSを直接編集してDATA_VERSIONを上げる旧運用は廃止した（`_migrate()`が保存済みユーザーを上書きしなくなったため、コード側の変更は反映されない）
+- **DATA_VERSIONマイグレーション:** 初回起動（保存済みユーザーが0件）の初期化にのみ使う。ユーザーデータの一括上書きには使わないこと
 - **新機能追加時:** 権限チェックを `route()` と `renderSidebar()` の**両方**に追加する
 - **写真のlocalStorage容量:** base64画像は大きい。35名全員に写真を入れると ~5MB上限に近づく
 - **ダッシュボード分岐:** `renderDashboard()` はロール別に4つの関数を呼び分ける

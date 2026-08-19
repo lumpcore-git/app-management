@@ -14,6 +14,22 @@ const ROLES = {
   hr_staff:      { label: '人財部スタッフ',   level: 1, color: '#94a3b8' },
 };
 
+// ─── ROLE CAPABILITY GUIDE（表示専用。実際の権限判定は route()/renderSidebar()側の条件式が正） ───
+// minLevel: roleLevel(role) >= minLevel を満たすロールにのみ表示する（表示の足切り）
+// note:     部署条件など、level比較だけでは表せない補足条件があれば添える
+const ROLE_CAPABILITY_RULES = [
+  { key: 'talent',            label: '人財カルテ閲覧・編集',           minLevel: 4 },
+  { key: 'members',           label: 'メンバー管理・ロール変更',       minLevel: 5 },
+  { key: 'skillTemplateEdit', label: 'スキルシート設定編集',           minLevel: 5 },
+  { key: 'shiftsPlan',        label: 'シフト作成（月全体の一括編集）', minLevel: 4 },
+  { key: 'shiftsEdit',        label: 'メンバーのシフト個別編集',       minLevel: 4 },
+  { key: 'team',              label: 'チーム実績・ランキング閲覧',     minLevel: 2, note: 'モバイル事業部所属の場合。役員/管理者は部署を問わず閲覧可' },
+  { key: 'targets',           label: '目標設定',                       minLevel: 4, note: 'モバイル事業部所属の場合。役員/管理者は部署を問わず設定可' },
+  { key: 'impersonate',       label: '代理ログイン',                   minLevel: 5 },
+  { key: 'taskCreate',        label: 'タスク作成・お知らせ送信',       minLevel: 4 },
+  { key: 'mbtiApprove',       label: 'MBTI・スキル上長承認欄の編集',   minLevel: 5 },
+];
+
 // ─── DEPARTMENTS ───
 const DEPTS = {
   mobile:      { label: 'モバイル事業部',            color: '#4f7cff' },
@@ -182,18 +198,18 @@ function initData() {
 }
 
 function _migrate() {
-  // ── 既存ユーザーのパスワードだけ保持し、INITIAL_USERSを正とする ──
+  // ── 既存の保存済みユーザーは上書きしない。INITIAL_USERSにしかいないユーザーだけ追加する ──
+  // （メンバー管理UIでの編集が正となったため。初回起動＝保存データが空の場合のみ INITIAL_USERS で初期化する）
   const existingUsers = Store.get(LS.users, []);
-  const pwMap = {};
-  existingUsers.forEach(u => { pwMap[u.id] = u.pw; });
-
-  // INITIAL_USERSを基準に、カスタムパスワードがあれば上書き保持
-  const newUsers = INITIAL_USERS.map(u => ({
-    ...u,
-    pw: pwMap[u.id] || u.pw,
-  }));
-
-  Store.set(LS.users, newUsers);
+  if (existingUsers.length === 0) {
+    Store.set(LS.users, INITIAL_USERS);
+  } else {
+    const existingIds = new Set(existingUsers.map(u => u.id));
+    const newFromInitial = INITIAL_USERS.filter(u => !existingIds.has(u.id));
+    if (newFromInitial.length) {
+      Store.set(LS.users, [...existingUsers, ...newFromInitial]);
+    }
+  }
 
   // ── 既存レポートに type フィールドを追加 ──
   const reports = Store.get(LS.reports, []);

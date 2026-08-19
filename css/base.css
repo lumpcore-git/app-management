@@ -56,6 +56,35 @@ body {
   min-height: 100vh;
 }
 
+/* ─── 代理ログイン バナー ─── */
+.impersonation-bar {
+  position: sticky;
+  top: 0;
+  z-index: 101;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  background: var(--warn);
+  color: #3a2a00;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 0 16px;
+}
+.impersonation-bar.hidden { display: none; }
+.impersonation-bar button {
+  border: 1px solid #3a2a00;
+  background: transparent;
+  color: #3a2a00;
+  font-weight: 700;
+  font-size: 12px;
+  padding: 4px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+body.impersonating .topbar { top: 40px; }
+
 /* ─── TOPBAR ─── */
 .topbar {
   grid-column: 1 / -1;

@@ -32,6 +32,10 @@ let venueWeekendTrendMonths   = 6;         // 'by_site' 推移の期間（3/6/12
 // ─── DASHBOARD NOTIF/TASK TAB ───
 let _dashNotifTab = 'notif'; // 'notif' | 'task'
 
+// ─── 複数報告タイプ選択タブ（ダッシュボード・実績報告ページ共通） ───
+let dashTypeTab = '';   // ダッシュボードで選択中の報告タイプ
+let reportTypeTab = ''; // 実績報告ページで選択中の報告タイプ
+
 // ─── THEME ───
 function initTheme() {
   const saved = getTheme();
@@ -146,7 +150,7 @@ function _updateNotifBadge() {
 // ─── SIDEBAR ───
 function renderSidebar() {
   const level = roleLevel(CU.role);
-  const hasReport = !!CU.reportType;
+  const hasReport = getUserReportTypes(CU).length > 0;
   const canSeeTeam = (level >= 2 && CU.dept === 'mobile') || level >= 5;
   
   const canSetTargets = (level >= 4 && CU.dept === 'mobile') || level >= 5;
@@ -166,7 +170,7 @@ function renderSidebar() {
     { id: 'targets',              icon: '🎯', label: '目標設定',       show: canSetTargets },
     { id: 'venue-achieve',        icon: '📊', label: '現場達成率',     show: true },
     { id: 'myprofile',            icon: '👤', label: 'プロフィール',   show: true },
-    { id: 'talent',               icon: '📋', label: '人財カルテ',     show: level >= 4 },
+    { id: 'talent',               icon: '📋', label: 'メンバーステータス', show: level >= 4 },
     { id: 'members',              icon: '⚙️', label: 'メンバー管理',  show: level >= 5 },
     { id: 'settings',             icon: '🔧', label: '設定',           show: true },
   ];
@@ -220,7 +224,7 @@ function route() {
   if ((hash === 'team' || hash === 'ranking') && !canSeeTeam) {
     location.hash = 'dashboard'; return;
   }
-  if (hash === 'report' && !CU.reportType) {
+  if (hash === 'report' && getUserReportTypes(CU).length === 0) {
     location.hash = 'dashboard'; return;
   }
   if (hash === 'targets' && !canSetTargets) {
@@ -278,7 +282,7 @@ function route() {
     'venue-achieve':         '現場達成率',
     'venue-achieve-weekday': '平日達成率',
     'venue-achieve-weekend': '週末達成率',
-    talent:         '人財カルテ',
+    talent:         'メンバーステータス',
     profile:        '',
     members:        'メンバー管理',
     settings:       '設定',
@@ -314,7 +318,7 @@ function renderBottomNav() {
   if (!el) return;
 
   const level = roleLevel(CU.role);
-  const hasReport = !!CU.reportType;
+  const hasReport = getUserReportTypes(CU).length > 0;
   const canSeeTeam = (level >= 2 && CU.dept === 'mobile') || level >= 5;
   const canSetTargets = (level >= 4 && CU.dept === 'mobile') || level >= 5;
   const hash = location.hash.replace('#', '') || 'dashboard';
@@ -332,7 +336,7 @@ function renderBottomNav() {
     canSetTargets && { id: 'targets', icon: '🎯', label: '目標',     active: hash === 'targets' },
     { id: 'venue-achieve-weekday',  icon: '📊', label: '現場',       active: isVenueHash },
     { id: 'myprofile',              icon: '👤', label: 'プロフィール', active: isOwnProfileHash },
-    level >= 4 && { id: 'talent',   icon: '📋', label: '人財',       active: hash === 'talent' || (hash === 'profile' && !isOwnProfileHash) },
+    level >= 4 && { id: 'talent',   icon: '📋', label: 'ステータス', active: hash === 'talent' || (hash === 'profile' && !isOwnProfileHash) },
     level >= 5 && { id: 'members',  icon: '⚙️', label: 'メンバー',  active: hash === 'members' },
     { id: 'settings',               icon: '🔧', label: '設定',       active: hash === 'settings' },
   ].filter(Boolean);
@@ -777,7 +781,7 @@ function showSendNotificationModal() {
     'スキルシートの入力をお願いします',
     '実績報告を入力してください',
     'シフトを確認してください',
-    '人財カルテの内容を確認してください',
+    'メンバーステータスの内容を確認してください',
     'カスタム（自由入力）',
   ];
 
@@ -869,13 +873,31 @@ function submitNotification() {
 // ═══════════════════════════════════════════════════════
 // ─── PAGE: ダッシュボード ───
 // ═══════════════════════════════════════════════════════
+const REPORT_TYPE_LABELS = { mobile: 'モバイル', refa: 'Refa', style: 'style' };
+
 function renderDashboard() {
   const level = roleLevel(CU.role);
-  if (level >= 5)                   renderAdminDashboard();
-  else if (CU.reportType === 'mobile') renderMobileDashboard();
-  else if (CU.reportType === 'refa')   renderRefaDashboard();
-  else if (CU.reportType === 'style')  renderStyleDashboard();
-  else                              renderBasicDashboard();
+  if (level >= 5) { renderAdminDashboard(); return; }
+
+  const types = getUserReportTypes(CU);
+  if (types.length === 0) { renderBasicDashboard(); return; }
+
+  if (!dashTypeTab || !types.includes(dashTypeTab)) dashTypeTab = types[0];
+  const renderers = { mobile: renderMobileDashboard, refa: renderRefaDashboard, style: renderStyleDashboard };
+  renderers[dashTypeTab]();
+
+  if (types.length > 1) {
+    const tabHTML = `
+      <div class="report-type-tabs fade-in">
+        ${types.map(t => `<button class="talent-filter-btn ${t === dashTypeTab ? 'active' : ''}" onclick="setDashTypeTab('${t}')">${REPORT_TYPE_LABELS[t]}</button>`).join('')}
+      </div>`;
+    document.getElementById('main').insertAdjacentHTML('afterbegin', tabHTML);
+  }
+}
+
+function setDashTypeTab(type) {
+  dashTypeTab = type;
+  renderDashboard();
 }
 
 // ── 管理者ダッシュボード（役員・廣瀬さん） ──
@@ -901,7 +923,7 @@ function renderAdminDashboard() {
   const totalStyle   = styleReports.reduce((s, r) => s + (r.amount || 0), 0);
 
   // 未報告（reportTypeあるユーザー）
-  const reportUsers  = users.filter(u => u.reportType);
+  const reportUsers  = users.filter(u => getUserReportTypes(u).length > 0);
   const reportedIds  = new Set(allReports.map(r => r.userId));
   const unreported   = reportUsers.filter(u => !reportedIds.has(u.id)).length;
 
@@ -1037,7 +1059,7 @@ function renderMobileDashboard() {
       return u?.dept === 'mobile' && r.date.startsWith(month) && (!r.type || r.type === 'mobile');
     });
     const teamAgg = aggregateReports(teamReports);
-    const mobileUsers = getUsers().filter(u => u.dept === 'mobile' && u.reportType === 'mobile');
+    const mobileUsers = getUsers().filter(u => u.dept === 'mobile' && getUserReportTypes(u).includes('mobile'));
     const reportedIds = new Set(teamReports.map(r => r.userId));
     const unreported = mobileUsers.filter(u => !reportedIds.has(u.id)).length;
 
@@ -1410,9 +1432,25 @@ function renderBasicDashboard() {
 // ─── PAGE: 実績報告 ───
 // ═══════════════════════════════════════════════════════
 function renderReportPage() {
-  if (CU.reportType === 'refa') renderRefaReportPage();
-  else if (CU.reportType === 'style') renderStyleReportPage();
-  else renderMobileReportPage();
+  const types = getUserReportTypes(CU);
+  if (types.length === 0) { navigate('dashboard'); return; }
+
+  if (!reportTypeTab || !types.includes(reportTypeTab)) reportTypeTab = types[0];
+  const renderers = { mobile: renderMobileReportPage, refa: renderRefaReportPage, style: renderStyleReportPage };
+  renderers[reportTypeTab]();
+
+  if (types.length > 1) {
+    const tabHTML = `
+      <div class="report-type-tabs fade-in">
+        ${types.map(t => `<button class="talent-filter-btn ${t === reportTypeTab ? 'active' : ''}" onclick="setReportTypeTab('${t}')">${REPORT_TYPE_LABELS[t]}</button>`).join('')}
+      </div>`;
+    document.getElementById('main').insertAdjacentHTML('afterbegin', tabHTML);
+  }
+}
+
+function setReportTypeTab(type) {
+  reportTypeTab = type;
+  renderReportPage();
 }
 
 // ── モバイル報告フォーム ──
@@ -1770,26 +1808,27 @@ function renderTeam(filterDept) {
 
   // 管理者は全部署 or フィルター、それ以外は自部署のみ
   const targetDept = isAdmin ? (filterDept || '') : CU.dept;
-  const users = getUsers().filter(u =>
-    u.reportType && (targetDept ? u.dept === targetDept : true)
-  );
+  // 複数の報告タイプを持つユーザーは、タイプごとに1行ずつ表示する（pt系と売上系は単位が違うため合算しない）
+  const entries = getUsers()
+    .filter(u => targetDept ? u.dept === targetDept : true)
+    .flatMap(u => getUserReportTypes(u).map(type => ({ u, type })));
 
   const allReports = getReports().filter(r => r.date.startsWith(month));
   const targets = getTargets();
 
-  const stats = users.map(u => {
-    const uReports = allReports.filter(r => r.userId === u.id);
+  const stats = entries.map(({ u, type }) => {
+    const uReports = allReports.filter(r => r.userId === u.id && (type === 'mobile' ? (!r.type || r.type === 'mobile') : r.type === type));
     let totalPt = 0, displayPrimary = '', displaySecondary = '';
     let achieve = null;
     const t = targets.find(x => x.userId === u.id && x.month === month);
 
-    if (u.reportType === 'mobile') {
-      const agg = aggregateReports(uReports.filter(r => !r.type || r.type === 'mobile'));
+    if (type === 'mobile') {
+      const agg = aggregateReports(uReports);
       totalPt = agg.totalPt;
       displayPrimary   = `${agg.sbmnp}件`;
       displaySecondary = `${agg.ymnp}件`;
       achieve = calcAchieve(totalPt, t?.ptTarget);
-    } else if (u.reportType === 'refa' || u.reportType === 'style') {
+    } else if (type === 'refa' || type === 'style') {
       const amount = uReports.reduce((s, r) => s + (r.amount || 0), 0);
       totalPt = amount;
       displayPrimary = formatMoney(amount);
@@ -1797,7 +1836,7 @@ function renderTeam(filterDept) {
     }
 
     const last = [...uReports].sort((a, b) => b.date.localeCompare(a.date))[0];
-    return { ...u, totalPt, displayPrimary, displaySecondary, achieve, last };
+    return { ...u, type, totalPt, displayPrimary, displaySecondary, achieve, last };
   }).sort((a, b) => b.totalPt - a.totalPt);
 
   const deptFilter = isAdmin ? `
@@ -1839,13 +1878,14 @@ function renderTeam(filterDept) {
           </thead>
           <tbody>
             ${stats.map(u => {
-              const isMobile = u.reportType === 'mobile';
+              const isMobile = u.type === 'mobile';
               return `
                 <tr>
                   <td>
                     <div class="emp-cell">
                       <div class="avatar" style="background:${roleColor(u.role)}">${u.name[0]}</div>
                       <span class="emp-name">${u.name}</span>
+                      ${getUserReportTypes(u).length > 1 ? `<span class="report-type-chip">${REPORT_TYPE_LABELS[u.type]}</span>` : ''}
                     </div>
                   </td>
                   ${isAdmin ? `<td style="color:${DEPTS[u.dept]?.color};font-size:12px">${deptLabel(u.dept)}</td>` : ''}
@@ -1891,8 +1931,8 @@ function renderRanking() {
   const isMobileRank = !rankItem || rankItem === '_refa' ? false : true;
   const showMobile = !rankItem || rankItem !== '_refa';
 
-  // ── モバイルランキング計算 ──
-  const mobileUsers = getUsers().filter(u => u.dept === 'mobile' && u.reportType === 'mobile');
+  // ── モバイルランキング計算（部署を問わず、モバイル報告タイプを持つユーザー全員が対象） ──
+  const mobileUsers = getUsers().filter(u => getUserReportTypes(u).includes('mobile'));
   const mobileReports = getReports().filter(r =>
     r.date.startsWith(rankMonth) && (!r.type || r.type === 'mobile')
   );
@@ -1909,8 +1949,8 @@ function renderRanking() {
     return { ...u, agg, sortVal };
   }).sort((a, b) => b.sortVal - a.sortVal);
 
-  // ── Refaランキング計算 ──
-  const refaUsers = getUsers().filter(u => u.dept === 'event_promo' && u.reportType === 'refa');
+  // ── Refaランキング計算（部署を問わず、Refa報告タイプを持つユーザー全員が対象） ──
+  const refaUsers = getUsers().filter(u => getUserReportTypes(u).includes('refa'));
   const refaReports = getReports().filter(r => r.date.startsWith(rankMonth) && r.type === 'refa');
   const refaStats = refaUsers.map(u => {
     const uReports = refaReports.filter(r => r.userId === u.id);
@@ -1918,8 +1958,8 @@ function renderRanking() {
     return { ...u, total };
   }).sort((a, b) => b.total - a.total);
 
-  // ── styleランキング計算 ──
-  const styleUsers = getUsers().filter(u => u.dept === 'event_promo' && u.reportType === 'style');
+  // ── styleランキング計算（部署を問わず、style報告タイプを持つユーザー全員が対象） ──
+  const styleUsers = getUsers().filter(u => getUserReportTypes(u).includes('style'));
   const styleReports = getReports().filter(r => r.date.startsWith(rankMonth) && r.type === 'style');
   const styleStats = styleUsers.map(u => {
     const uReports = styleReports.filter(r => r.userId === u.id);
@@ -2044,10 +2084,10 @@ function renderTargets() {
   const level = roleLevel(CU.role);
   const isAdmin = level >= 5;
 
-  // 管理者は全reportType持ちユーザー、チーフはモバイルのみ
-  const users = getUsers().filter(u =>
-    u.reportType && (isAdmin || u.dept === 'mobile')
-  );
+  // 管理者は全reportType持ちユーザー、チーフはモバイルのみ。複数タイプ持ちは1人につき1行ずつ表示
+  const entries = getUsers()
+    .filter(u => isAdmin || u.dept === 'mobile')
+    .flatMap(u => getUserReportTypes(u).map(type => ({ u, type })));
   const targets = getTargets();
 
   document.getElementById('main').innerHTML = `
@@ -2073,29 +2113,31 @@ function renderTargets() {
             </tr>
           </thead>
           <tbody>
-            ${users.map(u => {
+            ${entries.map(({ u, type }) => {
               const t = targets.find(x => x.userId === u.id && x.month === month);
-              const isMobile = u.reportType === 'mobile';
+              const isMobile = type === 'mobile';
+              const nameSuffix = getUserReportTypes(u).length > 1 ? `<span class="report-type-chip">${REPORT_TYPE_LABELS[type]}</span>` : '';
               return `
                 <tr>
                   <td>
                     <div class="emp-cell">
                       <div class="avatar" style="background:${roleColor(u.role)}">${u.name[0]}</div>
                       <span>${u.name}</span>
+                      ${nameSuffix}
                     </div>
                   </td>
                   ${isAdmin ? `<td style="color:${DEPTS[u.dept]?.color};font-size:12px">${deptLabel(u.dept)}</td>` : ''}
                   <td style="color:${roleColor(u.role)};font-size:12px">${getUserDisplayRole(u)}</td>
                   ${isMobile ? `
-                    <td><input type="number" class="form-input-sm" id="pt_${u.id}" value="${t?.ptTarget ?? ''}" placeholder="PT目標" min="0" style="width:90px"></td>
+                    <td><input type="number" class="form-input-sm" id="pt_${u.id}_${type}" value="${t?.ptTarget ?? ''}" placeholder="PT目標" min="0" style="width:90px"></td>
                     <td style="color:var(--text-sub);font-size:12px">pt</td>
                   ` : `
-                    <td><input type="number" class="form-input-sm" id="amt_${u.id}" value="${t?.amountTarget ?? ''}" placeholder="目標売上" min="0" style="width:120px"></td>
+                    <td><input type="number" class="form-input-sm" id="amt_${u.id}_${type}" value="${t?.amountTarget ?? ''}" placeholder="目標売上" min="0" style="width:120px"></td>
                     <td style="color:var(--text-sub);font-size:12px">円</td>
                   `}
                   <td>
                     <button class="btn btn-ghost" style="font-size:12px;padding:6px 12px"
-                      onclick="saveOneTarget('${u.id}','${u.reportType}')">保存</button>
+                      onclick="saveOneTarget('${u.id}','${type}')">保存</button>
                   </td>
                 </tr>
               `;
@@ -2110,23 +2152,27 @@ function renderTargets() {
 function saveOneTarget(userId, reportType) {
   const month = currentMonth();
   if (reportType === 'mobile') {
-    const pt = parseFloat(document.getElementById(`pt_${userId}`)?.value) || 0;
+    const pt = parseFloat(document.getElementById(`pt_${userId}_${reportType}`)?.value) || 0;
     _upsertTarget(userId, month, { ptTarget: pt });
   } else {
-    const amt = parseInt(document.getElementById(`amt_${userId}`)?.value) || 0;
+    const amt = parseInt(document.getElementById(`amt_${userId}_${reportType}`)?.value) || 0;
     setRefaTarget(userId, month, amt);
   }
   showToast('目標を保存しました');
 }
 
 function saveAllTargets() {
-  const users = getUsers().filter(u => u.reportType);
-  users.forEach(u => {
-    if (u.reportType === 'mobile') {
-      const pt = parseFloat(document.getElementById(`pt_${u.id}`)?.value) || 0;
+  const level = roleLevel(CU.role);
+  const isAdmin = level >= 5;
+  const entries = getUsers()
+    .filter(u => isAdmin || u.dept === 'mobile')
+    .flatMap(u => getUserReportTypes(u).map(type => ({ u, type })));
+  entries.forEach(({ u, type }) => {
+    if (type === 'mobile') {
+      const pt = parseFloat(document.getElementById(`pt_${u.id}_${type}`)?.value) || 0;
       _upsertTarget(u.id, currentMonth(), { ptTarget: pt });
-    } else if (u.reportType === 'refa' || u.reportType === 'style') {
-      const amt = parseInt(document.getElementById(`amt_${u.id}`)?.value) || 0;
+    } else if (type === 'refa' || type === 'style') {
+      const amt = parseInt(document.getElementById(`amt_${u.id}_${type}`)?.value) || 0;
       setRefaTarget(u.id, currentMonth(), amt);
     }
   });
@@ -2283,7 +2329,7 @@ function renderShiftsMonth() {
   const workCount = selectedUser ? getWorkingDaysCount(selectedUser.id, monthStr) : 0;
 
   // 実績報告チェック（reportType があるユーザーのみ）
-  const needsReport = !!selectedUser?.reportType;
+  const needsReport = getUserReportTypes(selectedUser).length > 0;
   const reportedDates = needsReport
     ? new Set(getUserReportsForMonth(selectedUser.id, monthStr).map(r => r.date))
     : new Set();
@@ -3154,10 +3200,22 @@ function openPermissionGuide() {
     </div>
   `);
 }
-function _reportTypeOptions(selected) {
-  return [['mobile','モバイル（MNP・新規）'],['refa','Refa営業（売上）'],['style','style営業（売上）'],['','報告なし']].map(([k, l]) =>
-    `<option value="${k}" ${(selected||'') === k ? 'selected' : ''}>${l}</option>`
-  ).join('');
+const REPORT_TYPE_OPTIONS = [['mobile', 'モバイル（MNP・新規）'], ['refa', 'Refa営業（売上）'], ['style', 'style営業（売上）']];
+
+// 報告タイプの複数選択チェックボックス群（他事業部の応援などで複数タイプ持つメンバーに対応）
+function _reportTypeChecks(containerId, selectedTypes) {
+  return `
+    <div class="report-type-checks" id="${containerId}">
+      ${REPORT_TYPE_OPTIONS.map(([k, l]) => `
+        <label class="report-type-check">
+          <input type="checkbox" value="${k}" ${selectedTypes.includes(k) ? 'checked' : ''}>
+          <span>${l}</span>
+        </label>
+      `).join('')}
+    </div>`;
+}
+function _readReportTypeChecks(containerId) {
+  return [...document.querySelectorAll(`#${containerId} input[type=checkbox]:checked`)].map(el => el.value);
 }
 
 function openAddMember() {
@@ -3185,8 +3243,8 @@ function openAddMember() {
         <input type="text" class="form-input" id="newJobTitle" placeholder="例: IT / イベントCL">
       </div>
       <div class="form-group">
-        <label class="form-label">報告タイプ</label>
-        <select class="form-select" id="newReportType">${_reportTypeOptions('mobile')}</select>
+        <label class="form-label">報告タイプ（複数選択可）</label>
+        ${_reportTypeChecks('newReportTypes', ['mobile'])}
       </div>
       <div class="form-group">
         <label class="form-label">初期パスワード</label>
@@ -3201,17 +3259,17 @@ function openAddMember() {
 }
 
 function addMember() {
-  const name       = document.getElementById('newName').value.trim();
-  const dept       = document.getElementById('newDept').value;
-  const role       = document.getElementById('newRole').value;
-  const jobTitle   = document.getElementById('newJobTitle').value.trim() || undefined;
-  const reportType = document.getElementById('newReportType').value || null;
-  const pw         = document.getElementById('newPw').value || 'lump1234';
+  const name        = document.getElementById('newName').value.trim();
+  const dept        = document.getElementById('newDept').value;
+  const role        = document.getElementById('newRole').value;
+  const jobTitle    = document.getElementById('newJobTitle').value.trim() || undefined;
+  const reportTypes = _readReportTypeChecks('newReportTypes');
+  const pw          = document.getElementById('newPw').value || 'lump1234';
 
   if (!name) { showToast('氏名を入力してください', 'error'); return; }
 
   const users = getUsers();
-  users.push({ id: 'u' + Date.now(), name, role, dept, reportType, jobTitle, pw });
+  users.push({ id: 'u' + Date.now(), name, role, dept, reportTypes, jobTitle, pw });
   saveUsers(users);
   closeModal();
   showToast(`${name} を追加しました`);
@@ -3246,8 +3304,8 @@ function openEditMember(userId) {
         <input type="text" class="form-input" id="editJobTitle" value="${u.jobTitle || ''}" placeholder="例: IT / イベントCL">
       </div>
       <div class="form-group">
-        <label class="form-label">報告タイプ</label>
-        <select class="form-select" id="editReportType">${_reportTypeOptions(u.reportType)}</select>
+        <label class="form-label">報告タイプ（複数選択可）</label>
+        ${_reportTypeChecks('editReportTypes', getUserReportTypes(u))}
       </div>
       <div class="form-group">
         <label class="form-label">パスワード変更（空欄で変更なし）</label>
@@ -3262,12 +3320,12 @@ function openEditMember(userId) {
 }
 
 function saveMember(userId) {
-  const name       = document.getElementById('editName').value.trim();
-  const dept       = document.getElementById('editDept').value;
-  const role       = document.getElementById('editRole').value;
-  const jobTitle   = document.getElementById('editJobTitle').value.trim() || undefined;
-  const reportType = document.getElementById('editReportType').value || null;
-  const pw         = document.getElementById('editPw').value;
+  const name        = document.getElementById('editName').value.trim();
+  const dept        = document.getElementById('editDept').value;
+  const role        = document.getElementById('editRole').value;
+  const jobTitle    = document.getElementById('editJobTitle').value.trim() || undefined;
+  const reportTypes = _readReportTypeChecks('editReportTypes');
+  const pw          = document.getElementById('editPw').value;
 
   if (!name) { showToast('氏名を入力してください', 'error'); return; }
 
@@ -3275,12 +3333,14 @@ function saveMember(userId) {
   const idx = users.findIndex(u => u.id === userId);
   if (idx < 0) return;
 
-  users[idx] = { ...users[idx], name, dept, role, jobTitle, reportType };
+  users[idx] = { ...users[idx], name, dept, role, jobTitle, reportTypes };
+  delete users[idx].reportType; // 旧形式（単一値）は新形式に一本化
   if (pw) users[idx].pw = pw;
   saveUsers(users);
 
   if (userId === CU.id) {
-    Object.assign(CU, { name, dept, role, jobTitle, reportType });
+    Object.assign(CU, { name, dept, role, jobTitle, reportTypes });
+    delete CU.reportType;
     renderTopbar();
     renderSidebar();
   }
@@ -3456,7 +3516,7 @@ function renderTalent() {
   document.getElementById('main').innerHTML = `
     <div class="page-header fade-in">
       <div>
-        <div class="page-title">人財カルテ</div>
+        <div class="page-title">メンバーステータス</div>
         <div id="talent-sub" class="page-sub">生産性指標 × ジョブ面談を中核にした1人1カード（${users.length} / ${totalAll}名）</div>
       </div>
       ${level >= 5 ? `<button class="btn btn-ghost" onclick="openSkillTemplateEditor()">📋 スキルシート設定</button>` : ''}
@@ -3506,7 +3566,8 @@ function _tcCardHTML(user, canEdit) {
   const trend = getTalentProductivityTrend(user.id, 6);
   const skill = getSkillScore(user.id);
   const photo = getPhoto(user.id);
-  const isRefa = user.reportType === 'refa' || user.reportType === 'style';
+  const primaryType = getUserReportTypes(user)[0];
+  const isRefa = primaryType === 'refa' || primaryType === 'style';
 
   // 写真 or アバター
   const photoHTML = photo
@@ -3598,7 +3659,7 @@ function openTalentCard(userId) {
 function renderProfile() {
   const level = roleLevel(CU.role);
   const canEdit = level >= 4;
-  const canManagerApprove = level >= 5;
+  const canManagerApprove = level >= 4;
   const user = getUserById(profileUserId);
   if (!user) { navigate('talent'); return; }
   const isMobile = window.innerWidth <= 767;
@@ -3610,11 +3671,12 @@ function renderProfile() {
   const photo   = getPhoto(profileUserId);
   const ev      = getSkillEval(profileUserId);
   const tmpl    = getSkillTemplate();
-  const isRefa  = user.reportType === 'refa' || user.reportType === 'style';
+  const primaryType = getUserReportTypes(user)[0];
+  const isRefa  = primaryType === 'refa' || primaryType === 'style';
   const mon     = currentMonth();
   const reports = getUserReportsForMonth(profileUserId, mon);
-  const agg     = (reports.length && !isRefa) ? aggregateReports(reports) : null;
-  const refaAmt = isRefa ? reports.reduce((s, r) => s + Number(r.amount || 0), 0) : 0;
+  const agg     = (!isRefa && reports.some(r => !r.type || r.type === 'mobile')) ? aggregateReports(reports.filter(r => !r.type || r.type === 'mobile')) : null;
+  const refaAmt = isRefa ? reports.filter(r => r.type === primaryType).reduce((s, r) => s + Number(r.amount || 0), 0) : 0;
   const workDays = getWorkingDaysCount(profileUserId, mon);
 
   // ── 写真ブロック ──
@@ -4182,7 +4244,7 @@ function openMbtiEdit() {
 function cancelMbtiEdit() {
   mbtiEditMode = false;
   const p = document.getElementById('pp_mbti');
-  if (p) p.innerHTML = buildMbtiView(getMbti(profileUserId), roleLevel(CU.role) >= 5, profileUserId);
+  if (p) p.innerHTML = buildMbtiView(getMbti(profileUserId), roleLevel(CU.role) >= 4, profileUserId);
 }
 
 function saveMbtiData(userId) {
@@ -4202,7 +4264,7 @@ function saveMbtiData(userId) {
   setMbti(userId, mbtiData);
   mbtiEditMode = false;
   const p = document.getElementById('pp_mbti');
-  if (p) p.innerHTML = buildMbtiView(getMbti(userId), roleLevel(CU.role) >= 5, userId);
+  if (p) p.innerHTML = buildMbtiView(getMbti(userId), roleLevel(CU.role) >= 4, userId);
   showToast('MBTIを保存しました', 'success');
 }
 

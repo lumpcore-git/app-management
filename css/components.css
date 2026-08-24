@@ -140,6 +140,20 @@ td { padding: 12px 16px; vertical-align: middle; }
 }
 .role-pill-select option { color: #1a2040; background: #fff; }
 
+/* ─── 報告タイプ（複数選択） ─── */
+.report-type-checks { display: flex; flex-direction: column; gap: 8px; }
+.report-type-check { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
+.report-type-check input { width: 16px; height: 16px; cursor: pointer; accent-color: var(--accent); }
+
+/* ─── 報告タイプ 切替タブ（ダッシュボード・実績報告ページ） ─── */
+.report-type-tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+
+/* ─── 報告タイプ チップ（チーム実績・目標設定：複数タイプ持ちの行に表示） ─── */
+.report-type-chip {
+  font-size: 10px; font-weight: 700; color: var(--accent);
+  border: 1px solid var(--accent); border-radius: 10px; padding: 1px 7px;
+}
+
 /* ─── 権限ガイド ─── */
 .perm-guide-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
 .perm-guide-card { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; }

@@ -69,13 +69,19 @@
 {
   id: 'u1',
   name: '北村晃平',
-  role: 'chief',          // ROLES のキー
-  dept: 'mobile',         // DEPTS のキー
-  reportType: 'mobile',   // 'mobile' | 'refa' | 'style' | null（報告なし）
-  jobTitle: 'IT / イベントCL', // 任意。あればROLESのlabelより優先表示
+  role: 'chief',                // ROLES のキー
+  dept: 'mobile',                // DEPTS のキー
+  reportTypes: ['mobile'],       // 'mobile' | 'refa' | 'style' の配列（複数可）。空配列 [] = 報告なし
+  jobTitle: 'IT / イベントCL',   // 任意。あればROLESのlabelより優先表示
   pw: 'lump1234'
 }
 ```
+
+**報告タイプは複数持てる（他事業部の応援などで役職・部署を問わず複数タイプ報告するメンバーがいるため）。** 常に `getUserReportTypes(user)`（data.js）経由で読むこと（`user.reportType`/`user.reportTypes`を直接読まない）。この関数は新形式の配列 `reportTypes` を優先し、まだ編集されていない旧データ（単一値の `reportType`）も自動的に配列化して返すため、移行のためのDATA_VERSION更新は不要。メンバー管理の追加・編集モーダルは複数選択可能なチェックボックスで `reportTypes` を書き込み、保存時に旧 `reportType` フィールドは削除する。
+- ダッシュボード（`renderDashboard`）・実績報告ページ（`renderReportPage`）は、ユーザーが複数タイプを持つ場合はページ上部にタブ（`dashTypeTab`/`reportTypeTab`）を出し、タイプごとの画面を切り替えて表示する。
+- チーム実績（`renderTeam`）・目標設定（`renderTargets`）は、複数タイプ持ちのユーザーをタイプごとに1行ずつ展開して表示する（pt系と円系は単位が違うため合算しない）。行名の横に報告タイプの小さいチップ（`.report-type-chip`）が付く。
+- ランキング（`renderRanking`）のモバイル/Refa/style各セクションは、事業部に関わらず該当の報告タイプを持つユーザー全員が対象（応援メンバーも表示される）。
+- 人財カルテ・プロフィールの生産性トレンドは、複数タイプ持ちの場合は `reportTypes` の先頭（主担当）のタイプを基準に表示する。
 
 ### レポート（localStorage: `lc_reports`）
 ```javascript
@@ -130,7 +136,7 @@
 | role | label（コード内） | level | 説明 |
 |------|-------|-------|------|
 | `admin` | 役員/管理者 | 5 | 全機能・全データアクセス |
-| `chief` | チーフ | 4 | モバイル目標設定・チーム閲覧・シフト作成・人財カルテ |
+| `chief` | チーフ | 4 | モバイル目標設定・チーム閲覧・シフト作成・メンバーステータス・MBTI/スキル上長承認欄の編集 |
 | `event_closer` | イベントクローザー | 3 | チーム閲覧 |
 | `closer` | クローザー | 2 | チーム閲覧 |
 | `catch` | キャッチ | 1 | 自分のみ |
@@ -198,6 +204,7 @@
 | `#members` | `renderMembers()` | level≥5 のみ |
 
 **注意:** サイドバーの「シフト」はサブメニュー親で、実際のhashは `shifts-week` / `shifts-month` / `shifts-plan`。
+**注意:** `#talent`（`renderTalent()`）のメニュー表示名は「メンバーステータス」（旧称: 人財カルテ）。関数名・変数名（`renderTalent`, `talentFilterDept`, `_refreshTalentGrid` 等）や `lc_talent` ストレージキーは互換性のため `talent`/`人財カルテ` のまま変えていない。
 
 ---
 
@@ -233,6 +240,7 @@
 getUsers()                          // 全ユーザー取得
 getUserById(id)                     // ID指定取得
 getUserDisplayRole(user)            // 表示用役職名（jobTitle優先）
+getUserReportTypes(user)            // 報告タイプ一覧を返す（複数可）。reportType/reportTypesを直接読まずこれ経由で
 
 // レポート
 getReports()                        // 全レポート取得
@@ -319,6 +327,10 @@ let shiftPlanMonth = null;   // シフト作成ページの月（'YYYY-MM'）
 let shiftPlanBrushSite = null; // シフト作成で選択中の入力ブラシ
 let shiftPlanWeekdayOnly = false; // 土日非表示トグル
 
+// 複数報告タイプ選択タブ（ダッシュボード・実績報告ページ共通）
+let dashTypeTab = '';        // ダッシュボードで選択中の報告タイプ
+let reportTypeTab = '';      // 実績報告ページで選択中の報告タイプ
+
 // 人財カルテ
 let talentFilterDept = 'all';      // 事業部フィルタ
 let talentSortKey = 'productivity'; // ソートキー: 'productivity'|'skill'|'interview_new'|'joined'
@@ -379,7 +391,7 @@ let memberQuery = '';              // 検索クエリ
   - reportType==='style' → `renderStyleDashboard()`（Refaダッシュボードと同一構造）
   - その他 → `renderBasicDashboard()`
 - **既知バグ:** adminDashboard の `totalMnp` / `totalShinki` 集計が `r.mnp`/`r.shinki` を参照しており常に0（実際のフィールドは `sbmnp`/`ymnp`/`sb_shinki`/`ym_shinki`）
-- **検索の部分更新パターン（日本語IME対応）:** 検索inputを含むページで `oninput` から全体再描画すると、日本語変換途中でDOMが差し替わりIMEが壊れる。検索時は結果エリア（tbody / グリッド）のみを更新し、inputには触れない設計にすること。人財カルテの `_refreshTalentGrid()` / メンバー管理の `_refreshMemberTable()` が参考実装。新たに検索機能を追加する場合も同じパターンに従う。
+- **検索の部分更新パターン（日本語IME対応）:** 検索inputを含むページで `oninput` から全体再描画すると、日本語変換途中でDOMが差し替わりIMEが壊れる。検索時は結果エリア（tbody / グリッド）のみを更新し、inputには触れない設計にすること。メンバーステータス（旧称・人財カルテ）の `_refreshTalentGrid()` / メンバー管理の `_refreshMemberTable()` が参考実装。新たに検索機能を追加する場合も同じパターンに従う。
 
 ---
 

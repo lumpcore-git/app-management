@@ -230,16 +230,20 @@ body.impersonating .topbar { top: 40px; }
   background: var(--surface);
   border-top: 1px solid var(--border);
   z-index: 200;
-  padding: 0 4px;
   padding-bottom: env(safe-area-inset-bottom, 0);
   height: 60px;
+}
+.bottomnav-scroll {
+  display: flex;
   align-items: stretch;
+  height: 100%;
+  padding: 0 4px;
   overflow-x: auto;
   overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
 }
-.bottomnav::-webkit-scrollbar { display: none; }
+.bottomnav-scroll::-webkit-scrollbar { display: none; }
 .bottomnav-item {
   flex-shrink: 0;
   width: 72px;
@@ -261,6 +265,21 @@ body.impersonating .topbar { top: 40px; }
 .bottomnav-item .bn-icon { font-size: 20px; line-height: 1; }
 .bottomnav-item.active { color: var(--accent); }
 .bottomnav-item:active { opacity: 0.6; }
+
+/* スクロール可能なことを示すフェードヒント */
+.bottomnav-fade {
+  position: absolute;
+  top: 0;
+  bottom: env(safe-area-inset-bottom, 0);
+  width: 30px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .2s ease;
+}
+.bottomnav-fade-left { left: 0; background: linear-gradient(to right, var(--surface) 0%, transparent 100%); }
+.bottomnav-fade-right { right: 0; background: linear-gradient(to left, var(--surface) 0%, transparent 100%); }
+.bottomnav.has-scroll-left .bottomnav-fade-left { opacity: 1; }
+.bottomnav.has-scroll-right .bottomnav-fade-right { opacity: 1; }
 
 /* ─── MOBILE SUB-TABS ─── */
 .mobile-subtabs {

@@ -74,6 +74,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   renderBottomNav();
 
   window.addEventListener('hashchange', route);
+  window.addEventListener('resize', _updateBottomNavFade);
   route();
 
   document.getElementById('modalOverlay').addEventListener('click', (e) => {
@@ -341,11 +342,29 @@ function renderBottomNav() {
     { id: 'settings',               icon: '🔧', label: '設定',       active: hash === 'settings' },
   ].filter(Boolean);
 
-  el.innerHTML = items.map(item => `
-    <div class="bottomnav-item ${item.active ? 'active' : ''}" onclick="navigate('${item.id}')">
-      <span class="bn-icon">${item.icon}</span>
-      <span>${item.label}</span>
-    </div>`).join('');
+  el.innerHTML = `
+    <div class="bottomnav-scroll" id="bottomnavScroll">
+      ${items.map(item => `
+        <div class="bottomnav-item ${item.active ? 'active' : ''}" onclick="navigate('${item.id}')">
+          <span class="bn-icon">${item.icon}</span>
+          <span>${item.label}</span>
+        </div>`).join('')}
+    </div>
+    <div class="bottomnav-fade bottomnav-fade-left"></div>
+    <div class="bottomnav-fade bottomnav-fade-right"></div>
+  `;
+
+  const scroll = document.getElementById('bottomnavScroll');
+  scroll.addEventListener('scroll', _updateBottomNavFade, { passive: true });
+  _updateBottomNavFade();
+}
+
+function _updateBottomNavFade() {
+  const el = document.getElementById('bottomnav');
+  const scroll = document.getElementById('bottomnavScroll');
+  if (!el || !scroll) return;
+  el.classList.toggle('has-scroll-left', scroll.scrollLeft > 4);
+  el.classList.toggle('has-scroll-right', scroll.scrollLeft + scroll.clientWidth < scroll.scrollWidth - 4);
 }
 
 // ─── MOBILE SUB-TABS (shift / venue page switcher) ───

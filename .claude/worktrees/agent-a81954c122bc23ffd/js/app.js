@@ -36,11 +36,6 @@ let _dashNotifTab = 'notif'; // 'notif' | 'task'
 let dashTypeTab = '';   // ダッシュボードで選択中の報告タイプ
 let reportTypeTab = ''; // 実績報告ページで選択中の報告タイプ
 
-// ─── ICON HELPER（Tabler Icons スプライト参照。app.html/index.html の <symbol id="ic-{name}"> を使う） ───
-function icon(name, cls) {
-  return `<svg class="ico${cls ? ' ' + cls : ''}"><use href="#ic-${name}"></use></svg>`;
-}
-
 // ─── THEME ───
 function initTheme() {
   const saved = getTheme();
@@ -59,7 +54,7 @@ function toggleTheme() {
 function _syncThemeBtn(theme) {
   const btn = document.getElementById('themeToggleBtn');
   if (!btn) return;
-  btn.innerHTML = theme === 'dark' ? icon('sun') : icon('moon');
+  btn.textContent = theme === 'dark' ? '☀️' : '🌙';
   btn.title = theme === 'dark' ? 'ライトモードに切替' : 'ダークモードに切替';
 }
 
@@ -99,7 +94,7 @@ function renderImpersonationBar() {
   }
   document.body.classList.add('impersonating');
   bar.innerHTML = `
-    <span>${icon('mask')} ${info.admin.name} が ${info.target.name} として代理ログイン中</span>
+    <span>🎭 ${info.admin.name} が ${info.target.name} として代理ログイン中</span>
     <button onclick="stopImpersonation(); location.href='app.html';">管理者に戻る</button>
   `;
   bar.classList.remove('hidden');
@@ -110,9 +105,9 @@ function confirmImpersonate(userId) {
   if (!u) return;
   showModal(`
     <div class="modal-header">
-      <div style="font-size:20px">${icon('mask')}</div>
+      <div style="font-size:20px">🎭</div>
       <div class="modal-title">代理ログイン</div>
-      <button class="modal-close" onclick="closeModal()">${icon('x')}</button>
+      <button class="modal-close" onclick="closeModal()">✕</button>
     </div>
     <div class="modal-body">
       <p><strong>${u.name}</strong>（${getUserDisplayRole(u)}）として代理ログインしますか？</p>
@@ -168,17 +163,17 @@ function renderSidebar() {
   if (isVenuePage) venueMenuExpanded = true;
 
   const nav = [
-    { id: 'dashboard',            icon: 'home',            label: 'ダッシュボード', show: true },
-    { id: 'report',                icon: 'edit',            label: '実績報告',       show: hasReport },
-    { id: 'shifts',                icon: 'calendar',        label: 'シフト',         show: true },
-    { id: 'team',                  icon: 'users',           label: 'チーム実績',     show: canSeeTeam },
-    { id: 'ranking',                icon: 'trophy',          label: 'ランキング',     show: canSeeTeam },
-    { id: 'targets',                icon: 'target',          label: '目標設定',       show: canSetTargets },
-    { id: 'venue-achieve',          icon: 'chart-bar',       label: '現場達成率',     show: true },
-    { id: 'myprofile',              icon: 'user',            label: 'プロフィール',   show: true },
-    { id: 'talent',                 icon: 'clipboard-list',  label: 'メンバーステータス', show: level >= 4 },
-    { id: 'members',                icon: 'settings',        label: 'メンバー管理',  show: level >= 5 },
-    { id: 'settings',               icon: 'tool',            label: '設定',           show: true },
+    { id: 'dashboard',            icon: '🏠', label: 'ダッシュボード', show: true },
+    { id: 'report',               icon: '📝', label: '実績報告',       show: hasReport },
+    { id: 'shifts',               icon: '🗓️', label: 'シフト',         show: true },
+    { id: 'team',                 icon: '👥', label: 'チーム実績',     show: canSeeTeam },
+    { id: 'ranking',              icon: '🏆', label: 'ランキング',     show: canSeeTeam },
+    { id: 'targets',              icon: '🎯', label: '目標設定',       show: canSetTargets },
+    { id: 'venue-achieve',        icon: '📊', label: '現場達成率',     show: true },
+    { id: 'myprofile',            icon: '👤', label: 'プロフィール',   show: true },
+    { id: 'talent',               icon: '📋', label: 'メンバーステータス', show: level >= 4 },
+    { id: 'members',              icon: '⚙️', label: 'メンバー管理',  show: level >= 5 },
+    { id: 'settings',             icon: '🔧', label: '設定',           show: true },
   ];
 
   const items = nav.filter(n => n.show);
@@ -187,7 +182,7 @@ function renderSidebar() {
     ${items.map(n => {
       if (n.id === 'shifts') return `
         <div class="nav-item nav-item-parent" data-page="shifts" onclick="toggleShiftMenu()">
-          <span class="icon">${icon(n.icon)}</span>
+          <span class="icon">${n.icon}</span>
           <span>${n.label}</span>
           <span class="nav-caret ${shiftMenuExpanded ? 'open' : ''}">▾</span>
         </div>
@@ -198,7 +193,7 @@ function renderSidebar() {
         </div>`;
       if (n.id === 'venue-achieve') return `
         <div class="nav-item nav-item-parent" data-page="venue-achieve" onclick="toggleVenueMenu()">
-          <span class="icon">${icon(n.icon)}</span>
+          <span class="icon">${n.icon}</span>
           <span>${n.label}</span>
           <span class="nav-caret ${venueMenuExpanded ? 'open' : ''}">▾</span>
         </div>
@@ -208,7 +203,7 @@ function renderSidebar() {
         </div>`;
       return `
         <div class="nav-item" data-page="${n.id}" onclick="navigate('${n.id}')">
-          <span class="icon">${icon(n.icon)}</span>
+          <span class="icon">${n.icon}</span>
           <span>${n.label}</span>
         </div>`;
     }).join('')}
@@ -334,24 +329,24 @@ function renderBottomNav() {
   const isOwnProfileHash = hash === 'profile' && profileUserId === CU.id;
 
   const items = [
-    { id: 'dashboard',              icon: 'home',           label: 'ダッシュ',   active: hash === 'dashboard' },
-    hasReport && { id: 'report',    icon: 'edit',           label: '報告',       active: hash === 'report' },
-    { id: 'shifts-week',            icon: 'calendar',       label: 'シフト',     active: isShiftHash },
-    canSeeTeam && { id: 'team',     icon: 'users',          label: 'チーム',     active: hash === 'team' },
-    canSeeTeam && { id: 'ranking',  icon: 'trophy',         label: 'ランキング', active: hash === 'ranking' },
-    canSetTargets && { id: 'targets', icon: 'target',       label: '目標',     active: hash === 'targets' },
-    { id: 'venue-achieve-weekday',  icon: 'chart-bar',      label: '現場',       active: isVenueHash },
-    { id: 'myprofile',              icon: 'user',           label: 'プロフィール', active: isOwnProfileHash },
-    level >= 4 && { id: 'talent',   icon: 'clipboard-list', label: 'ステータス', active: hash === 'talent' || (hash === 'profile' && !isOwnProfileHash) },
-    level >= 5 && { id: 'members',  icon: 'settings',       label: 'メンバー',  active: hash === 'members' },
-    { id: 'settings',               icon: 'tool',           label: '設定',       active: hash === 'settings' },
+    { id: 'dashboard',              icon: '🏠', label: 'ダッシュ',   active: hash === 'dashboard' },
+    hasReport && { id: 'report',    icon: '📝', label: '報告',       active: hash === 'report' },
+    { id: 'shifts-week',            icon: '🗓️', label: 'シフト',     active: isShiftHash },
+    canSeeTeam && { id: 'team',     icon: '👥', label: 'チーム',     active: hash === 'team' },
+    canSeeTeam && { id: 'ranking',  icon: '🏆', label: 'ランキング', active: hash === 'ranking' },
+    canSetTargets && { id: 'targets', icon: '🎯', label: '目標',     active: hash === 'targets' },
+    { id: 'venue-achieve-weekday',  icon: '📊', label: '現場',       active: isVenueHash },
+    { id: 'myprofile',              icon: '👤', label: 'プロフィール', active: isOwnProfileHash },
+    level >= 4 && { id: 'talent',   icon: '📋', label: 'ステータス', active: hash === 'talent' || (hash === 'profile' && !isOwnProfileHash) },
+    level >= 5 && { id: 'members',  icon: '⚙️', label: 'メンバー',  active: hash === 'members' },
+    { id: 'settings',               icon: '🔧', label: '設定',       active: hash === 'settings' },
   ].filter(Boolean);
 
   el.innerHTML = `
     <div class="bottomnav-scroll" id="bottomnavScroll">
       ${items.map(item => `
         <div class="bottomnav-item ${item.active ? 'active' : ''}" onclick="navigate('${item.id}')">
-          <span class="bn-icon">${icon(item.icon)}</span>
+          <span class="bn-icon">${item.icon}</span>
           <span>${item.label}</span>
         </div>`).join('')}
     </div>
@@ -529,17 +524,17 @@ function _notificationsCard() {
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
         <div style="display:flex;align-items:center;gap:2px">
           <button class="dash-tab-btn ${!isTaskTab ? 'active' : ''}" onclick="_switchDashTab('notif')">
-            ${icon('bell')} お知らせ${unreadCount > 0 ? `<span class="notif-unread-chip" style="margin-left:2px">${unreadCount}</span>` : ''}
+            🔔 お知らせ${unreadCount > 0 ? `<span class="notif-unread-chip" style="margin-left:2px">${unreadCount}</span>` : ''}
           </button>
           <button class="dash-tab-btn ${isTaskTab ? 'active' : ''}" onclick="_switchDashTab('task')">
-            ${icon('clipboard-list')} タスク${incompleteTasks > 0 ? `<span class="task-count-chip">${incompleteTasks}</span>` : ''}
+            📋 タスク${incompleteTasks > 0 ? `<span class="task-count-chip">${incompleteTasks}</span>` : ''}
           </button>
         </div>
         <div style="display:flex;gap:8px;align-items:center">
           ${!isTaskTab && unreadCount > 0 ? `<button class="btn btn-ghost" style="font-size:12px;padding:5px 10px" onclick="markAllReadAndRefresh()">すべて既読</button>` : ''}
           ${level >= 4 ? (isTaskTab
             ? `<button class="btn btn-primary" style="font-size:12px;padding:5px 12px" onclick="showCreateTaskModal()">＋ タスクを作る</button>`
-            : `<button class="btn btn-primary" style="font-size:12px;padding:5px 12px" onclick="showSendNotificationModal()">${icon('mail')} お知らせを送る</button>`
+            : `<button class="btn btn-primary" style="font-size:12px;padding:5px 12px" onclick="showSendNotificationModal()">📨 お知らせを送る</button>`
           ) : ''}
         </div>
       </div>
@@ -547,7 +542,7 @@ function _notificationsCard() {
       ${isTaskTab ? _tasksPanel() : `
         ${notifs.length === 0 ? `
           <div class="empty-state" style="padding:24px 0">
-            <div style="font-size:28px;margin-bottom:8px">${icon('mail-opened')}</div>
+            <div style="font-size:28px;margin-bottom:8px">📭</div>
             お知らせはありません
           </div>
         ` : `
@@ -584,26 +579,26 @@ function _tasksPanel() {
   const tasks = getTasksForUser(CU.id);
   if (tasks.length === 0) {
     return `<div class="empty-state" style="padding:24px 0">
-      <div style="font-size:28px;margin-bottom:8px">${icon('circle-check')}</div>
+      <div style="font-size:28px;margin-bottom:8px">✅</div>
       割り当てられたタスクはありません
     </div>`;
   }
   const HORIZONS = [
-    { key: 'daily',   label: '日次コミット', colorVar: '--danger',  icon: icon('circle-filled', 'ico-filled') },
-    { key: 'weekly',  label: '週次コミット', colorVar: '--warn',    icon: icon('circle-filled', 'ico-filled') },
-    { key: 'monthly', label: '月次コミット', colorVar: '--accent2', icon: icon('circle-filled', 'ico-filled') },
+    { key: 'daily',   label: '日次コミット', colorVar: '--danger',  icon: '🔴' },
+    { key: 'weekly',  label: '週次コミット', colorVar: '--warn',    icon: '🟡' },
+    { key: 'monthly', label: '月次コミット', colorVar: '--accent2', icon: '🔵' },
   ];
-  return HORIZONS.map(({ key, label, colorVar, icon: icoHtml }) => {
+  return HORIZONS.map(({ key, label, colorVar, icon }) => {
     const group = tasks.filter(t => t.horizon === key);
     if (group.length === 0) return '';
     const pending = group.filter(t => !t.doneBy[CU.id]).length;
     return `
       <div style="margin-bottom:16px">
         <div style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(${colorVar});margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid rgba(106,128,186,.2)">
-          ${icoHtml} ${label}
+          ${icon} ${label}
           ${pending > 0
             ? `<span style="font-weight:400;color:var(--text-sub);font-size:11px">（未完了 ${pending}件）</span>`
-            : `<span style="font-size:11px;color:var(--green);font-weight:400">${icon('check')} すべて完了</span>`}
+            : `<span style="font-size:11px;color:var(--green);font-weight:400">✓ すべて完了</span>`}
         </div>
         <div style="display:flex;flex-direction:column;gap:6px">
           ${group.map(t => _taskItem(t, level)).join('')}
@@ -634,13 +629,13 @@ function _taskItem(t, level) {
           ${t.body ? `<div style="font-size:12px;color:var(--text-sub);margin-bottom:4px">${t.body}</div>` : ''}
           <div style="font-size:11px;color:var(--text-sub);display:flex;align-items:center;gap:8px;flex-wrap:wrap">
             <span>${from?.name || '—'}</span>
-            ${dueLabelText ? `<span style="color:${isOverdue ? 'var(--danger)' : 'var(--text-sub)'}">${isOverdue ? icon('alert-triangle') + ' ' : ''}${dueLabelText}</span>` : ''}
+            ${dueLabelText ? `<span style="color:${isOverdue ? 'var(--danger)' : 'var(--text-sub)'}">${isOverdue ? '⚠ ' : ''}${dueLabelText}</span>` : ''}
             ${level >= 4 ? `<span style="color:var(--accent)">${doneCount}/${targetIds.length}人完了</span>` : ''}
           </div>
         </div>
         <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0;align-items:flex-end">
           ${isDone
-            ? `<button class="btn btn-ghost" style="font-size:11px;padding:4px 10px;color:var(--green)" onclick="unmarkTaskDoneAndRefresh('${t.id}')">${icon('check')} 完了済み</button>`
+            ? `<button class="btn btn-ghost" style="font-size:11px;padding:4px 10px;color:var(--green)" onclick="unmarkTaskDoneAndRefresh('${t.id}')">✓ 完了済み</button>`
             : `<button class="btn btn-primary" style="font-size:11px;padding:5px 12px" onclick="markTaskDoneAndRefresh('${t.id}')">完了にする</button>`}
           ${canDelete ? `<button class="btn btn-ghost" style="font-size:10px;padding:2px 8px;color:var(--danger)" onclick="deleteTaskAndRefresh('${t.id}')">削除</button>` : ''}
         </div>
@@ -694,7 +689,7 @@ function deleteTaskAndRefresh(taskId) {
 function showCreateTaskModal() {
   const users = getUsers().filter(u => u.id !== CU.id);
   showModal(`
-    <div class="modal-title">${icon('clipboard-list')} タスク / コミットを作成</div>
+    <div class="modal-title">📋 タスク / コミットを作成</div>
     <div style="display:flex;flex-direction:column;gap:16px;margin-top:16px">
 
       <div class="form-group">
@@ -743,7 +738,7 @@ function showCreateTaskModal() {
     </div>
     <div style="display:flex;gap:8px;margin-top:20px;justify-content:flex-end">
       <button class="btn btn-ghost" onclick="closeModal()">キャンセル</button>
-      <button class="btn btn-primary" onclick="submitTask()">${icon('clipboard-list')} 作成する</button>
+      <button class="btn btn-primary" onclick="submitTask()">📋 作成する</button>
     </div>
   `);
 }
@@ -793,7 +788,7 @@ function submitTask() {
 
   addTask(CU.id, toUserIds, title, body, horizon);
   closeModal();
-  showToast('タスクを作成しました', 'success');
+  showToast('タスクを作成しました ✓', 'success');
   _dashNotifTab = 'task';
   renderDashboard();
 }
@@ -810,7 +805,7 @@ function showSendNotificationModal() {
   ];
 
   showModal(`
-    <div class="modal-title">${icon('mail')} お知らせを送る</div>
+    <div class="modal-title">📨 お知らせを送る</div>
     <div style="display:flex;flex-direction:column;gap:16px;margin-top:16px">
 
       <div class="form-group">
@@ -851,7 +846,7 @@ function showSendNotificationModal() {
     </div>
     <div style="display:flex;gap:8px;margin-top:20px;justify-content:flex-end">
       <button class="btn btn-ghost" onclick="closeModal()">キャンセル</button>
-      <button class="btn btn-primary" onclick="submitNotification()">${icon('mail')} 送信する</button>
+      <button class="btn btn-primary" onclick="submitNotification()">📨 送信する</button>
     </div>
   `);
 }
@@ -890,7 +885,7 @@ function submitNotification() {
 
   addNotification(CU.id, toUserIds, title, body);
   closeModal();
-  showToast('お知らせを送信しました', 'success');
+  showToast('お知らせを送信しました ✓', 'success');
   _updateNotifBadge();
 }
 
@@ -959,40 +954,40 @@ function renderAdminDashboard() {
   document.getElementById('main').innerHTML = `
     <div class="page-header fade-in">
       <div>
-        <div class="page-title">こんにちは、${CU.name}さん ${icon('confetti')}</div>
+        <div class="page-title">こんにちは、${CU.name}さん 👋</div>
         <div class="page-sub">${monthLabel(month)} — 全社サマリー</div>
       </div>
     </div>
 
     <div class="kpi-grid fade-in" style="grid-template-columns:repeat(5,1fr)">
       <div class="kpi-card blue">
-        <div class="kpi-icon">${icon('device-mobile')}</div>
+        <div class="kpi-icon">📱</div>
         <div class="kpi-label">MNP合計</div>
         <div class="kpi-value">${totalMnp}</div>
         <div class="kpi-meta">モバイル事業部</div>
       </div>
       <div class="kpi-card green">
-        <div class="kpi-icon">${icon('sparkles')}</div>
+        <div class="kpi-icon">✨</div>
         <div class="kpi-label">新規合計</div>
         <div class="kpi-value">${totalShinki}</div>
         <div class="kpi-meta">モバイル事業部</div>
       </div>
       <div class="kpi-card" style="border-color:rgba(244,114,182,.3)">
         <div class="kpi-card-bar" style="position:absolute;top:0;left:0;right:0;height:3px;background:#f472b6"></div>
-        <div class="kpi-icon">${icon('diamond')}</div>
+        <div class="kpi-icon">💎</div>
         <div class="kpi-label">Refa売上</div>
         <div class="kpi-value" style="font-size:22px">${formatMoney(totalRefa)}</div>
         <div class="kpi-meta">イベントプロモーション部</div>
       </div>
       <div class="kpi-card" style="border-color:rgba(251,191,36,.3)">
         <div class="kpi-card-bar" style="position:absolute;top:0;left:0;right:0;height:3px;background:#fbbf24"></div>
-        <div class="kpi-icon">${icon('sparkles')}</div>
+        <div class="kpi-icon">✨</div>
         <div class="kpi-label">style営業売上</div>
         <div class="kpi-value" style="font-size:22px">${formatMoney(totalStyle)}</div>
         <div class="kpi-meta">イベントプロモーション部</div>
       </div>
       <div class="kpi-card ${unreported > 0 ? 'warn' : 'green'}">
-        <div class="kpi-icon">${icon('bell')}</div>
+        <div class="kpi-icon">🔔</div>
         <div class="kpi-label">未報告</div>
         <div class="kpi-value">${unreported}</div>
         <div class="kpi-meta">今月未報告のメンバー</div>
@@ -1090,15 +1085,15 @@ function renderMobileDashboard() {
     teamSection = `
       <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr)">
         <div class="kpi-card blue">
-          <div class="kpi-icon">${icon('star')}</div><div class="kpi-label">チーム総合計PT</div>
+          <div class="kpi-icon">⭐</div><div class="kpi-label">チーム総合計PT</div>
           <div class="kpi-value">${teamAgg.totalPt.toFixed(1)}</div><div class="kpi-meta">チーム合計</div>
         </div>
         <div class="kpi-card green">
-          <div class="kpi-icon">${icon('device-mobile')}</div><div class="kpi-label">チームSBMNP</div>
+          <div class="kpi-icon">📱</div><div class="kpi-label">チームSBMNP</div>
           <div class="kpi-value">${teamAgg.sbmnp}</div><div class="kpi-meta">今月合計</div>
         </div>
         <div class="kpi-card ${unreported > 0 ? 'warn' : 'green'}">
-          <div class="kpi-icon">${icon('bell')}</div><div class="kpi-label">未報告</div>
+          <div class="kpi-icon">🔔</div><div class="kpi-label">未報告</div>
           <div class="kpi-value">${unreported}</div><div class="kpi-meta">今月未報告</div>
         </div>
       </div>
@@ -1108,32 +1103,32 @@ function renderMobileDashboard() {
   document.getElementById('main').innerHTML = `
     <div class="page-header fade-in">
       <div>
-        <div class="page-title">こんにちは、${CU.name}さん ${icon('confetti')}</div>
+        <div class="page-title">こんにちは、${CU.name}さん 👋</div>
         <div class="page-sub">${monthLabel(month)}の実績サマリー</div>
       </div>
-      <button class="btn btn-primary" onclick="navigate('report')">${icon('edit')} 実績を報告する</button>
+      <button class="btn btn-primary" onclick="navigate('report')">📝 実績を報告する</button>
     </div>
 
     ${teamSection ? `<div class="fade-in">${teamSection}</div>` : ''}
 
     <div class="kpi-grid fade-in">
       <div class="kpi-card blue">
-        <div class="kpi-icon">${icon('star')}</div><div class="kpi-label">今月総合計PT</div>
+        <div class="kpi-icon">⭐</div><div class="kpi-label">今月総合計PT</div>
         <div class="kpi-value" style="font-size:28px">${myPt.toFixed(1)}</div>
         <div class="kpi-meta">${target?.ptTarget ? `目標: ${target.ptTarget}pt` : '目標未設定'}</div>
       </div>
       <div class="kpi-card ${achieve !== null && achieve >= 100 ? 'green' : achieve !== null && achieve >= 70 ? 'blue' : 'warn'}">
-        <div class="kpi-icon">${icon('chart-bar')}</div><div class="kpi-label">達成率</div>
+        <div class="kpi-icon">📊</div><div class="kpi-label">達成率</div>
         <div class="kpi-value" style="color:${achieveColor(achieve)}">${achieve !== null ? achieve + '%' : '—'}</div>
         <div class="kpi-meta">${target?.ptTarget ? '今月目標PT比' : '目標未設定'}</div>
       </div>
       <div class="kpi-card green">
-        <div class="kpi-icon">${icon('device-mobile')}</div><div class="kpi-label">SBMNP</div>
+        <div class="kpi-icon">📱</div><div class="kpi-label">SBMNP</div>
         <div class="kpi-value">${agg.sbmnp}</div>
         <div class="kpi-meta">×5.0pt = ${(agg.sbmnp * 5).toFixed(1)}pt</div>
       </div>
       <div class="kpi-card blue">
-        <div class="kpi-icon">${icon('device-mobile')}</div><div class="kpi-label">YMNP</div>
+        <div class="kpi-icon">📱</div><div class="kpi-label">YMNP</div>
         <div class="kpi-value">${agg.ymnp}</div>
         <div class="kpi-meta">×3.0pt = ${(agg.ymnp * 3).toFixed(1)}pt</div>
       </div>
@@ -1165,7 +1160,7 @@ function renderMobileDashboard() {
       <div class="section-title">最近の報告</div>
       ${recent.length === 0 ? `
         <div class="empty-state">
-          <div style="font-size:32px;margin-bottom:8px">${icon('clipboard-list')}</div>
+          <div style="font-size:32px;margin-bottom:8px">📋</div>
           まだ今月の報告がありません
         </div>
       ` : `
@@ -1217,7 +1212,7 @@ function _adminTodayShiftCard() {
   if (Object.keys(siteMap).length === 0) {
     return `
       <div class="card fade-in" style="display:flex;align-items:center;gap:16px">
-        <div style="font-size:28px">${icon('calendar')}</div>
+        <div style="font-size:28px">📅</div>
         <div>
           <div style="font-size:11px;color:var(--text-sub);font-weight:600;letter-spacing:.8px;text-transform:uppercase;margin-bottom:4px">本日の出勤状況</div>
           <div style="font-size:14px;color:var(--text-sub)">本日のシフトが未設定です</div>
@@ -1228,7 +1223,7 @@ function _adminTodayShiftCard() {
   return `
     <div class="card fade-in">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-        <div class="section-title" style="margin-bottom:0">${icon('calendar')} 本日の出勤状況</div>
+        <div class="section-title" style="margin-bottom:0">📅 本日の出勤状況</div>
         <span style="font-size:12px;color:var(--text-sub)">出勤 <strong style="color:var(--green)">${totalWorking}</strong>名 / 休み ${totalOff}名</span>
       </div>
       <div style="display:flex;flex-direction:column;gap:10px">
@@ -1236,7 +1231,7 @@ function _adminTodayShiftCard() {
           const c = getSiteColor(site);
           return `
             <div style="border-radius:10px;border:1px solid ${c?.border || 'var(--border)'};background:${c?.bg || 'var(--surface2)'};padding:10px 14px">
-              <div style="font-size:12px;font-weight:700;color:${c?.text || 'var(--text)'};margin-bottom:6px">${icon('map-pin')} ${site}（${workers.length}名）</div>
+              <div style="font-size:12px;font-weight:700;color:${c?.text || 'var(--text)'};margin-bottom:6px">📍 ${site}（${workers.length}名）</div>
               <div style="display:flex;flex-wrap:wrap;gap:6px">
                 ${workers.map(u => `
                   <span style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:3px 8px;font-size:12px">${u.name}</span>
@@ -1258,13 +1253,13 @@ function _todayShiftCard(userId) {
   const workCount = getWorkingDaysCount(userId, month);
   const c = slot && slot.site !== '休み' ? getSiteColor(slot.site) : null;
 
-  let iconSlug, title, sub, chipHtml = '';
+  let icon, title, sub, chipHtml = '';
   if (!slot) {
-    iconSlug = 'calendar'; title = '本日のシフト未設定'; sub = '';
+    icon = '📅'; title = '本日のシフト未設定'; sub = '';
   } else if (slot.site === '休み') {
-    iconSlug = 'moon'; title = '本日はお休み'; sub = '';
+    icon = '🌙'; title = '本日はお休み'; sub = '';
   } else {
-    iconSlug = 'map-pin'; title = slot.site;
+    icon = '📍'; title = slot.site;
     sub  = slot.start ? `${slot.start} 〜 ${slot.end}` : '';
     chipHtml = `<div class="shift-chip" style="background:${c?.bg};color:${c?.text};border-color:${c?.border};margin-top:8px">${slot.site}</div>`;
     // 同じ現場の仲間
@@ -1280,7 +1275,7 @@ function _todayShiftCard(userId) {
 
   return `
     <div class="card fade-in" style="display:flex;align-items:flex-start;gap:16px">
-      <div style="font-size:28px;line-height:1;padding-top:2px">${icon(iconSlug)}</div>
+      <div style="font-size:28px;line-height:1;padding-top:2px">${icon}</div>
       <div style="flex:1">
         <div style="font-size:11px;color:var(--text-sub);font-weight:600;letter-spacing:.8px;text-transform:uppercase;margin-bottom:4px">本日のシフト</div>
         <div style="font-size:16px;font-weight:700">${title}</div>
@@ -1310,10 +1305,10 @@ function renderRefaDashboard() {
   document.getElementById('main').innerHTML = `
     <div class="page-header fade-in">
       <div>
-        <div class="page-title">こんにちは、${CU.name}さん ${icon('confetti')}</div>
+        <div class="page-title">こんにちは、${CU.name}さん 👋</div>
         <div class="page-sub">${monthLabel(month)}の実績サマリー</div>
       </div>
-      <button class="btn btn-primary" onclick="navigate('report')">${icon('edit')} 実績を報告する</button>
+      <button class="btn btn-primary" onclick="navigate('report')">📝 実績を報告する</button>
     </div>
 
     ${_todayShiftCard(CU.id)}
@@ -1321,17 +1316,17 @@ function renderRefaDashboard() {
     <div class="kpi-grid fade-in" style="grid-template-columns:repeat(3,1fr)">
       <div class="kpi-card" style="position:relative;overflow:hidden">
         <div style="position:absolute;top:0;left:0;right:0;height:3px;background:#f472b6"></div>
-        <div class="kpi-icon">${icon('diamond')}</div><div class="kpi-label">今月売上</div>
+        <div class="kpi-icon">💎</div><div class="kpi-label">今月売上</div>
         <div class="kpi-value" style="font-size:22px;color:#f472b6">${formatMoney(totalAmount)}</div>
         <div class="kpi-meta">${target?.amountTarget ? `目標: ${formatMoney(target.amountTarget)}` : '目標未設定'}</div>
       </div>
       <div class="kpi-card blue">
-        <div class="kpi-icon">${icon('clipboard-list')}</div><div class="kpi-label">報告件数</div>
+        <div class="kpi-icon">📋</div><div class="kpi-label">報告件数</div>
         <div class="kpi-value">${count}</div>
         <div class="kpi-meta">今月の報告回数</div>
       </div>
       <div class="kpi-card ${achieve !== null && achieve >= 100 ? 'green' : 'warn'}">
-        <div class="kpi-icon">${icon('chart-bar')}</div><div class="kpi-label">達成率</div>
+        <div class="kpi-icon">📊</div><div class="kpi-label">達成率</div>
         <div class="kpi-value" style="color:${achieveColor(achieve)}">${achieve !== null ? achieve + '%' : '—'}</div>
         <div class="kpi-meta">${target?.amountTarget ? '今月目標比' : '目標未設定'}</div>
       </div>
@@ -1377,10 +1372,10 @@ function renderStyleDashboard() {
   document.getElementById('main').innerHTML = `
     <div class="page-header fade-in">
       <div>
-        <div class="page-title">こんにちは、${CU.name}さん ${icon('confetti')}</div>
+        <div class="page-title">こんにちは、${CU.name}さん 👋</div>
         <div class="page-sub">${monthLabel(month)}の実績サマリー</div>
       </div>
-      <button class="btn btn-primary" onclick="navigate('report')">${icon('edit')} 実績を報告する</button>
+      <button class="btn btn-primary" onclick="navigate('report')">📝 実績を報告する</button>
     </div>
 
     ${_todayShiftCard(CU.id)}
@@ -1388,17 +1383,17 @@ function renderStyleDashboard() {
     <div class="kpi-grid fade-in" style="grid-template-columns:repeat(3,1fr)">
       <div class="kpi-card" style="position:relative;overflow:hidden">
         <div style="position:absolute;top:0;left:0;right:0;height:3px;background:#fbbf24"></div>
-        <div class="kpi-icon">${icon('sparkles')}</div><div class="kpi-label">今月売上</div>
+        <div class="kpi-icon">✨</div><div class="kpi-label">今月売上</div>
         <div class="kpi-value" style="font-size:22px;color:#fbbf24">${formatMoney(totalAmount)}</div>
         <div class="kpi-meta">${target?.amountTarget ? `目標: ${formatMoney(target.amountTarget)}` : '目標未設定'}</div>
       </div>
       <div class="kpi-card blue">
-        <div class="kpi-icon">${icon('clipboard-list')}</div><div class="kpi-label">報告件数</div>
+        <div class="kpi-icon">📋</div><div class="kpi-label">報告件数</div>
         <div class="kpi-value">${count}</div>
         <div class="kpi-meta">今月の報告回数</div>
       </div>
       <div class="kpi-card ${achieve !== null && achieve >= 100 ? 'green' : 'warn'}">
-        <div class="kpi-icon">${icon('chart-bar')}</div><div class="kpi-label">達成率</div>
+        <div class="kpi-icon">📊</div><div class="kpi-label">達成率</div>
         <div class="kpi-value" style="color:${achieveColor(achieve)}">${achieve !== null ? achieve + '%' : '—'}</div>
         <div class="kpi-meta">${target?.amountTarget ? '今月目標比' : '目標未設定'}</div>
       </div>
@@ -1435,14 +1430,14 @@ function renderBasicDashboard() {
   document.getElementById('main').innerHTML = `
     <div class="page-header fade-in">
       <div>
-        <div class="page-title">こんにちは、${CU.name}さん ${icon('confetti')}</div>
+        <div class="page-title">こんにちは、${CU.name}さん 👋</div>
         <div class="page-sub">${dept?.label || ''}</div>
       </div>
     </div>
     ${_todayShiftCard(CU.id)}
     ${_notificationsCard()}
     <div class="card fade-in" style="text-align:center;padding:40px">
-      <div style="font-size:40px;margin-bottom:12px">${icon('building')}</div>
+      <div style="font-size:40px;margin-bottom:12px">🏢</div>
       <div style="font-size:16px;font-weight:600;margin-bottom:6px">LUMP CORE</div>
       <div style="color:var(--text-sub);font-size:13px">
         ${getUserDisplayRole(CU)} / ${dept?.label || ''}<br>
@@ -1589,7 +1584,7 @@ function renderMobileReportPage() {
                   <td>${r.ym_shinki || 0}</td>
                   <td>${r.hikari_air || 0}</td>
                   <td style="color:var(--text-sub);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.memo || '—'}</td>
-                  <td><button class="btn-icon" onclick="confirmDeleteReport('${r.id}')">${icon('trash')}</button></td>
+                  <td><button class="btn-icon" onclick="confirmDeleteReport('${r.id}')">🗑️</button></td>
                 </tr>
               `).join('')}
             </tbody>
@@ -1666,11 +1661,11 @@ function renderRefaReportPage() {
         <input type="date" class="form-input" id="repDate" value="${todayStr()}">
       </div>
       <div class="form-group" style="margin-top:12px">
-        <label class="form-label">${icon('diamond')} 商材名</label>
+        <label class="form-label">💎 商材名</label>
         <input type="text" class="form-input" id="repProduct" placeholder="例: ReFa CARAT RAY">
       </div>
       <div class="form-group" style="margin-top:12px">
-        <label class="form-label">${icon('currency-yen')} 売上金額（円）</label>
+        <label class="form-label">💴 売上金額（円）</label>
         <input type="number" class="form-input" id="repAmount" placeholder="例: 28000" min="0">
       </div>
       <div class="form-group" style="margin-top:12px">
@@ -1695,7 +1690,7 @@ function renderRefaReportPage() {
                   <td><strong style="color:#f472b6">${r.productName || '—'}</strong></td>
                   <td><strong>${formatMoney(r.amount)}</strong></td>
                   <td style="color:var(--text-sub)">${r.memo || '—'}</td>
-                  <td><button class="btn-icon" onclick="confirmDeleteReport('${r.id}')">${icon('trash')}</button></td>
+                  <td><button class="btn-icon" onclick="confirmDeleteReport('${r.id}')">🗑️</button></td>
                 </tr>
               `).join('')}
             </tbody>
@@ -1743,11 +1738,11 @@ function renderStyleReportPage() {
         <input type="date" class="form-input" id="repDate" value="${todayStr()}">
       </div>
       <div class="form-group" style="margin-top:12px">
-        <label class="form-label">${icon('sparkles')} 商材名</label>
+        <label class="form-label">✨ 商材名</label>
         <input type="text" class="form-input" id="repProduct" placeholder="例: ReFa STYLE">
       </div>
       <div class="form-group" style="margin-top:12px">
-        <label class="form-label">${icon('currency-yen')} 売上金額（円）</label>
+        <label class="form-label">💴 売上金額（円）</label>
         <input type="number" class="form-input" id="repAmount" placeholder="例: 28000" min="0">
       </div>
       <div class="form-group" style="margin-top:12px">
@@ -1772,7 +1767,7 @@ function renderStyleReportPage() {
                   <td><strong style="color:#fbbf24">${r.productName || '—'}</strong></td>
                   <td><strong>${formatMoney(r.amount)}</strong></td>
                   <td style="color:var(--text-sub)">${r.memo || '—'}</td>
-                  <td><button class="btn-icon" onclick="confirmDeleteReport('${r.id}')">${icon('trash')}</button></td>
+                  <td><button class="btn-icon" onclick="confirmDeleteReport('${r.id}')">🗑️</button></td>
                 </tr>
               `).join('')}
             </tbody>
@@ -1802,9 +1797,9 @@ function submitStyleReport() {
 function confirmDeleteReport(reportId) {
   showModal(`
     <div class="modal-header">
-      <div style="font-size:20px">${icon('trash')}</div>
+      <div style="font-size:20px">🗑️</div>
       <div class="modal-title">報告を削除</div>
-      <button class="modal-close" onclick="closeModal()">${icon('x')}</button>
+      <button class="modal-close" onclick="closeModal()">✕</button>
     </div>
     <div class="modal-body">
       <p style="color:var(--text-sub)">この報告を削除しますか？元に戻せません。</p>
@@ -1943,20 +1938,13 @@ function renderTeam(filterDept) {
 // ═══════════════════════════════════════════════════════
 // ─── PAGE: ランキング ───
 // ═══════════════════════════════════════════════════════
-// 上位3位はメダルアイコン（色はCSSのrank-medal-*クラス）、4位以降は順位数字
-function _rankBadge(i) {
-  const medalClasses = ['rank-medal-gold', 'rank-medal-silver', 'rank-medal-bronze'];
-  return i < 3
-    ? `<span class="rank-medal ${medalClasses[i]}">${icon('medal')}</span>`
-    : String(i + 1);
-}
-
 function renderRanking() {
   if (!rankMonth) rankMonth = currentMonth();
 
   const level = roleLevel(CU.role);
   const isAdmin = level >= 5;
   const months = getAvailableMonths();
+  const medals = ['🥇', '🥈', '🥉'];
 
   // モバイルのみ商材別ランキング対応
   const isMobileRank = !rankItem || rankItem === '_refa' ? false : true;
@@ -2048,7 +2036,7 @@ function renderRanking() {
           : !rankItem ? '' : '';
         return `
           <div class="rank-item ${i < 3 ? 'rank-top' : ''}" ${u.sortVal === 0 ? 'style="opacity:.4"' : ''}>
-            <div class="rank-num">${u.sortVal > 0 ? _rankBadge(i) : '—'}</div>
+            <div class="rank-num">${u.sortVal > 0 ? (medals[i] || (i + 1)) : '—'}</div>
             <div class="avatar" style="background:${roleColor(u.role)}">${u.name[0]}</div>
             <div class="rank-info">
               <div class="rank-name">${u.name}</div>
@@ -2070,7 +2058,7 @@ function renderRanking() {
       ${refaStats.length === 0 ? `<div class="empty-state">${monthLabel(rankMonth)}のデータがありません</div>` :
         refaStats.map((u, i) => `
           <div class="rank-item ${i < 3 ? 'rank-top' : ''}" ${u.total === 0 ? 'style="opacity:.4"' : ''}>
-            <div class="rank-num">${u.total > 0 ? _rankBadge(i) : '—'}</div>
+            <div class="rank-num">${u.total > 0 ? (medals[i] || (i + 1)) : '—'}</div>
             <div class="avatar" style="background:${roleColor(u.role)}">${u.name[0]}</div>
             <div class="rank-info">
               <div class="rank-name">${u.name}</div>
@@ -2091,7 +2079,7 @@ function renderRanking() {
       ${styleStats.length === 0 ? `<div class="empty-state">${monthLabel(rankMonth)}のデータがありません</div>` :
         styleStats.map((u, i) => `
           <div class="rank-item ${i < 3 ? 'rank-top' : ''}" ${u.total === 0 ? 'style="opacity:.4"' : ''}>
-            <div class="rank-num">${u.total > 0 ? _rankBadge(i) : '—'}</div>
+            <div class="rank-num">${u.total > 0 ? (medals[i] || (i + 1)) : '—'}</div>
             <div class="avatar" style="background:${roleColor(u.role)}">${u.name[0]}</div>
             <div class="rank-info">
               <div class="rank-name">${u.name}</div>
@@ -2236,7 +2224,7 @@ function renderShifts() {
   // 現場凡例
   const siteLegend = sites.map((site, i) => {
     const c = SITE_COLORS[i % SITE_COLORS.length];
-    return `<span class="shift-chip" style="background:${c.bg};color:${c.text};border-color:${c.border}">${icon('map-pin')} ${site}</span>`;
+    return `<span class="shift-chip" style="background:${c.bg};color:${c.text};border-color:${c.border}">📍 ${site}</span>`;
   }).join('');
 
   // 社員行を生成
@@ -2402,7 +2390,7 @@ function renderShiftsMonth() {
         let reportBadge = '';
         if (needsReport && slot && !isOff && ds <= today) {
           if (reportedDates.has(ds)) {
-            reportBadge = `<div class="report-badge report-ok">${icon('check')} 報告済</div>`;
+            reportBadge = `<div class="report-badge report-ok">✓ 報告済</div>`;
           } else {
             reportBadge = `<div class="report-badge report-missing">! 未報告</div>`;
           }
@@ -2535,13 +2523,13 @@ function openShiftModal(userId, dateStr) {
     <div class="modal-header">
       <div class="avatar" style="background:${roleColor(u.role)};width:32px;height:32px;font-size:12px">${u.name[0]}</div>
       <div class="modal-title">${u.name} — ${parseInt(mm)}/${parseInt(dd)}</div>
-      <button class="modal-close" onclick="closeModal()">${icon('x')}</button>
+      <button class="modal-close" onclick="closeModal()">✕</button>
     </div>
     <div class="modal-body">
       <div class="form-group">
         <label class="form-label">現場</label>
         <select class="form-select" id="ms_site">
-          <option value="休み" ${slot?.site === '休み' || !slot ? 'selected' : ''}>休み</option>
+          <option value="休み" ${slot?.site === '休み' || !slot ? 'selected' : ''}>🗓 休み</option>
           ${sites.map(s => `<option value="${s}" ${slot?.site === s ? 'selected' : ''}>${s}</option>`).join('')}
         </select>
       </div>
@@ -2700,7 +2688,7 @@ function renderShiftsPlan() {
           <button class="btn btn-ghost" style="padding:6px 12px;font-size:16px" onclick="moveShiftPlanMonth(-1)">◀</button>
           <span style="font-weight:700;min-width:100px;text-align:center;font-size:14px">${monthLabel(shiftPlanMonth)}</span>
           <button class="btn btn-ghost" style="padding:6px 12px;font-size:16px" onclick="moveShiftPlanMonth(1)">▶</button>
-          <button class="btn btn-outline" onclick="openVenuePlanModal()" style="font-size:12px">${icon('settings')} 現場・コマ数設定</button>
+          <button class="btn btn-outline" onclick="openVenuePlanModal()" style="font-size:12px">⚙ 現場・コマ数設定</button>
         </div>
       </div>
       <div class="splan-scroll-wrap">
@@ -2727,7 +2715,7 @@ function renderShiftsPlan() {
     <!-- 現場コマ数バー -->
     <div class="card fade-in" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:12px 16px">
       <span style="font-size:11px;color:var(--text-sub);font-weight:600;white-space:nowrap">現場コマ数(/月)：</span>
-      ${venueBarHtml || `<span style="font-size:12px;color:var(--text-sub)">${icon('settings')} 現場・コマ数設定 から設定してください</span>`}
+      ${venueBarHtml || '<span style="font-size:12px;color:var(--text-sub)">⚙ 現場・コマ数設定 から設定してください</span>'}
     </div>
   `;
 }
@@ -2773,7 +2761,7 @@ function openHiddenDatesModal() {
     <div class="modal-header">
       <div class="modal-title">非表示の日付</div>
       <div style="font-size:12px;color:var(--text-sub)">${monthLabel(shiftPlanMonth)}</div>
-      <button class="modal-close" onclick="closeModal()">${icon('x')}</button>
+      <button class="modal-close" onclick="closeModal()">✕</button>
     </div>
     <div class="modal-body">
       <p style="font-size:12px;color:var(--text-sub);margin-bottom:8px">
@@ -2857,7 +2845,7 @@ function openVenuePlanModal() {
     <div class="modal-header">
       <div class="modal-title">現場・コマ数設定</div>
       <div style="font-size:12px;color:var(--text-sub)">${monthLabel(shiftPlanMonth)}</div>
-      <button class="modal-close" onclick="closeModal()">${icon('x')}</button>
+      <button class="modal-close" onclick="closeModal()">✕</button>
     </div>
     <div class="modal-body">
       <p style="font-size:12px;color:var(--text-sub);margin-bottom:4px">
@@ -2934,13 +2922,13 @@ function openPlanCellModal(userId, dateStr) {
     <div class="modal-header">
       <div class="avatar" style="background:${roleColor(u.role)};width:32px;height:32px;font-size:12px">${u.name[0]}</div>
       <div class="modal-title">${u.name} — ${parseInt(mm)}/${parseInt(dd)}</div>
-      <button class="modal-close" onclick="closeModal()">${icon('x')}</button>
+      <button class="modal-close" onclick="closeModal()">✕</button>
     </div>
     <div class="modal-body">
       <div class="form-group">
         <label class="form-label">現場</label>
         <select class="form-select" id="pc_site">
-          <option value="休み" ${slot?.site === '休み' || !slot ? 'selected' : ''}>休み / 未設定</option>
+          <option value="休み" ${slot?.site === '休み' || !slot ? 'selected' : ''}>🗓 休み / 未設定</option>
           ${siteOptions}
         </select>
       </div>
@@ -2996,7 +2984,7 @@ function _memberRowsHTML(users) {
           onclick="openEditMember('${u.id}')">編集</button>
         ${u.id !== CU.id ? `
           <button class="btn btn-ghost" style="font-size:12px;padding:6px 12px"
-            onclick="confirmImpersonate('${u.id}')">${icon('mask')} 代理ログイン</button>
+            onclick="confirmImpersonate('${u.id}')">🎭 代理ログイン</button>
           <button class="btn btn-danger" style="font-size:12px;padding:6px 12px"
             onclick="confirmDeleteMember('${u.id}')">削除</button>
         ` : '<span style="font-size:11px;color:var(--text-sub)">(自分)</span>'}
@@ -3069,18 +3057,18 @@ function renderMembers() {
         <div id="member-sub" class="page-sub">ユーザーの追加・編集・削除（${users.length} / ${totalAll}名）</div>
       </div>
       <div style="display:flex;gap:8px">
-        <button class="btn btn-ghost" onclick="openPermissionGuide()">${icon('book')} 権限ガイド</button>
+        <button class="btn btn-ghost" onclick="openPermissionGuide()">📖 権限ガイド</button>
         <button class="btn btn-primary" onclick="openAddMember()">＋ メンバー追加</button>
       </div>
     </div>
     <div class="member-controls fade-in">
       <div class="tc-search-wrap" style="max-width:300px">
-        <span class="tc-search-icon">${icon('search')}</span>
+        <span class="tc-search-icon">🔍</span>
         <input type="text" id="member-q" class="tc-search-input" placeholder="名前・事業部・役職で検索"
           value="${memberQuery.replace(/"/g, '&quot;')}"
           oninput="setMemberQuery(this.value)">
         <button id="member-clear" class="tc-search-clear" onclick="setMemberQuery('')"
-          style="${memberQuery ? '' : 'display:none'}">${icon('x')}</button>
+          style="${memberQuery ? '' : 'display:none'}">✕</button>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         ${deptFilters.map(f => `
@@ -3170,7 +3158,7 @@ function renderSettings() {
 
     <div class="card fade-in mobile-only" style="border-color:rgba(255,79,106,.25)">
       <div class="section-title" style="color:var(--danger)">アカウント</div>
-      <button class="btn btn-danger" style="width:100%" onclick="logout()">${icon('door-exit')} ログアウト</button>
+      <button class="btn btn-danger" style="width:100%" onclick="logout()">🚪 ログアウト</button>
     </div>
   `;
 }
@@ -3204,9 +3192,9 @@ function openPermissionGuide() {
   const roles = Object.entries(ROLES).sort((a, b) => b[1].level - a[1].level);
   showWideModal(`
     <div class="modal-header">
-      <div style="font-size:20px">${icon('book')}</div>
+      <div style="font-size:20px">📖</div>
       <div class="modal-title">権限ガイド</div>
-      <button class="modal-close" onclick="closeModal()">${icon('x')}</button>
+      <button class="modal-close" onclick="closeModal()">✕</button>
     </div>
     <div class="modal-body">
       <p style="color:var(--text-sub);font-size:13px;margin-bottom:16px">各ロールでできることの一覧です（閲覧専用）。</p>
@@ -3252,9 +3240,9 @@ function _readReportTypeChecks(containerId) {
 function openAddMember() {
   showModal(`
     <div class="modal-header">
-      <div style="font-size:20px">${icon('user')}</div>
+      <div style="font-size:20px">👤</div>
       <div class="modal-title">メンバー追加</div>
-      <button class="modal-close" onclick="closeModal()">${icon('x')}</button>
+      <button class="modal-close" onclick="closeModal()">✕</button>
     </div>
     <div class="modal-body">
       <div class="form-group">
@@ -3313,9 +3301,9 @@ function openEditMember(userId) {
 
   showModal(`
     <div class="modal-header">
-      <div style="font-size:20px">${icon('pencil')}</div>
+      <div style="font-size:20px">✏️</div>
       <div class="modal-title">メンバー編集</div>
-      <button class="modal-close" onclick="closeModal()">${icon('x')}</button>
+      <button class="modal-close" onclick="closeModal()">✕</button>
     </div>
     <div class="modal-body">
       <div class="form-group">
@@ -3386,9 +3374,9 @@ function confirmDeleteMember(userId) {
   if (!u) return;
   showModal(`
     <div class="modal-header">
-      <div style="font-size:20px">${icon('alert-triangle')}</div>
+      <div style="font-size:20px">⚠️</div>
       <div class="modal-title">メンバー削除</div>
-      <button class="modal-close" onclick="closeModal()">${icon('x')}</button>
+      <button class="modal-close" onclick="closeModal()">✕</button>
     </div>
     <div class="modal-body">
       <p><strong>${u.name}</strong> を削除しますか？</p>
@@ -3550,16 +3538,16 @@ function renderTalent() {
         <div class="page-title">メンバーステータス</div>
         <div id="talent-sub" class="page-sub">生産性指標 × ジョブ面談を中核にした1人1カード（${users.length} / ${totalAll}名）</div>
       </div>
-      ${level >= 5 ? `<button class="btn btn-ghost" onclick="openSkillTemplateEditor()">${icon('clipboard-list')} スキルシート設定</button>` : ''}
+      ${level >= 5 ? `<button class="btn btn-ghost" onclick="openSkillTemplateEditor()">📋 スキルシート設定</button>` : ''}
     </div>
     <div class="tc-controls fade-in">
       <div class="tc-search-wrap">
-        <span class="tc-search-icon">${icon('search')}</span>
+        <span class="tc-search-icon">🔍</span>
         <input type="text" id="talent-q" class="tc-search-input" placeholder="名前・職務・役職で検索"
           value="${talentQuery.replace(/"/g, '&quot;')}"
           oninput="setTalentQuery(this.value)">
         <button id="talent-clear" class="tc-search-clear" onclick="setTalentQuery('')"
-          style="${talentQuery ? '' : 'display:none'}">${icon('x')}</button>
+          style="${talentQuery ? '' : 'display:none'}">✕</button>
       </div>
       <select class="form-select tc-sort-select" onchange="setTalentSort(this.value)">
         ${sortOptions.map(o => `<option value="${o.key}" ${talentSortKey === o.key ? 'selected' : ''}>${o.label}</option>`).join('')}
@@ -3653,7 +3641,7 @@ function _tcCardHTML(user, canEdit) {
   // フッタータグ
   const tags = [];
   if (card.lastInterviewDate) tags.push(`<span class="tc-tag">面談 ${formatDate(card.lastInterviewDate)}</span>`);
-  if (card.nextRoleCandidate) tags.push(`<span class="tc-tag accent">${icon('arrow-up')} ${card.nextRoleCandidate}</span>`);
+  if (card.nextRoleCandidate) tags.push(`<span class="tc-tag accent">↑ ${card.nextRoleCandidate}</span>`);
   if (card.nextReviewDate) {
     const diff = (new Date(card.nextReviewDate) - new Date()) / 86400000;
     tags.push(`<span class="tc-tag ${diff < 30 ? 'warn' : ''}">見直 ${formatDate(card.nextReviewDate)}</span>`);
@@ -3671,7 +3659,7 @@ function _tcCardHTML(user, canEdit) {
           ${card.joinMonth ? `<div class="tc-join">入社 ${card.joinMonth.replace('-', '年')}月 <span class="tc-tenure">（${calcTenure(card.joinMonth)}）</span></div>` : ''}
         </div>
         ${canEdit ? `<button class="btn btn-ghost" style="font-size:11px;padding:4px 10px;align-self:flex-start;flex-shrink:0"
-          onclick="event.stopPropagation();openTalentCard('${user.id}')">詳細 ${icon('arrow-right')}</button>` : ''}
+          onclick="event.stopPropagation();openTalentCard('${user.id}')">詳細 →</button>` : ''}
       </div>
       <div class="tc-metrics">${scoreHTML}${skillHTML}</div>
       ${bodyHTML}
@@ -3983,7 +3971,7 @@ function renderProfile() {
   document.getElementById('main').innerHTML = `
     <div class="profile-page fade-in">
       <div class="profile-topbar">
-        ${isOwnProfile ? '' : `<button class="btn btn-ghost profile-back" onclick="navigate('talent')">${icon('arrow-left')} 一覧へ</button>`}
+        ${isOwnProfile ? '' : `<button class="btn btn-ghost profile-back" onclick="navigate('talent')">← 一覧へ</button>`}
         ${canEdit ? `<button class="btn btn-primary" style="margin-left:auto" onclick="saveProfileCard('${user.id}')">保存する</button>` : ''}
       </div>
 
@@ -4041,7 +4029,7 @@ function renderProfile() {
 
         <div class="profile-right">
           <div class="profile-tabs">
-            ${isMobile ? `<button class="profile-tab ${profileActiveTab === 'info' ? 'active' : ''}" onclick="switchProfileTab('info')">${icon('user')} プロフ</button>` : ''}
+            ${isMobile ? `<button class="profile-tab ${profileActiveTab === 'info' ? 'active' : ''}" onclick="switchProfileTab('info')">👤 プロフ</button>` : ''}
             <button class="profile-tab ${profileActiveTab === 'perf' ? 'active' : ''}" onclick="switchProfileTab('perf')">実績</button>
             <button class="profile-tab ${profileActiveTab === 'skill' ? 'active' : ''}" onclick="switchProfileTab('skill')">スキル</button>
             <button class="profile-tab ${profileActiveTab === 'history' ? 'active' : ''}" onclick="switchProfileTab('history')">経歴・面談</button>
@@ -4076,7 +4064,7 @@ function renderProfile() {
             </div>
             ${canEdit ? `
             <div style="margin-top:8px">
-              <button class="btn btn-ghost" style="font-size:12px" onclick="uploadTalentPhoto('${user.id}')">${icon('camera')} 写真変更</button>
+              <button class="btn btn-ghost" style="font-size:12px" onclick="uploadTalentPhoto('${user.id}')">📷 写真変更</button>
               ${photo ? `<button class="btn btn-ghost" style="font-size:12px;color:var(--danger);margin-left:8px" onclick="removeTalentPhoto('${user.id}')">削除</button>` : ''}
             </div>` : ''}
           </div>` : ''}
@@ -4616,7 +4604,7 @@ function openTalentCardModal(userId, activeTab = 'basic') {
         ${photo ? `<img src="${photo}" alt="">` : `<div class="tm-photo-av" style="background:${roleColor(user.role)};font-size:16px">${user.name[0]}</div>`}
       </div>
       <div class="modal-title">${user.name}<span style="font-size:12px;font-weight:400;color:var(--text-sub);margin-left:8px">${deptLabel(user.dept)} / ${getUserDisplayRole(user)}</span></div>
-      <button class="modal-close" onclick="closeModal()">${icon('x')}</button>
+      <button class="modal-close" onclick="closeModal()">✕</button>
     </div>
 
     <div class="tm-tabs">
@@ -4856,7 +4844,7 @@ function _renderSkillTemplateEditor() {
           <div class="ste-item-row">
             <input class="form-input ste-item-text" id="ste_item_${ci}_${ii}" value="${item.text}" placeholder="評価項目の文章">
             <button class="btn btn-ghost" style="font-size:11px;padding:5px 10px;flex-shrink:0;color:var(--danger)"
-              onclick="steDeleteItem(${ci},${ii})">${icon('x')}</button>
+              onclick="steDeleteItem(${ci},${ii})">✕</button>
           </div>`).join('')}
       </div>
       <button class="btn btn-ghost" style="font-size:12px;width:100%" onclick="steAddItem(${ci})">＋ 項目を追加</button>
@@ -4864,9 +4852,9 @@ function _renderSkillTemplateEditor() {
 
   showWideModal(`
     <div class="modal-header">
-      <div style="font-size:20px">${icon('clipboard-list')}</div>
+      <div style="font-size:20px">📋</div>
       <div class="modal-title">スキルシート設定</div>
-      <button class="modal-close" onclick="closeModal()">${icon('x')}</button>
+      <button class="modal-close" onclick="closeModal()">✕</button>
     </div>
     <div class="modal-body" style="max-height:65vh;overflow-y:auto">
       <div style="font-size:12px;color:var(--text-sub);margin-bottom:16px">
@@ -5061,7 +5049,7 @@ function _renderVAWeekday(achieve, canEdit) {
   const totalRate   = calcAchieve(totalActual, totalBudget);
 
   const venueCards = sites.length === 0
-    ? `<div class="card fade-in" style="text-align:center;color:var(--text-sub);padding:20px 0">${icon('settings')} 設定 → 現場・コマ数設定 から現場を追加してください</div>`
+    ? `<div class="card fade-in" style="text-align:center;color:var(--text-sub);padding:20px 0">⚙ 設定 → 現場・コマ数設定 から現場を追加してください</div>`
     : sites.map(site => _renderWdVenueCard(site, wdData[site] || {}, canEdit)).join('');
 
   return `
@@ -5395,7 +5383,7 @@ function _renderVAWeekend(achieve, canEdit) {
                  </div>`
               : `<span style="color:var(--text-sub);font-size:11px">予算未設定</span>`}
           </td>
-          ${canEdit ? `<td style="padding:6px 8px"><button class="btn" style="font-size:11px;padding:3px 8px;background:rgba(255,149,179,.15);color:var(--danger);border:1px solid rgba(255,149,179,.3)" onclick="venueAchieveRemoveWeekendSite('${sat}',${idx})">${icon('x')}</button></td>` : ''}
+          ${canEdit ? `<td style="padding:6px 8px"><button class="btn" style="font-size:11px;padding:3px 8px;background:rgba(255,149,179,.15);color:var(--danger);border:1px solid rgba(255,149,179,.3)" onclick="venueAchieveRemoveWeekendSite('${sat}',${idx})">✕</button></td>` : ''}
         </tr>`;
     }).join('');
 

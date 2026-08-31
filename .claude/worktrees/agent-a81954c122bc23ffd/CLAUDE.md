@@ -230,7 +230,6 @@
 - **アニメーション:** `.fade-in` クラスをページコンテンツに付与
 - **モーダル:** `showModal(html)` / `showWideModal(html)` / `closeModal()`
 - **トースト通知:** `showToast(msg, type)` — type は `'success'` | `'error'`
-- **アイコン:** 2026年8月にemoji表示から [Tabler Icons](https://tabler.io/icons)（outline、MITライセンス）へ全面移行した。CDNは使わず、`app.html`（メインアプリ用・約40種）と `index.html`（ログイン画面用・1種）それぞれの `<body>` 冒頭に `<svg style="display:none"><symbol id="ic-{slug}" viewBox="0 0 24 24">...</symbol>...</svg>` という非表示スプライトをインラインで埋め込んでいる。表示側は `js/app.js` の `icon(name, cls)` ヘルパー（`<svg class="ico"><use href="#ic-{name}"></use></svg>` を返す）を `${icon('home')}` のようにテンプレートリテラル内で呼ぶ。サイズ・色は `css/base.css` の `.ico` クラス（`width/height:1em`、`stroke:currentColor`）が周囲のテキストのfont-size/colorを継承する形で決まるため、絵文字だった頃と同じ感覚で配置できる。塗りつぶしアイコン（ステータスドットの `circle-filled` など）には `.ico-filled` を併用する。新しいアイコンを追加する場合は、tabler-icons公式リポジトリまたはjsdelivrミラーの outline SVG から中身の `<path>` 等だけを抜き出し、両HTMLのスプライトに `<symbol id="ic-{slug}">` を追加すること。`<option>` 要素の中やトースト（`showToast`はtextContentで挿入するためHTML不可）にはSVGを描画できないので、そうした箇所は絵文字を使わずプレーンテキストのみにしている。
 
 ---
 

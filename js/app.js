@@ -323,6 +323,9 @@ function renderBottomNav() {
   const el = document.getElementById('bottomnav');
   if (!el) return;
 
+  const prevScroll = document.getElementById('bottomnavScroll');
+  const savedScrollLeft = prevScroll ? prevScroll.scrollLeft : 0;
+
   const level = roleLevel(CU.role);
   const hasReport = getUserReportTypes(CU).length > 0;
   const canSeeTeam = (level >= 2 && CU.dept === 'mobile') || level >= 5;
@@ -360,6 +363,7 @@ function renderBottomNav() {
   `;
 
   const scroll = document.getElementById('bottomnavScroll');
+  scroll.scrollLeft = savedScrollLeft;
   scroll.addEventListener('scroll', _updateBottomNavFade, { passive: true });
   _updateBottomNavFade();
 }
@@ -964,7 +968,7 @@ function renderAdminDashboard() {
       </div>
     </div>
 
-    <div class="kpi-grid fade-in" style="grid-template-columns:repeat(5,1fr)">
+    <div class="kpi-grid kpi-cols-5 fade-in">
       <div class="kpi-card blue">
         <div class="kpi-icon">${icon('device-mobile')}</div>
         <div class="kpi-label">MNP合計</div>
@@ -1088,7 +1092,7 @@ function renderMobileDashboard() {
     const unreported = mobileUsers.filter(u => !reportedIds.has(u.id)).length;
 
     teamSection = `
-      <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr)">
+      <div class="kpi-grid kpi-cols-3">
         <div class="kpi-card blue">
           <div class="kpi-icon">${icon('star')}</div><div class="kpi-label">チーム総合計PT</div>
           <div class="kpi-value">${teamAgg.totalPt.toFixed(1)}</div><div class="kpi-meta">チーム合計</div>
@@ -1318,7 +1322,7 @@ function renderRefaDashboard() {
 
     ${_todayShiftCard(CU.id)}
 
-    <div class="kpi-grid fade-in" style="grid-template-columns:repeat(3,1fr)">
+    <div class="kpi-grid kpi-cols-3 fade-in">
       <div class="kpi-card" style="position:relative;overflow:hidden">
         <div style="position:absolute;top:0;left:0;right:0;height:3px;background:#f472b6"></div>
         <div class="kpi-icon">${icon('diamond')}</div><div class="kpi-label">今月売上</div>
@@ -1385,7 +1389,7 @@ function renderStyleDashboard() {
 
     ${_todayShiftCard(CU.id)}
 
-    <div class="kpi-grid fade-in" style="grid-template-columns:repeat(3,1fr)">
+    <div class="kpi-grid kpi-cols-3 fade-in">
       <div class="kpi-card" style="position:relative;overflow:hidden">
         <div style="position:absolute;top:0;left:0;right:0;height:3px;background:#fbbf24"></div>
         <div class="kpi-icon">${icon('sparkles')}</div><div class="kpi-label">今月売上</div>

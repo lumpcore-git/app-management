@@ -5873,7 +5873,7 @@ function renderVenueAchieveWeekday() {
         <div class="page-title">平日達成率</div>
         <div class="page-sub">${monthLabel(venueAchieveMonth)}の現場別・平日予算達成状況</div>
       </div>
-      <select class="form-input-sm" onchange="venueAchieveMonth=this.value;renderVenueAchieveWeekday()">
+      <select class="filter-select" onchange="venueAchieveMonth=this.value;renderVenueAchieveWeekday()">
         ${months.map(m => `<option value="${m}" ${m===venueAchieveMonth?'selected':''}>${monthLabel(m)}</option>`).join('')}
       </select>
     </div>
@@ -5913,7 +5913,7 @@ function renderVenueAchieveWeekend() {
         <div class="page-title">週末達成率</div>
         <div class="page-sub">${monthLabel(venueAchieveMonth)}の週末別予算達成状況</div>
       </div>
-      <select class="form-input-sm" onchange="venueAchieveMonth=this.value;venueWeekendSelectedSat='';renderVenueAchieveWeekend()">
+      <select class="filter-select" onchange="venueAchieveMonth=this.value;venueWeekendSelectedSat='';renderVenueAchieveWeekend()">
         ${months.map(m => `<option value="${m}" ${m===venueAchieveMonth?'selected':''}>${monthLabel(m)}</option>`).join('')}
       </select>
     </div>
@@ -5949,7 +5949,7 @@ function _renderVAWeekendChart(weekends, weAchieve, trendSiteNames) {
           onclick="venueWeekendChartMode='by_site';renderVenueAchieveWeekend()">現場別推移</button>
       </div>
       ${venueWeekendChartMode === 'by_weekend' && weekends.length > 0 ? `
-        <select class="form-input-sm" onchange="venueWeekendSelectedSat=this.value;renderVenueAchieveWeekend()">
+        <select class="filter-select" onchange="venueWeekendSelectedSat=this.value;renderVenueAchieveWeekend()">
           ${weekends.map(({sat, sun}) => {
             const lbl = formatDate(sat) + '(土)' + (sun ? '・' + formatDate(sun) + '(日)' : '');
             return `<option value="${sat}" ${sat===venueWeekendSelectedSat?'selected':''}>${lbl}</option>`;
@@ -5957,10 +5957,10 @@ function _renderVAWeekendChart(weekends, weAchieve, trendSiteNames) {
         </select>
       ` : ''}
       ${venueWeekendChartMode === 'by_site' && trendSiteNames.length > 0 ? `
-        <select class="form-input-sm" onchange="venueWeekendSelectedSite=this.value;renderVenueAchieveWeekend()">
+        <select class="filter-select" onchange="venueWeekendSelectedSite=this.value;renderVenueAchieveWeekend()">
           ${trendSiteNames.map(n => `<option value="${n}" ${n===venueWeekendSelectedSite?'selected':''}>${n}</option>`).join('')}
         </select>
-        <select class="form-input-sm" onchange="venueWeekendTrendMonths=parseInt(this.value);renderVenueAchieveWeekend()">
+        <select class="filter-select" onchange="venueWeekendTrendMonths=parseInt(this.value);renderVenueAchieveWeekend()">
           <option value="3" ${venueWeekendTrendMonths===3?'selected':''}>3ヶ月</option>
           <option value="6" ${venueWeekendTrendMonths===6?'selected':''}>6ヶ月</option>
           <option value="12" ${venueWeekendTrendMonths===12?'selected':''}>12ヶ月</option>

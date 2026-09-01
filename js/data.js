@@ -100,6 +100,8 @@ const LS = {
   theme:          'lc_theme',
   jobHistory:     'lc_job_history',
   interviewLogs:  'lc_interview_logs',
+  teams:          'lc_teams',
+  teamPeriod:     'lc_team_period',
 };
 
 // ─── STORAGE ADAPTER ───
@@ -119,7 +121,7 @@ const LS = {
 const CLOUD_KEYS = new Set([
   'lc_users', 'lc_reports', 'lc_targets', 'lc_shift_schedules',
   'lc_shift_sites', 'lc_talent', 'lc_photos', 'lc_skill_template',
-  'lc_skill_eval', 'lc_venue_plans',
+  'lc_skill_eval', 'lc_venue_plans', 'lc_teams', 'lc_team_period',
 ]);
 
 const Store = {
@@ -180,6 +182,8 @@ function initData() {
   if (!Store.get(LS.shiftSites))      Store.set(LS.shiftSites, DEFAULT_SHIFT_SITES);
   if (!Store.get(LS.shiftSchedules))  Store.set(LS.shiftSchedules, buildInitialShiftSchedules());
   if (!Store.get(LS.shiftVenuePlans)) Store.set(LS.shiftVenuePlans, {});
+  if (!Store.get(LS.teams))          Store.set(LS.teams, []);
+  if (!Store.get(LS.teamPeriod))     Store.set(LS.teamPeriod, { label: '' });
 
   // MBTIサンプルデータ（未設定時のみ）
   const _mbtiSeeds = {
@@ -301,6 +305,115 @@ function _upsertTarget(userId, month, fields) {
 // 後方互換性のためのエイリアス
 function setTarget(userId, month, mnpTarget, shinkiTarget) {
   setMobileTarget(userId, month, mnpTarget, shinkiTarget);
+}
+
+// ─── TEAMS (四半期ごとの社員間チーム編成) ───
+// 事業部・報告タイプを問わず全社員から自由に編成でき、1人が複数チームに所属できる。
+// チーム作成・削除・期間編集はadmin(level5)専用。チーム名変更・メンバー編成・リーダー設定は
+// admin、またはそのチームの現リーダー（leaderId===本人）が行える（app.js側の_canManageTeam()相当の判定でチェック）。
+// チーム共通目標は本人（memberIds所属者）またはadminが編集する。個人の数値目標(memberTargets)は
+// admin・チームリーダー・本人のいずれかが編集する（app.js側でチェック）。
+function getTeams() {
+  return Store.get(LS.teams, []);
+}
+function saveTeams(teams) {
+  Store.set(LS.teams, teams);
+}
+function getTeamById(id) {
+  return getTeams().find(t => t.id === id) || null;
+}
+function getTeamsForUser(userId) {
+  return getTeams().filter(t => t.memberIds.includes(userId));
+}
+function createTeam(name, memberIds) {
+  const teams = getTeams();
+  const team = {
+    id: 'team' + Date.now(),
+    name,
+    memberIds: memberIds || [],
+    leaderId: null,        // チームリーダー（memberIdsのいずれかのuserId、未設定はnull）
+    goalText: '',
+    memberGoals: {},         // { [userId]: 個人目標テキスト }（期間全体）
+    memberGoalsByMonth: {},  // { [userId]: { [month]: 個人目標テキスト } }（月次）
+    memberTargets: {},       // { [userId]: { type: 'pt'|'amount', value } } 個人の数値目標（期間全体）
+    memberTargetsByMonth: {}, // { [userId]: { [month]: { type, value } } } 個人の数値目標（月次）
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  teams.push(team);
+  saveTeams(teams);
+  return team;
+}
+function updateTeamMeta(teamId, fields) {
+  _upsertTeam(teamId, fields);
+}
+function deleteTeam(teamId) {
+  saveTeams(getTeams().filter(t => t.id !== teamId));
+}
+function setTeamGoalText(teamId, text) {
+  _upsertTeam(teamId, { goalText: text });
+}
+function setTeamMemberGoal(teamId, userId, text) {
+  const team = getTeamById(teamId);
+  if (!team) return;
+  const memberGoals = { ...(team.memberGoals || {}), [userId]: text };
+  _upsertTeam(teamId, { memberGoals });
+}
+// 個人目標（月次）を設定する
+function setTeamMemberGoalForMonth(teamId, userId, month, text) {
+  const team = getTeamById(teamId);
+  if (!team) return;
+  const memberGoalsByMonth = { ...(team.memberGoalsByMonth || {}) };
+  memberGoalsByMonth[userId] = { ...(memberGoalsByMonth[userId] || {}), [month]: text };
+  _upsertTeam(teamId, { memberGoalsByMonth });
+}
+function setTeamLeader(teamId, leaderId) {
+  _upsertTeam(teamId, { leaderId: leaderId || null });
+}
+// 個人の数値目標（期間全体）を設定/削除する（targetがnullなら削除）
+function setTeamMemberTarget(teamId, userId, target) {
+  const team = getTeamById(teamId);
+  if (!team) return;
+  const memberTargets = { ...(team.memberTargets || {}) };
+  if (target) memberTargets[userId] = target;
+  else delete memberTargets[userId];
+  _upsertTeam(teamId, { memberTargets });
+}
+// 個人の数値目標（月次）を設定/削除する（targetがnullなら削除）
+function setTeamMemberTargetForMonth(teamId, userId, month, target) {
+  const team = getTeamById(teamId);
+  if (!team) return;
+  const memberTargetsByMonth = { ...(team.memberTargetsByMonth || {}) };
+  const byMonth = { ...(memberTargetsByMonth[userId] || {}) };
+  if (target) byMonth[month] = target;
+  else delete byMonth[month];
+  memberTargetsByMonth[userId] = byMonth;
+  _upsertTeam(teamId, { memberTargetsByMonth });
+}
+function _upsertTeam(teamId, fields) {
+  const teams = getTeams();
+  const idx = teams.findIndex(t => t.id === teamId);
+  if (idx < 0) return;
+  const merged = { ...teams[idx], ...fields, updatedAt: new Date().toISOString() };
+  // メンバー編成の変更でリーダーが外れた場合はリーダー設定を解除する
+  if (merged.leaderId && !merged.memberIds.includes(merged.leaderId)) merged.leaderId = null;
+  teams[idx] = merged;
+  saveTeams(teams);
+}
+// 個人の数値目標に対する当月実績を集計する（typeに一致する報告タイプの合計）
+function getMemberTargetActual(userId, type, month) {
+  const mon = month || currentMonth();
+  const uReports = getUserReportsForMonth(userId, mon).filter(r =>
+    type === 'pt' ? (!r.type || r.type === 'mobile') : (r.type === 'refa' || r.type === 'style')
+  );
+  if (type === 'pt') return aggregateReports(uReports).totalPt;
+  return uReports.reduce((s, r) => s + (r.amount || 0), 0);
+}
+function getTeamPeriod() {
+  return Store.get(LS.teamPeriod, { label: '' });
+}
+function setTeamPeriod(label) {
+  Store.set(LS.teamPeriod, { label });
 }
 
 // ─── SHIFTS (日付ベース) ───

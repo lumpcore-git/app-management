@@ -108,6 +108,37 @@
 { userId, month: '2026-03', amountTarget: 100000 }
 ```
 
+### チーム（localStorage: `lc_teams`）
+四半期ごとに社員同士が事業部・報告タイプを問わず自由に組む「チーム」。1人が複数チームに所属できる。
+- チームの作成・削除・期間編集: admin(level5)専用
+- チーム名変更・メンバー編成・リーダー設定: admin、またはそのチームの現リーダー（`leaderId===本人`）。app.js側の `canManage = isAdmin || team.leaderId === CU.id` 相当の判定でチェックする
+- チーム共通目標: `memberIds`に含まれる本人、またはadmin
+- メンバー個人目標（`memberGoals`/`memberGoalsByMonth`）: そのメンバー本人、またはadmin
+- メンバー個人の数値目標（`memberTargets`/`memberTargetsByMonth`）: admin、そのチームのリーダー、またはそのメンバー本人（`canManage || u.id === CU.id`）
+```javascript
+{
+  id: 'team1234567890',
+  name: 'チームA',
+  memberIds: ['u1', 'u5', 'u12'],       // 事業部・報告タイプ不問。1人が複数チームに所属可
+  leaderId: null,                        // チームリーダー（memberIdsのいずれかのuserId、またはnull）
+  goalText: '',                          // チーム共通目標（自由記述。定量・定性が混在してよい）
+  memberGoals: { u1: '...', u5: '...' }, // メンバー個人目標（自由記述、キーはuserId）期間全体分
+  memberGoalsByMonth: { u1: { '2026-07': '...' } }, // メンバー個人目標の月次版（キーはuserId→month）
+  memberTargets: { u1: { type: 'pt', value: 20 } }, // メンバー個人の数値目標（キーはuserId。値は{type:'pt'|'amount', value}）期間全体分
+  memberTargetsByMonth: { u1: { '2026-07': { type: 'pt', value: 8 } } }, // 数値目標の月次版（キーはuserId→month）
+  createdAt, updatedAt,
+}
+```
+個人目標・数値目標はいずれも「期間全体で1つの値（`memberGoals`/`memberTargets`）」と「月ごとの値（`memberGoalsByMonth`/`memberTargetsByMonth`）」を両方保持する。チーム詳細ページの月セレクト（モジュール変数`teamDetailMonth`。空文字=期間全体）でどちらを表示・編集するか切り替える。数値目標はチーム単位ではなく**メンバー個人単位**で持つ。`type:'pt'`ならそのメンバーのモバイル報告の`aggregateReports().totalPt`、`type:'amount'`ならRefa/style報告の`amount`合計を、`getMemberTargetActual(userId, type, month)`（`js/data.js`。`teamDetailMonth`が空のときは`currentMonth()`を渡す）で該当月分だけ集計する。`_upsertTeam()`はメンバー編成の変更で`leaderId`が`memberIds`から外れた場合、自動的にリーダー設定を解除する。
+
+**期間全体表示での達成率:** 期間全体（`teamDetailMonth`が空）の数値目標の達成率は、そのメンバーに月次目標（`memberTargetsByMonth`）が1件以上設定されていれば、各月の実績・目標を単純合算した概算値を使う（`_teamMemberOverallProgress()`, `js/app.js`。月ごとの実績も小さく併記表示）。月次目標が1件も無い場合のみ、従来通り「期間全体の目標値 vs 当月実績」で代用する。
+
+### チームの期間（localStorage: `lc_team_period`）
+四半期などの「期間」は会社全体で共通の1つをadminが書き換える（チームごとの個別期間は持たない）。`getTeamPeriod()`/`setTeamPeriod(label)`で操作する自由記述の文字列（日付ではなく`'2026年7月〜9月'`のようなラベル）。
+```javascript
+{ label: '2026年7月〜9月' }
+```
+
 ### シフト（localStorage: `lc_shift_schedules`）
 ```javascript
 // 日付ベース: { [userId]: { [dateStr: 'YYYY-MM-DD']: { site, start, end } } }
@@ -197,7 +228,7 @@
 | `#shifts-week` | `renderShifts()` | level≥1（全員） |
 | `#shifts-month` | `renderShiftsMonth()` | level≥1（全員） |
 | `#shifts-plan` | `renderShiftsPlan()` | level≥4 かつ mobile、またはlevel≥5 |
-| `#team` | `renderTeam()` | level≥2 かつ mobile部署、またはlevel≥5 |
+| `#team` | `renderTeam()` | level≥1（全員が閲覧可）。作成・削除・期間編集はlevel≥5限定。名前変更・メンバー編成・リーダー設定はadminまたはそのチームのリーダー |
 | `#ranking` | `renderRanking()` | 同上 |
 | `#targets` | `renderTargets()` | level≥4 かつ mobile、またはlevel≥5 |
 | `#talent` | `renderTalent()` | level≥4 |
@@ -205,6 +236,8 @@
 
 **注意:** サイドバーの「シフト」はサブメニュー親で、実際のhashは `shifts-week` / `shifts-month` / `shifts-plan`。
 **注意:** `#talent`（`renderTalent()`）のメニュー表示名は「メンバーステータス」（旧称: 人財カルテ）。関数名・変数名（`renderTalent`, `talentFilterDept`, `_refreshTalentGrid` 等）や `lc_talent` ストレージキーは互換性のため `talent`/`人財カルテ` のまま変えていない。
+
+**注意:** `#team`（`renderTeam()`）は2026年9月に「四半期ごとの社員間チーム編成・目標管理」機能へ全面刷新した（旧仕様は個人成績をmobile部署でフィルタしたテーブルで`#ranking`と内容が重複していたため置き換え）。事業部・報告タイプを問わず全社員から自由にチームを編成でき、1人が複数チームに所属できる。モジュール変数 `selectedTeamId`（`profileUserId`と同じ「選択IDを保持して同一ルートを再描画する」パターン）が空なら `renderTeamList()`（チーム一覧カード）、セットされていれば `renderTeamDetail()`（メンバー一覧＋各人の目標）を表示する。チームには任意で「リーダー」（`leaderId`）を設定でき、リーダーは自チームに限りadminと同じ編集権限（チーム名変更・メンバー編成・リーダー再設定）を持つ（削除・期間編集は引き続きadmin専用）。数値目標はチーム単位ではなくメンバー個人単位（`memberTargets`）で持ち、admin・チームリーダー・本人が編集できる。個人目標・数値目標はいずれも「期間全体で1つの値」と「月ごとの値」を両方持ち、モジュール変数`teamDetailMonth`（メンバー表の上にある月セレクト）で表示・編集対象を切り替える。詳細は[データ構造](#データ構造)の「チーム」を参照。
 
 ---
 
@@ -255,6 +288,23 @@ aggregateReports(reports)           // 複数レポートを集計（totalPt付�
 getTargetForUser(userId, month)     // 目標取得
 setMobileTarget(userId, month, mnpTarget, shinkiTarget) // モバイル目標保存
 setRefaTarget(userId, month, amountTarget)              // Refa/style営業 共通の目標保存（amountTarget）
+
+// チーム（四半期ごとの社員間チーム編成・目標。事業部・報告タイプ不問、1人が複数チーム所属可）
+getTeams()                          // 全チーム取得
+getTeamById(id)                     // ID指定取得
+getTeamsForUser(userId)             // 指定ユーザーが所属する全チーム
+createTeam(name, memberIds)         // チーム作成（admin専用）
+updateTeamMeta(teamId, fields)      // チーム名・メンバー編成の変更（adminまたはチームリーダー。{name}や{memberIds}を渡す）
+deleteTeam(teamId)                  // チーム削除（admin専用）
+setTeamGoalText(teamId, text)       // チーム共通目標の保存（本人 or admin）
+setTeamMemberGoal(teamId, userId, text) // メンバー個人目標の保存・期間全体分（本人 or admin）
+setTeamMemberGoalForMonth(teamId, userId, month, text) // メンバー個人目標の保存・月次版（本人 or admin）
+setTeamLeader(teamId, leaderId)     // チームリーダーの設定/解除（adminまたはチームリーダー。leaderId省略/nullで解除）
+setTeamMemberTarget(teamId, userId, target) // メンバー個人の数値目標の設定/削除・期間全体分（adminまたはチームリーダー、本人。{type:'pt'|'amount', value}かnull）
+setTeamMemberTargetForMonth(teamId, userId, month, target) // メンバー個人の数値目標の設定/削除・月次版（同上の権限。targetがnullで削除）
+getMemberTargetActual(userId, type, month) // 個人の数値目標に対する実績を集計（month省略でcurrentMonth()）
+getTeamPeriod()                     // 全社共通の期間ラベル取得 { label }
+setTeamPeriod(label)                // 期間ラベルの保存（admin専用）
 
 // シフト
 getShiftSites()                     // 現場一覧取得
@@ -340,6 +390,10 @@ let talentQuery = '';              // 検索クエリ
 // メンバー管理
 let memberFilterDept = 'all';      // 事業部フィルタ
 let memberQuery = '';              // 検索クエリ
+
+// チーム実績
+let selectedTeamId = '';   // 選択中のチーム（空 = 一覧表示。profileUserIdと同じ「選択IDを保持して同一ルートを再描画」パターン）
+let teamDetailMonth = '';  // チーム詳細の個人目標・数値目標の表示月（空 = 期間全体）
 ```
 
 ---
@@ -351,6 +405,8 @@ let memberQuery = '';              // 検索クエリ
 | `lc_users` | ユーザー配列 |
 | `lc_reports` | レポート配列 |
 | `lc_targets` | 目標配列 |
+| `lc_teams` | チーム配列（四半期ごとの社員間チーム編成・目標） |
+| `lc_team_period` | チーム実績ページの全社共通期間ラベル `{ label }` |
 | `lc_shift_sites` | 現場名配列（文字列） |
 | `lc_shift_schedules` | シフト { [userId]: { [dateStr]: {site,start,end} } } |
 | `lc_venue_plans` | 現場コマ数 { [month]: { [venue]: {slots} } } |

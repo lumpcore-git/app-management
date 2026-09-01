@@ -36,6 +36,10 @@ let _dashNotifTab = 'notif'; // 'notif' | 'task'
 let dashTypeTab = '';   // ダッシュボードで選択中の報告タイプ
 let reportTypeTab = ''; // 実績報告ページで選択中の報告タイプ
 
+// ─── TEAM STATE ───
+let selectedTeamId = ''; // チーム実績で選択中のチーム（空 = 一覧表示）
+let teamDetailMonth = ''; // チーム詳細の個人目標・数値目標の表示月（空 = 期間全体）
+
 // ─── ICON HELPER（Tabler Icons スプライト参照。app.html/index.html の <symbol id="ic-{name}"> を使う） ───
 function icon(name, cls) {
   return `<svg class="ico${cls ? ' ' + cls : ''}"><use href="#ic-${name}"></use></svg>`;
@@ -158,7 +162,8 @@ function renderSidebar() {
   const level = roleLevel(CU.role);
   const hasReport = getUserReportTypes(CU).length > 0;
   const canSeeTeam = (level >= 2 && CU.dept === 'mobile') || level >= 5;
-  
+  const canSeeTeamOrg = true; // チーム編成は全社横断のため全ログインユーザーに表示
+
   const canSetTargets = (level >= 4 && CU.dept === 'mobile') || level >= 5;
   const hash = location.hash.replace('#', '') || 'dashboard';
   const isShiftPage  = hash === 'shifts-week' || hash === 'shifts-month' || hash === 'shifts-plan';
@@ -171,7 +176,7 @@ function renderSidebar() {
     { id: 'dashboard',            icon: 'home',            label: 'ダッシュボード', show: true },
     { id: 'report',                icon: 'edit',            label: '実績報告',       show: hasReport },
     { id: 'shifts',                icon: 'calendar',        label: 'シフト',         show: true },
-    { id: 'team',                  icon: 'users',           label: 'チーム実績',     show: canSeeTeam },
+    { id: 'team',                  icon: 'users',           label: 'チーム実績',     show: canSeeTeamOrg },
     { id: 'ranking',                icon: 'trophy',          label: 'ランキング',     show: canSeeTeam },
     { id: 'targets',                icon: 'target',          label: '目標設定',       show: canSetTargets },
     { id: 'venue-achieve',          icon: 'chart-bar',       label: '現場達成率',     show: true },
@@ -227,7 +232,7 @@ function route() {
   const canSeeTeam = (level >= 2 && CU.dept === 'mobile') || level >= 5;
   const canSetTargets = (level >= 4 && CU.dept === 'mobile') || level >= 5;
 
-  if ((hash === 'team' || hash === 'ranking') && !canSeeTeam) {
+  if (hash === 'ranking' && !canSeeTeam) {
     location.hash = 'dashboard'; return;
   }
   if (hash === 'report' && getUserReportTypes(CU).length === 0) {
@@ -329,6 +334,7 @@ function renderBottomNav() {
   const level = roleLevel(CU.role);
   const hasReport = getUserReportTypes(CU).length > 0;
   const canSeeTeam = (level >= 2 && CU.dept === 'mobile') || level >= 5;
+  const canSeeTeamOrg = true; // チーム編成は全社横断のため全ログインユーザーに表示
   const canSetTargets = (level >= 4 && CU.dept === 'mobile') || level >= 5;
   const hash = location.hash.replace('#', '') || 'dashboard';
 
@@ -340,7 +346,7 @@ function renderBottomNav() {
     { id: 'dashboard',              icon: 'home',           label: 'ダッシュ',   active: hash === 'dashboard' },
     hasReport && { id: 'report',    icon: 'edit',           label: '報告',       active: hash === 'report' },
     { id: 'shifts-week',            icon: 'calendar',       label: 'シフト',     active: isShiftHash },
-    canSeeTeam && { id: 'team',     icon: 'users',          label: 'チーム',     active: hash === 'team' },
+    canSeeTeamOrg && { id: 'team',  icon: 'users',          label: 'チーム',     active: hash === 'team' },
     canSeeTeam && { id: 'ranking',  icon: 'trophy',         label: 'ランキング', active: hash === 'ranking' },
     canSetTargets && { id: 'targets', icon: 'target',       label: '目標',     active: hash === 'targets' },
     { id: 'venue-achieve-weekday',  icon: 'chart-bar',      label: '現場',       active: isVenueHash },
@@ -1827,112 +1833,226 @@ function execDeleteReport(reportId) {
 }
 
 // ═══════════════════════════════════════════════════════
-// ─── PAGE: チーム実績 ───
+// ─── PAGE: チーム実績（四半期ごとの社員間チーム編成・目標） ───
 // ═══════════════════════════════════════════════════════
-function renderTeam(filterDept) {
-  const month = currentMonth();
-  const level = roleLevel(CU.role);
-  const isAdmin = level >= 5;
+function renderTeam() {
+  const team = selectedTeamId ? getTeamById(selectedTeamId) : null;
+  if (selectedTeamId && !team) selectedTeamId = ''; // 削除済みなら一覧へ
+  if (team) renderTeamDetail(team);
+  else renderTeamList();
+}
 
-  // 管理者は全部署 or フィルター、それ以外は自部署のみ
-  const targetDept = isAdmin ? (filterDept || '') : CU.dept;
-  // 複数の報告タイプを持つユーザーは、タイプごとに1行ずつ表示する（pt系と売上系は単位が違うため合算しない）
-  const entries = getUsers()
-    .filter(u => targetDept ? u.dept === targetDept : true)
-    .flatMap(u => getUserReportTypes(u).map(type => ({ u, type })));
-
-  const allReports = getReports().filter(r => r.date.startsWith(month));
-  const targets = getTargets();
-
-  const stats = entries.map(({ u, type }) => {
-    const uReports = allReports.filter(r => r.userId === u.id && (type === 'mobile' ? (!r.type || r.type === 'mobile') : r.type === type));
-    let totalPt = 0, displayPrimary = '', displaySecondary = '';
-    let achieve = null;
-    const t = targets.find(x => x.userId === u.id && x.month === month);
-
-    if (type === 'mobile') {
-      const agg = aggregateReports(uReports);
-      totalPt = agg.totalPt;
-      displayPrimary   = `${agg.sbmnp}件`;
-      displaySecondary = `${agg.ymnp}件`;
-      achieve = calcAchieve(totalPt, t?.ptTarget);
-    } else if (type === 'refa' || type === 'style') {
-      const amount = uReports.reduce((s, r) => s + (r.amount || 0), 0);
-      totalPt = amount;
-      displayPrimary = formatMoney(amount);
-      achieve = calcAchieve(amount, t?.amountTarget);
-    }
-
-    const last = [...uReports].sort((a, b) => b.date.localeCompare(a.date))[0];
-    return { ...u, type, totalPt, displayPrimary, displaySecondary, achieve, last };
-  }).sort((a, b) => b.totalPt - a.totalPt);
-
-  const deptFilter = isAdmin ? `
-    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-      ${[['', '全部署'], ...Object.entries(DEPTS).filter(([k]) => k !== 'executive' && k !== 'hr')
-        .map(([k, v]) => [k, v.label])].map(([key, label]) => `
-        <button class="btn ${(filterDept || '') === key ? 'btn-primary' : 'btn-ghost'}"
-          style="font-size:12px;padding:6px 12px"
-          onclick="renderTeam('${key}')">
-          ${label}
-        </button>
-      `).join('')}
-    </div>
-  ` : '';
+function renderTeamList() {
+  const isAdmin = roleLevel(CU.role) >= 5;
+  const teams = getTeams();
+  const period = getTeamPeriod();
 
   document.getElementById('main').innerHTML = `
     <div class="page-header fade-in">
       <div>
         <div class="page-title">チーム実績</div>
-        <div class="page-sub">${monthLabel(month)} — ${targetDept ? deptLabel(targetDept) : '全事業部'}</div>
+        <div class="page-sub" style="display:flex;align-items:center;flex-wrap:wrap;gap:6px">
+          <span>期間: ${period.label || '未設定'}</span>
+          ${isAdmin ? `<button class="btn btn-ghost" style="font-size:11px;padding:2px 8px" onclick="openEditTeamPeriod()">${icon('pencil')} 編集</button>` : ''}
+        </div>
       </div>
-      ${deptFilter}
+      ${isAdmin ? `<button class="btn btn-primary" onclick="openCreateTeam()">＋ チーム作成</button>` : ''}
+    </div>
+
+    ${teams.length === 0 ? `
+      <div class="card fade-in" style="text-align:center;padding:48px;color:var(--text-sub)">
+        まだチームがありません。${isAdmin ? '「＋ チーム作成」からチームを作りましょう。' : '管理者がチームを作成するとここに表示されます。'}
+      </div>
+    ` : `
+      <div class="talent-grid fade-in">
+        ${teams.map(t => _teamCardHTML(t)).join('')}
+      </div>
+    `}
+  `;
+}
+
+function _teamCardHTML(team) {
+  const members = team.memberIds.map(getUserById).filter(Boolean);
+  const leader = team.leaderId ? getUserById(team.leaderId) : null;
+  const goalExcerpt = team.goalText
+    ? (team.goalText.length > 80 ? team.goalText.slice(0, 80) + '…' : team.goalText)
+    : '（目標未設定）';
+  const leaderBadge = leader
+    ? `<span class="tc-tag accent">${icon('star')} リーダー: ${leader.name}</span>`
+    : '';
+  return `
+    <div class="tc" onclick="selectTeam('${team.id}')">
+      <div class="tc-head">
+        <div class="tc-photo"><div class="tc-photo-av" style="background:var(--accent)">${icon('users')}</div></div>
+        <div class="tc-info">
+          <div class="tc-name">${team.name}</div>
+          <div class="tc-role-line">${members.length}名のメンバー</div>
+        </div>
+      </div>
+      <div class="tc-body">
+        <div class="tc-body-label">チーム目標</div>
+        <div class="tc-body-text">${goalExcerpt}</div>
+      </div>
+      <div class="tc-foot">
+        ${leaderBadge}
+        <div class="tc-foot-gap"></div>
+        <span style="font-size:12px;color:var(--text-sub)">詳細を見る →</span>
+      </div>
+    </div>
+  `;
+}
+
+// 期間全体表示での数値目標の達成率。月次目標（memberTargetsByMonth）が設定されている月があれば
+// その実績・目標を合算した概算値を返し（approx:true）、無ければ当月実績と期間全体目標の比較で代用する。
+function _teamMemberOverallProgress(team, userId, target) {
+  const monthEntries = Object.entries((team.memberTargetsByMonth && team.memberTargetsByMonth[userId]) || {})
+    .filter(([, t]) => t && t.type === target.type)
+    .sort(([a], [b]) => a.localeCompare(b));
+
+  if (monthEntries.length === 0) {
+    const actual = getMemberTargetActual(userId, target.type, currentMonth());
+    return { actual, target: target.value, achieve: calcAchieve(actual, target.value), approx: false, months: [] };
+  }
+
+  let sumActual = 0, sumTarget = 0;
+  const months = monthEntries.map(([month, t]) => {
+    const actual = getMemberTargetActual(userId, target.type, month);
+    sumActual += actual;
+    sumTarget += t.value;
+    return { month, achieve: calcAchieve(actual, t.value) };
+  });
+  return { actual: sumActual, target: sumTarget, achieve: calcAchieve(sumActual, sumTarget), approx: true, months };
+}
+
+function renderTeamDetail(team) {
+  const isAdmin = roleLevel(CU.role) >= 5;
+  const canManage = isAdmin || team.leaderId === CU.id; // チーム名・メンバー編成・リーダー設定
+  const members = team.memberIds.map(getUserById).filter(Boolean);
+  const isMember = team.memberIds.includes(CU.id);
+  const canEditGoal = isAdmin || isMember;
+  const period = getTeamPeriod();
+  const leader = team.leaderId ? getUserById(team.leaderId) : null;
+
+  document.getElementById('main').innerHTML = `
+    <div class="page-header fade-in">
+      <div>
+        <button class="btn btn-ghost" style="font-size:12px;padding:4px 10px;margin-bottom:8px" onclick="backToTeamList()">${icon('arrow-left')} チーム一覧へ</button>
+        <div class="page-title" style="display:flex;align-items:center;gap:8px">
+          <span>${team.name}</span>
+          ${canManage ? `<button class="btn btn-ghost" style="font-size:11px;padding:2px 8px" onclick="openEditTeamMeta('${team.id}')">${icon('pencil')}</button>` : ''}
+        </div>
+        <div class="page-sub" style="display:flex;align-items:center;flex-wrap:wrap;gap:6px">
+          <span>期間: ${period.label || '未設定'} ・ ${members.length}名 ・ リーダー: ${leader ? leader.name : '未設定'}</span>
+          ${canManage ? `<button class="btn btn-ghost" style="font-size:11px;padding:2px 8px" onclick="openSetTeamLeader('${team.id}')">${icon('star')} 設定</button>` : ''}
+        </div>
+      </div>
+      ${isAdmin ? `<button class="btn btn-danger" onclick="confirmDeleteTeam('${team.id}')">${icon('trash')} チーム削除</button>` : ''}
+    </div>
+
+    <div class="card fade-in" style="margin-bottom:20px">
+      <div style="padding:20px">
+        <div class="form-label" style="margin-bottom:8px">チーム目標</div>
+        ${canEditGoal ? `
+          <textarea class="form-textarea" id="teamGoalInput" placeholder="定量目標・定性目標を自由に記入してください">${team.goalText || ''}</textarea>
+          <div style="margin-top:8px;text-align:right">
+            <button class="btn btn-primary" style="font-size:12px;padding:6px 14px" onclick="saveTeamGoal('${team.id}')">保存</button>
+          </div>
+        ` : `<div class="tc-body-text">${team.goalText || '（目標未設定）'}</div>`}
+      </div>
     </div>
 
     <div class="card fade-in">
+      <div style="padding:20px 20px 4px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <div class="form-label">メンバー</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <select class="filter-select" id="teamDetailMonthSel" onchange="teamDetailMonth=this.value;renderTeam()">
+            <option value="">期間全体の目標</option>
+            ${getAvailableMonths().map(m => `<option value="${m}" ${m === teamDetailMonth ? 'selected' : ''}>${monthLabel(m)}の目標</option>`).join('')}
+          </select>
+          ${canManage ? `<button class="btn btn-ghost" style="font-size:11px;padding:2px 8px" onclick="openEditTeamMembers('${team.id}')">${icon('users')} メンバー編成を編集</button>` : ''}
+        </div>
+      </div>
       <div class="table-wrap">
         <table>
           <thead>
             <tr>
-              <th>名前</th>
-              ${isAdmin ? '<th>事業部</th>' : ''}
-              <th>役職</th>
-              <th>合計PT / 売上</th>
-              <th>SBMNP</th>
-              <th>YMNP</th>
-              <th>達成率</th>
-              <th>最終報告</th>
+              <th>メンバー</th>
+              <th>個人目標（${teamDetailMonth ? monthLabel(teamDetailMonth) : '期間全体'}）</th>
+              <th>数値目標（${teamDetailMonth ? monthLabel(teamDetailMonth) : '期間全体'}）</th>
             </tr>
           </thead>
           <tbody>
-            ${stats.map(u => {
-              const isMobile = u.type === 'mobile';
+            ${members.map(u => {
+              const canEditMemberGoal = isAdmin || u.id === CU.id;
+              const canEditMemberTarget = canManage || u.id === CU.id;
+              const goalText = teamDetailMonth
+                ? ((team.memberGoalsByMonth && team.memberGoalsByMonth[u.id] && team.memberGoalsByMonth[u.id][teamDetailMonth]) || '')
+                : ((team.memberGoals && team.memberGoals[u.id]) || '');
+              const target = teamDetailMonth
+                ? (team.memberTargetsByMonth && team.memberTargetsByMonth[u.id] && team.memberTargetsByMonth[u.id][teamDetailMonth])
+                : (team.memberTargets && team.memberTargets[u.id]);
+              let targetBlock;
+              if (target && teamDetailMonth) {
+                // 月次表示: その月の実績のみと比較
+                const actual = getMemberTargetActual(u.id, target.type, teamDetailMonth);
+                const achieve = calcAchieve(actual, target.value);
+                targetBlock = `
+                  ${achieve !== null ? `
+                    <div class="progress-wrap" style="min-width:auto">
+                      <div class="progress-bar"><div class="progress-fill" style="width:${Math.min(achieve, 100)}%;background:${achieveColor(achieve)}"></div></div>
+                      <span style="color:${achieveColor(achieve)};font-size:12px">${achieve}%</span>
+                    </div>
+                  ` : ''}
+                  <div style="font-size:12px;color:var(--text-sub);margin-top:4px">
+                    実績 ${target.type === 'pt' ? actual.toFixed(1) + 'pt' : formatMoney(actual)} ／ 目標 ${target.type === 'pt' ? target.value.toFixed(1) + 'pt' : formatMoney(target.value)}
+                    （${monthLabel(teamDetailMonth)}）
+                  </div>
+                `;
+              } else if (target) {
+                // 期間全体表示: 月次目標が設定されていればその合算から概算達成率を出す（なければ当月実績で代用）
+                const progress = _teamMemberOverallProgress(team, u.id, target);
+                targetBlock = `
+                  ${progress.achieve !== null ? `
+                    <div class="progress-wrap" style="min-width:auto">
+                      <div class="progress-bar"><div class="progress-fill" style="width:${Math.min(progress.achieve, 100)}%;background:${achieveColor(progress.achieve)}"></div></div>
+                      <span style="color:${achieveColor(progress.achieve)};font-size:12px">${progress.achieve}%</span>
+                    </div>
+                  ` : ''}
+                  <div style="font-size:12px;color:var(--text-sub);margin-top:4px">
+                    実績 ${target.type === 'pt' ? progress.actual.toFixed(1) + 'pt' : formatMoney(progress.actual)} ／ 目標 ${target.type === 'pt' ? progress.target.toFixed(1) + 'pt' : formatMoney(progress.target)}
+                    ${progress.approx ? '（月次目標の概算）' : `（${monthLabel(currentMonth())}）`}
+                  </div>
+                  ${progress.months.length > 0 ? `
+                    <div style="font-size:10px;color:var(--text-sub);opacity:.85;margin-top:3px">
+                      ${progress.months.map(m => `${monthLabel(m.month).replace(/^\d{4}年/, '')} ${m.achieve !== null ? m.achieve + '%' : '—'}`).join(' ・ ')}
+                    </div>
+                  ` : ''}
+                `;
+              } else {
+                targetBlock = `<div style="font-size:12px;color:var(--text-sub)">未設定</div>`;
+              }
               return `
                 <tr>
-                  <td>
+                  <td style="width:220px;vertical-align:top">
                     <div class="emp-cell">
                       <div class="avatar" style="background:${roleColor(u.role)}">${u.name[0]}</div>
-                      <span class="emp-name">${u.name}</span>
-                      ${getUserReportTypes(u).length > 1 ? `<span class="report-type-chip">${REPORT_TYPE_LABELS[u.type]}</span>` : ''}
+                      <div>
+                        <div class="emp-name">${u.name} ${team.leaderId === u.id ? `<span class="report-type-chip" style="color:var(--warn);border-color:var(--warn)">${icon('star')} リーダー</span>` : ''}</div>
+                        <div style="font-size:11px;color:${roleColor(u.role)}">${getUserDisplayRole(u)}</div>
+                      </div>
                     </div>
                   </td>
-                  ${isAdmin ? `<td style="color:${DEPTS[u.dept]?.color};font-size:12px">${deptLabel(u.dept)}</td>` : ''}
-                  <td style="color:${roleColor(u.role)};font-size:12px">${getUserDisplayRole(u)}</td>
-                  <td><strong style="color:var(--accent)">${isMobile ? u.totalPt.toFixed(1) + 'pt' : u.displayPrimary}</strong></td>
-                  <td>${isMobile ? u.displayPrimary : '—'}</td>
-                  <td>${isMobile ? u.displaySecondary : '—'}</td>
-                  <td>
-                    ${u.achieve !== null ? `
-                      <div class="progress-wrap">
-                        <div class="progress-bar">
-                          <div class="progress-fill" style="width:${Math.min(u.achieve,100)}%;background:${achieveColor(u.achieve)}"></div>
-                        </div>
-                        <span style="color:${achieveColor(u.achieve)};min-width:40px;font-size:12px">${u.achieve}%</span>
+                  <td style="vertical-align:top">
+                    ${canEditMemberGoal ? `
+                      <textarea class="form-textarea" id="memberGoal_${u.id}" style="min-height:50px" placeholder="個人目標を記入">${goalText}</textarea>
+                      <div style="text-align:right;margin-top:4px">
+                        <button class="btn btn-ghost" style="font-size:11px;padding:3px 10px" onclick="saveMemberGoal('${team.id}','${u.id}')">保存</button>
                       </div>
-                    ` : '<span style="color:var(--text-sub);font-size:12px">未設定</span>'}
+                    ` : `<div style="font-size:13px;color:var(--text-sub)">${goalText || '（未設定）'}</div>`}
                   </td>
-                  <td style="color:${u.last ? 'var(--text-sub)' : 'var(--danger)'};font-size:12px">
-                    ${u.last ? formatDate(u.last.date) : '未報告'}
+                  <td style="width:200px;vertical-align:top">
+                    ${targetBlock}
+                    ${canEditMemberTarget ? `<button class="btn btn-ghost" style="font-size:11px;padding:2px 8px;margin-top:4px" onclick="openMemberTargetModal('${team.id}','${u.id}')">${icon('pencil')} 編集</button>` : ''}
                   </td>
                 </tr>
               `;
@@ -1942,6 +2062,280 @@ function renderTeam(filterDept) {
       </div>
     </div>
   `;
+}
+
+function selectTeam(teamId) {
+  selectedTeamId = teamId;
+  teamDetailMonth = ''; // チームを切り替えたら表示月は期間全体に戻す
+  renderTeam();
+}
+function backToTeamList() {
+  selectedTeamId = '';
+  renderTeam();
+}
+
+// ─── 期間（全社共通・admin専用） ───
+function openEditTeamPeriod() {
+  const period = getTeamPeriod();
+  showModal(`
+    <div class="modal-header">
+      <div style="font-size:20px">${icon('calendar')}</div>
+      <div class="modal-title">期間の編集</div>
+      <button class="modal-close" onclick="closeModal()">${icon('x')}</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">期間（例: 2026年7月〜9月）</label>
+        <input type="text" class="form-input" id="teamPeriodInput" value="${period.label || ''}" placeholder="例: 2026年7月〜9月">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">キャンセル</button>
+      <button class="btn btn-primary" onclick="saveTeamPeriodEdit()">保存する</button>
+    </div>
+  `);
+}
+function saveTeamPeriodEdit() {
+  const label = document.getElementById('teamPeriodInput').value.trim();
+  setTeamPeriod(label);
+  closeModal();
+  showToast('期間を更新しました');
+  renderTeam();
+}
+
+// ─── チーム作成・編成（admin専用） ───
+function openCreateTeam() {
+  showModal(`
+    <div class="modal-header">
+      <div style="font-size:20px">${icon('users')}</div>
+      <div class="modal-title">チーム作成</div>
+      <button class="modal-close" onclick="closeModal()">${icon('x')}</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">チーム名</label>
+        <input type="text" class="form-input" id="newTeamName" placeholder="例: チームA">
+      </div>
+      <div class="form-group">
+        <label class="form-label">メンバー（複数選択可・事業部不問）</label>
+        ${_memberChecks('newTeamMembers', [])}
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">キャンセル</button>
+      <button class="btn btn-primary" onclick="submitCreateTeam()">作成する</button>
+    </div>
+  `);
+}
+function submitCreateTeam() {
+  const name = document.getElementById('newTeamName').value.trim();
+  const memberIds = _readMemberChecks('newTeamMembers');
+  if (!name) { showToast('チーム名を入力してください', 'error'); return; }
+  const team = createTeam(name, memberIds);
+  closeModal();
+  showToast(`${name} を作成しました`);
+  selectedTeamId = team.id;
+  renderTeam();
+}
+
+function openEditTeamMeta(teamId) {
+  const team = getTeamById(teamId);
+  if (!team) return;
+  showModal(`
+    <div class="modal-header">
+      <div style="font-size:20px">${icon('pencil')}</div>
+      <div class="modal-title">チーム名の編集</div>
+      <button class="modal-close" onclick="closeModal()">${icon('x')}</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">チーム名</label>
+        <input type="text" class="form-input" id="editTeamName" value="${team.name}">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">キャンセル</button>
+      <button class="btn btn-primary" onclick="submitEditTeamMeta('${teamId}')">保存する</button>
+    </div>
+  `);
+}
+function submitEditTeamMeta(teamId) {
+  const name = document.getElementById('editTeamName').value.trim();
+  if (!name) { showToast('チーム名を入力してください', 'error'); return; }
+  updateTeamMeta(teamId, { name });
+  closeModal();
+  showToast('チーム名を更新しました');
+  renderTeam();
+}
+
+function openEditTeamMembers(teamId) {
+  const team = getTeamById(teamId);
+  if (!team) return;
+  showModal(`
+    <div class="modal-header">
+      <div style="font-size:20px">${icon('users')}</div>
+      <div class="modal-title">メンバー編成の編集</div>
+      <button class="modal-close" onclick="closeModal()">${icon('x')}</button>
+    </div>
+    <div class="modal-body">
+      ${_memberChecks('editTeamMembers', team.memberIds)}
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">キャンセル</button>
+      <button class="btn btn-primary" onclick="submitEditTeamMembers('${teamId}')">保存する</button>
+    </div>
+  `);
+}
+function submitEditTeamMembers(teamId) {
+  const memberIds = _readMemberChecks('editTeamMembers');
+  updateTeamMeta(teamId, { memberIds });
+  closeModal();
+  showToast('メンバー編成を更新しました');
+  renderTeam();
+}
+
+function confirmDeleteTeam(teamId) {
+  const team = getTeamById(teamId);
+  if (!team) return;
+  showModal(`
+    <div class="modal-header">
+      <div style="font-size:20px">${icon('trash')}</div>
+      <div class="modal-title">チームを削除しますか？</div>
+      <button class="modal-close" onclick="closeModal()">${icon('x')}</button>
+    </div>
+    <div class="modal-body">
+      <p style="color:var(--text-sub)">「${team.name}」を削除します。この操作は取り消せません。</p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">キャンセル</button>
+      <button class="btn btn-danger" onclick="execDeleteTeam('${teamId}')">削除する</button>
+    </div>
+  `);
+}
+function execDeleteTeam(teamId) {
+  deleteTeam(teamId);
+  closeModal();
+  showToast('削除しました');
+  selectedTeamId = '';
+  renderTeam();
+}
+
+// ─── 目標編集（本人 or admin） ───
+function saveTeamGoal(teamId) {
+  const text = document.getElementById('teamGoalInput').value;
+  setTeamGoalText(teamId, text);
+  showToast('チーム目標を保存しました');
+  renderTeam();
+}
+function saveMemberGoal(teamId, userId) {
+  const text = document.getElementById(`memberGoal_${userId}`).value;
+  if (teamDetailMonth) setTeamMemberGoalForMonth(teamId, userId, teamDetailMonth, text);
+  else setTeamMemberGoal(teamId, userId, text);
+  showToast('個人目標を保存しました');
+  renderTeam();
+}
+
+// ─── 個人の数値目標（admin・チームリーダー・本人） ───
+// teamDetailMonthが設定されていれば、その月だけの数値目標を編集する（未設定なら期間全体の数値目標）
+function openMemberTargetModal(teamId, userId) {
+  const team = getTeamById(teamId);
+  const user = getUserById(userId);
+  if (!team || !user) return;
+  const t = teamDetailMonth
+    ? (team.memberTargetsByMonth && team.memberTargetsByMonth[userId] && team.memberTargetsByMonth[userId][teamDetailMonth])
+    : (team.memberTargets && team.memberTargets[userId]);
+  showModal(`
+    <div class="modal-header">
+      <div style="font-size:20px">${icon('target')}</div>
+      <div class="modal-title">${user.name} の数値目標（${teamDetailMonth ? monthLabel(teamDetailMonth) : '期間全体'}）</div>
+      <button class="modal-close" onclick="closeModal()">${icon('x')}</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">種別</label>
+        <select class="form-select" id="memberTargetType">
+          <option value="pt" ${t?.type === 'pt' ? 'selected' : ''}>PT（モバイル報告）</option>
+          <option value="amount" ${t?.type === 'amount' ? 'selected' : ''}>売上（Refa／style報告）</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">目標値</label>
+        <input type="number" class="form-input" id="memberTargetValue" value="${t?.value ?? ''}" step="0.1">
+      </div>
+    </div>
+    <div class="modal-footer">
+      ${t ? `<button class="btn btn-danger" onclick="removeMemberTarget('${teamId}','${userId}')">目標を削除</button>` : ''}
+      <button class="btn btn-ghost" onclick="closeModal()">キャンセル</button>
+      <button class="btn btn-primary" onclick="submitMemberTarget('${teamId}','${userId}')">保存する</button>
+    </div>
+  `);
+}
+function submitMemberTarget(teamId, userId) {
+  const type = document.getElementById('memberTargetType').value;
+  const value = parseFloat(document.getElementById('memberTargetValue').value) || 0;
+  if (teamDetailMonth) setTeamMemberTargetForMonth(teamId, userId, teamDetailMonth, { type, value });
+  else setTeamMemberTarget(teamId, userId, { type, value });
+  closeModal();
+  showToast('数値目標を設定しました');
+  renderTeam();
+}
+function removeMemberTarget(teamId, userId) {
+  if (teamDetailMonth) setTeamMemberTargetForMonth(teamId, userId, teamDetailMonth, null);
+  else setTeamMemberTarget(teamId, userId, null);
+  closeModal();
+  showToast('数値目標を削除しました');
+  renderTeam();
+}
+
+// ─── チームリーダー設定（admin・チームリーダー） ───
+function openSetTeamLeader(teamId) {
+  const team = getTeamById(teamId);
+  if (!team) return;
+  const members = team.memberIds.map(getUserById).filter(Boolean);
+  showModal(`
+    <div class="modal-header">
+      <div style="font-size:20px">${icon('star')}</div>
+      <div class="modal-title">リーダー設定</div>
+      <button class="modal-close" onclick="closeModal()">${icon('x')}</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">リーダー</label>
+        <select class="form-select" id="teamLeaderSelect">
+          <option value="">未設定</option>
+          ${members.map(u => `<option value="${u.id}" ${team.leaderId === u.id ? 'selected' : ''}>${u.name}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">キャンセル</button>
+      <button class="btn btn-primary" onclick="submitSetTeamLeader('${teamId}')">保存する</button>
+    </div>
+  `);
+}
+function submitSetTeamLeader(teamId) {
+  const leaderId = document.getElementById('teamLeaderSelect').value;
+  setTeamLeader(teamId, leaderId);
+  closeModal();
+  showToast('リーダーを設定しました');
+  renderTeam();
+}
+
+// メンバー選択チェックボックス群（チーム編成用。事業部不問で全社員を対象にする）
+function _memberChecks(containerId, selectedIds) {
+  const users = getUsers().slice().sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+  return `
+    <div class="report-type-checks" id="${containerId}" style="max-height:280px;overflow-y:auto">
+      ${users.map(u => `
+        <label class="report-type-check">
+          <input type="checkbox" value="${u.id}" ${selectedIds.includes(u.id) ? 'checked' : ''}>
+          <span>${u.name}（${deptLabel(u.dept)}）</span>
+        </label>
+      `).join('')}
+    </div>`;
+}
+function _readMemberChecks(containerId) {
+  return [...document.querySelectorAll(`#${containerId} input[type=checkbox]:checked`)].map(el => el.value);
 }
 
 // ═══════════════════════════════════════════════════════

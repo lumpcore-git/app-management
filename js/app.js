@@ -2530,12 +2530,12 @@ function renderTargets() {
 
     <div class="card fade-in">
       <div class="table-wrap">
-        <table>
+        <table class="targets-table">
           <thead>
             <tr>
               <th>名前</th>
-              ${isAdmin ? '<th>事業部</th>' : ''}
-              <th>役職</th>
+              ${isAdmin ? '<th class="col-dept">事業部</th>' : ''}
+              <th class="col-role">役職</th>
               <th>目標①</th>
               <th>目標②</th>
               <th></th>
@@ -2555,13 +2555,13 @@ function renderTargets() {
                       ${nameSuffix}
                     </div>
                   </td>
-                  ${isAdmin ? `<td style="color:${DEPTS[u.dept]?.color};font-size:12px">${deptLabel(u.dept)}</td>` : ''}
-                  <td style="color:${roleColor(u.role)};font-size:12px">${getUserDisplayRole(u)}</td>
+                  ${isAdmin ? `<td class="col-dept" style="color:${DEPTS[u.dept]?.color};font-size:12px">${deptLabel(u.dept)}</td>` : ''}
+                  <td class="col-role" style="color:${roleColor(u.role)};font-size:12px">${getUserDisplayRole(u)}</td>
                   ${isMobile ? `
-                    <td><input type="number" class="form-input-sm" id="pt_${u.id}_${type}" value="${t?.ptTarget ?? ''}" placeholder="PT目標" min="0" style="width:90px"></td>
+                    <td><input type="number" class="form-input-sm targets-input-pt" id="pt_${u.id}_${type}" value="${t?.ptTarget ?? ''}" placeholder="PT目標" min="0"></td>
                     <td style="color:var(--text-sub);font-size:12px">pt</td>
                   ` : `
-                    <td><input type="number" class="form-input-sm" id="amt_${u.id}_${type}" value="${t?.amountTarget ?? ''}" placeholder="目標売上" min="0" style="width:120px"></td>
+                    <td><input type="number" class="form-input-sm targets-input-amt" id="amt_${u.id}_${type}" value="${t?.amountTarget ?? ''}" placeholder="目標売上" min="0"></td>
                     <td style="color:var(--text-sub);font-size:12px">円</td>
                   `}
                   <td>

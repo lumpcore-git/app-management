@@ -131,6 +131,33 @@ td { padding: 12px 16px; vertical-align: middle; }
 .emp-name { font-weight: 500; }
 .role-badge { font-size: 12px; font-weight: 600; }
 
+/* ─── チーム詳細: メンバー一覧（テーブルではなくグリッド行 = モバイルで積み上げ可能） ─── */
+.card .team-member-list { margin: 0 -24px -24px; }
+.team-member-head {
+  display: grid;
+  grid-template-columns: 220px 1fr 200px;
+  gap: 20px;
+  padding: 11px 20px;
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-sub);
+  letter-spacing: .5px;
+  text-transform: uppercase;
+}
+.team-member-row {
+  display: grid;
+  grid-template-columns: 220px 1fr 200px;
+  gap: 20px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  align-items: start;
+}
+.team-member-row:last-child { border-bottom: none; }
+.tmr-person { display: flex; align-items: center; gap: 10px; }
+.tmr-col-label { display: none; }
+
 /* ─── ROLE PILL SELECT（メンバー管理: インラインロール変更） ─── */
 .role-pill-select {
   appearance: none; -webkit-appearance: none;
@@ -1761,6 +1788,24 @@ td { padding: 12px 16px; vertical-align: middle; }
   .targets-table .col-role { display: none; }
   .targets-table th, .targets-table td { padding: 10px 8px; }
   .targets-table .avatar { width: 28px; height: 28px; font-size: 12px; }
+
+  /* チーム詳細メンバー一覧: 3列グリッドを縦積みに（名前 → 個人目標 → 数値目標の順） */
+  .card .team-member-list { margin: 0 -16px -16px; }
+  .team-member-head { display: none; }
+  .team-member-row {
+    grid-template-columns: 1fr;
+    gap: 10px;
+    padding: 14px 16px;
+  }
+  .tmr-col-label {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-sub);
+    letter-spacing: .5px;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
   .targets-table .targets-input-pt,
   .targets-table .targets-input-amt { width: 76px; }
 

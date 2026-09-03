@@ -1972,16 +1972,12 @@ function renderTeamDetail(team) {
           ${canManage ? `<button class="btn btn-ghost" style="font-size:11px;padding:2px 8px" onclick="openEditTeamMembers('${team.id}')">${icon('users')} メンバー編成を編集</button>` : ''}
         </div>
       </div>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>メンバー</th>
-              <th>個人目標（${teamDetailMonth ? monthLabel(teamDetailMonth) : '期間全体'}）</th>
-              <th>数値目標（${teamDetailMonth ? monthLabel(teamDetailMonth) : '期間全体'}）</th>
-            </tr>
-          </thead>
-          <tbody>
+      <div class="team-member-list">
+        <div class="team-member-head">
+          <div>メンバー</div>
+          <div>個人目標（${teamDetailMonth ? monthLabel(teamDetailMonth) : '期間全体'}）</div>
+          <div>数値目標（${teamDetailMonth ? monthLabel(teamDetailMonth) : '期間全体'}）</div>
+        </div>
             ${members.map(u => {
               const canEditMemberGoal = isAdmin || u.id === CU.id;
               const canEditMemberTarget = canManage || u.id === CU.id;
@@ -2032,33 +2028,31 @@ function renderTeamDetail(team) {
                 targetBlock = `<div style="font-size:12px;color:var(--text-sub)">未設定</div>`;
               }
               return `
-                <tr>
-                  <td style="width:220px;vertical-align:top">
-                    <div class="emp-cell">
-                      <div class="avatar" style="background:${roleColor(u.role)}">${u.name[0]}</div>
-                      <div>
-                        <div class="emp-name">${u.name} ${team.leaderId === u.id ? `<span class="report-type-chip" style="color:var(--warn);border-color:var(--warn)">${icon('star')} リーダー</span>` : ''}</div>
-                        <div style="font-size:11px;color:${roleColor(u.role)}">${getUserDisplayRole(u)}</div>
-                      </div>
+                <div class="team-member-row">
+                  <div class="tmr-person">
+                    <div class="avatar" style="background:${roleColor(u.role)}">${u.name[0]}</div>
+                    <div>
+                      <div class="emp-name">${u.name} ${team.leaderId === u.id ? `<span class="report-type-chip" style="color:var(--warn);border-color:var(--warn)">${icon('star')} リーダー</span>` : ''}</div>
+                      <div style="font-size:11px;color:${roleColor(u.role)}">${getUserDisplayRole(u)}</div>
                     </div>
-                  </td>
-                  <td style="vertical-align:top">
+                  </div>
+                  <div class="tmr-goal">
+                    <div class="tmr-col-label">個人目標（${teamDetailMonth ? monthLabel(teamDetailMonth) : '期間全体'}）</div>
                     ${canEditMemberGoal ? `
                       <textarea class="form-textarea" id="memberGoal_${u.id}" style="min-height:50px" placeholder="個人目標を記入">${goalText}</textarea>
                       <div style="text-align:right;margin-top:4px">
                         <button class="btn btn-ghost" style="font-size:11px;padding:3px 10px" onclick="saveMemberGoal('${team.id}','${u.id}')">保存</button>
                       </div>
                     ` : `<div style="font-size:13px;color:var(--text-sub)">${goalText || '（未設定）'}</div>`}
-                  </td>
-                  <td style="width:200px;vertical-align:top">
+                  </div>
+                  <div class="tmr-target">
+                    <div class="tmr-col-label">数値目標（${teamDetailMonth ? monthLabel(teamDetailMonth) : '期間全体'}）</div>
                     ${targetBlock}
                     ${canEditMemberTarget ? `<button class="btn btn-ghost" style="font-size:11px;padding:2px 8px;margin-top:4px" onclick="openMemberTargetModal('${team.id}','${u.id}')">${icon('pencil')} 編集</button>` : ''}
-                  </td>
-                </tr>
+                  </div>
+                </div>
               `;
             }).join('')}
-          </tbody>
-        </table>
       </div>
     </div>
   `;

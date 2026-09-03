@@ -956,7 +956,7 @@ td { padding: 12px 16px; vertical-align: middle; }
 .sk-item--cert:last-child { border-bottom: none; }
 .sk-item--cert.sk-item--done { background: rgba(134,249,215,.06); border-radius: 8px; padding: 10px 10px; margin: 0 -4px; }
 .sk-item-header { display: flex; align-items: flex-start; gap: 8px; flex: 1; min-width: 0; }
-.sk-item-text { font-size: 13px; line-height: 1.5; flex: 1; }
+.sk-item-text { font-size: 13px; line-height: 1.5; flex: 1; font-weight: 600; color: var(--text); }
 .sk-item-text.ok { color: var(--green); }
 .sk-badge-cert { flex-shrink: 0; background: var(--green); color: #1a2e2a; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 10px; margin-top: 2px; white-space: nowrap; }
 
@@ -1813,8 +1813,8 @@ td { padding: 12px 16px; vertical-align: middle; }
   .sk-item--cert { flex-direction: column; align-items: stretch; gap: 8px; }
   .sk-cert-steps { padding-left: 0; }
   .sk-cert-step { flex-wrap: wrap; row-gap: 6px; }
-  .sk-cert-input:not(.sk-cert-date) { flex: 1; min-width: 90px; }
-  .sk-cert-date { width: 130px; }
+  .sk-cert-input:not(.sk-cert-date) { width: 88px; flex: none; }
+  .sk-cert-date { width: 128px; }
 
   /* ボタン: タップ領域を広げる */
   .btn { padding: 10px 16px; font-size: 14px; }

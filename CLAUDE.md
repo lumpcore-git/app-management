@@ -79,7 +79,7 @@
 
 **報告タイプは複数持てる（他事業部の応援などで役職・部署を問わず複数タイプ報告するメンバーがいるため）。** 常に `getUserReportTypes(user)`（data.js）経由で読むこと（`user.reportType`/`user.reportTypes`を直接読まない）。この関数は新形式の配列 `reportTypes` を優先し、まだ編集されていない旧データ（単一値の `reportType`）も自動的に配列化して返すため、移行のためのDATA_VERSION更新は不要。メンバー管理の追加・編集モーダルは複数選択可能なチェックボックスで `reportTypes` を書き込み、保存時に旧 `reportType` フィールドは削除する。
 - ダッシュボード（`renderDashboard`）・実績報告ページ（`renderReportPage`）は、ユーザーが複数タイプを持つ場合はページ上部にタブ（`dashTypeTab`/`reportTypeTab`）を出し、タイプごとの画面を切り替えて表示する。
-- チーム実績（`renderTeam`）・目標設定（`renderTargets`）は、複数タイプ持ちのユーザーをタイプごとに1行ずつ展開して表示する（pt系と円系は単位が違うため合算しない）。行名の横に報告タイプの小さいチップ（`.report-type-chip`）が付く。
+- チーム実績（`renderTeam`）・コミット設定（`renderTargets`）は、複数タイプ持ちのユーザーをタイプごとに1行ずつ展開して表示する（pt系と円系は単位が違うため合算しない）。行名の横に報告タイプの小さいチップ（`.report-type-chip`）が付く。
 - ランキング（`renderRanking`）のモバイル/Refa/style各セクションは、事業部に関わらず該当の報告タイプを持つユーザー全員が対象（応援メンバーも表示される）。
 - 人財カルテ・プロフィールの生産性トレンドは、複数タイプ持ちの場合は `reportTypes` の先頭（主担当）のタイプを基準に表示する。
 
@@ -167,7 +167,7 @@
 | role | label（コード内） | level | 説明 |
 |------|-------|-------|------|
 | `admin` | 役員/管理者 | 5 | 全機能・全データアクセス |
-| `chief` | チーフ | 4 | モバイル目標設定・チーム閲覧・シフト作成・メンバーステータス・MBTI/スキル上長承認欄の編集 |
+| `chief` | チーフ | 4 | チーム閲覧・シフト作成・メンバーステータス・MBTI/スキル上長承認欄の編集（コミット設定は全ロール共通で本人分のみ編集可） |
 | `event_closer` | イベントクローザー | 3 | チーム閲覧 |
 | `closer` | クローザー | 2 | チーム閲覧 |
 | `catch` | キャッチ | 1 | 自分のみ |
@@ -230,12 +230,13 @@
 | `#shifts-plan` | `renderShiftsPlan()` | level≥4 かつ mobile、またはlevel≥5 |
 | `#team` | `renderTeam()` | level≥1（全員が閲覧可）。作成・削除・期間編集はlevel≥5限定。名前変更・メンバー編成・リーダー設定はadminまたはそのチームのリーダー |
 | `#ranking` | `renderRanking()` | 同上 |
-| `#targets` | `renderTargets()` | level≥4 かつ mobile、またはlevel≥5 |
+| `#targets` | `renderTargets()` | level≥1（全社員が閲覧可）。編集は本人のみ、またはadmin |
 | `#talent` | `renderTalent()` | level≥4 |
 | `#members` | `renderMembers()` | level≥5 のみ |
 
 **注意:** サイドバーの「シフト」はサブメニュー親で、実際のhashは `shifts-week` / `shifts-month` / `shifts-plan`。
 **注意:** `#talent`（`renderTalent()`）のメニュー表示名は「メンバーステータス」（旧称: 人財カルテ）。関数名・変数名（`renderTalent`, `talentFilterDept`, `_refreshTalentGrid` 等）や `lc_talent` ストレージキーは互換性のため `talent`/`人財カルテ` のまま変えていない。
+**注意:** `#targets`（`renderTargets()`）は2026年9月に「目標設定」から「コミット設定」へ改修した。旧仕様はチーフ(mobile限定)・admin専用で、事業部を問わず全員が編集できる想定だったが、現在は全社員が対象（level不問・報告タイプを持つ人のみ行が表示される）。各行は本人 or adminのみ編集可（他人の行は数値のみ閲覧、admin以外は編集不可）。`saveAllTargets()`（全員まとめて保存ボタン）はadmin専用表示。関数名・変数名（`renderTargets`, `saveOneTarget`, `saveAllTargets`, `canSetTargets`跡地 等）や `lc_targets` ストレージキー・`setMobileTarget`/`setRefaTarget`関数名は互換性のため変えていない。旧「目標①/目標②」の2カラム構成は「コミット」1カラム（数値入力＋単位）に統合し、`<table>`ではなく`.commit-list`/`.commit-row`（チーム実績の`.team-member-list`/`.team-member-row`と同じグリッド行パターン。モバイルは1列に積み上がる）でレンダリングする。各行の下にコミット達成率（`calcAchieve()`で当月実績÷コミットを算出。チーム実績の達成率表示と同ロジック）をプログレスバー付きで表示する。
 
 **注意:** `#team`（`renderTeam()`）は2026年9月に「四半期ごとの社員間チーム編成・目標管理」機能へ全面刷新した（旧仕様は個人成績をmobile部署でフィルタしたテーブルで`#ranking`と内容が重複していたため置き換え）。事業部・報告タイプを問わず全社員から自由にチームを編成でき、1人が複数チームに所属できる。モジュール変数 `selectedTeamId`（`profileUserId`と同じ「選択IDを保持して同一ルートを再描画する」パターン）が空なら `renderTeamList()`（チーム一覧カード）、セットされていれば `renderTeamDetail()`（メンバー一覧＋各人の目標）を表示する。チームには任意で「リーダー」（`leaderId`）を設定でき、リーダーは自チームに限りadminと同じ編集権限（チーム名変更・メンバー編成・リーダー再設定）を持つ（削除・期間編集は引き続きadmin専用）。数値目標はチーム単位ではなくメンバー個人単位（`memberTargets`）で持ち、admin・チームリーダー・本人が編集できる。個人目標・数値目標はいずれも「期間全体で1つの値」と「月ごとの値」を両方持ち、モジュール変数`teamDetailMonth`（メンバー表の上にある月セレクト）で表示・編集対象を切り替える。詳細は[データ構造](#データ構造)の「チーム」を参照。
 

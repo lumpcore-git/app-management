@@ -158,6 +158,36 @@ td { padding: 12px 16px; vertical-align: middle; }
 .tmr-person { display: flex; align-items: center; gap: 10px; }
 .tmr-col-label { display: none; }
 
+/* ─── コミット設定: メンバー一覧（達成率を行の下にフル幅で表示） ─── */
+.card .commit-list { margin: 0 -24px -24px; }
+.commit-head {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 20px;
+  padding: 11px 20px;
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-sub);
+  letter-spacing: .5px;
+  text-transform: uppercase;
+}
+.commit-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  column-gap: 20px;
+  row-gap: 10px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  align-items: center;
+}
+.commit-row:last-child { border-bottom: none; }
+.cr-person { display: flex; align-items: center; gap: 10px; }
+.cr-input { display: flex; align-items: center; gap: 8px; justify-content: flex-end; }
+.cr-progress { grid-column: 1 / -1; }
+.targets-unit { font-size: 12px; color: var(--text-sub); }
+
 /* ─── ROLE PILL SELECT（メンバー管理: インラインロール変更） ─── */
 .role-pill-select {
   appearance: none; -webkit-appearance: none;
@@ -1789,11 +1819,18 @@ td { padding: 12px 16px; vertical-align: middle; }
   .table-wrap table { width: max-content; min-width: 100%; }
   .table-wrap td { white-space: nowrap; }
 
-  /* 目標設定テーブル: 事業部・役職列を非表示にして横スクロールなしで1画面に収める */
-  .targets-table .col-dept,
-  .targets-table .col-role { display: none; }
-  .targets-table th, .targets-table td { padding: 10px 8px; }
-  .targets-table .avatar { width: 28px; height: 28px; font-size: 12px; }
+  /* コミット設定: 2列グリッドを縦積みに */
+  .card .commit-list { margin: 0 -16px -16px; }
+  .commit-head { display: none; }
+  .commit-row {
+    grid-template-columns: 1fr;
+    gap: 10px;
+    padding: 14px 16px;
+  }
+  .cr-input { justify-content: flex-start; }
+  .commit-row .avatar { width: 28px; height: 28px; font-size: 12px; }
+  .targets-input-pt,
+  .targets-input-amt { width: 76px; }
 
   /* チーム詳細メンバー一覧: 3列グリッドを縦積みに（名前 → 個人目標 → 数値目標の順） */
   .card .team-member-list { margin: 0 -16px -16px; }
@@ -1812,9 +1849,6 @@ td { padding: 12px 16px; vertical-align: middle; }
     text-transform: uppercase;
     margin-bottom: 6px;
   }
-  .targets-table .targets-input-pt,
-  .targets-table .targets-input-amt { width: 76px; }
-
   /* スキルシート（3段階認定）: ラベル+承認欄が横並びで文字が1文字ずつ折り返っていたのを縦積みに */
   .sk-item--cert { flex-direction: column; align-items: stretch; gap: 8px; }
   .sk-cert-steps { padding-left: 0; }

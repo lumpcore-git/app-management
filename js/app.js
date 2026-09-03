@@ -164,7 +164,6 @@ function renderSidebar() {
   const canSeeTeam = (level >= 2 && CU.dept === 'mobile') || level >= 5;
   const canSeeTeamOrg = true; // チーム編成は全社横断のため全ログインユーザーに表示
 
-  const canSetTargets = (level >= 4 && CU.dept === 'mobile') || level >= 5;
   const hash = location.hash.replace('#', '') || 'dashboard';
   const isShiftPage  = hash === 'shifts-week' || hash === 'shifts-month' || hash === 'shifts-plan';
   const isVenuePage  = hash === 'venue-achieve-weekday' || hash === 'venue-achieve-weekend';
@@ -178,7 +177,7 @@ function renderSidebar() {
     { id: 'shifts',                icon: 'calendar',        label: 'シフト',         show: true },
     { id: 'team',                  icon: 'users',           label: 'チーム実績',     show: canSeeTeamOrg },
     { id: 'ranking',                icon: 'trophy',          label: 'ランキング',     show: canSeeTeam },
-    { id: 'targets',                icon: 'target',          label: '目標設定',       show: canSetTargets },
+    { id: 'targets',                icon: 'target',          label: 'コミット設定',   show: true },
     { id: 'venue-achieve',          icon: 'chart-bar',       label: '現場達成率',     show: true },
     { id: 'myprofile',              icon: 'user',            label: 'プロフィール',   show: true },
     { id: 'talent',                 icon: 'clipboard-list',  label: 'メンバーステータス', show: level >= 4 },
@@ -230,15 +229,11 @@ function route() {
   const hash = location.hash.replace('#', '') || 'dashboard';
   const level = roleLevel(CU.role);
   const canSeeTeam = (level >= 2 && CU.dept === 'mobile') || level >= 5;
-  const canSetTargets = (level >= 4 && CU.dept === 'mobile') || level >= 5;
 
   if (hash === 'ranking' && !canSeeTeam) {
     location.hash = 'dashboard'; return;
   }
   if (hash === 'report' && getUserReportTypes(CU).length === 0) {
-    location.hash = 'dashboard'; return;
-  }
-  if (hash === 'targets' && !canSetTargets) {
     location.hash = 'dashboard'; return;
   }
   if (hash === 'talent' && level < 4) {
@@ -289,7 +284,7 @@ function route() {
     'shifts-plan': 'シフト作成',
     team:      'チーム実績',
     ranking:   'ランキング',
-    targets:        '目標設定',
+    targets:        'コミット設定',
     'venue-achieve':         '現場達成率',
     'venue-achieve-weekday': '平日達成率',
     'venue-achieve-weekend': '週末達成率',
@@ -335,7 +330,6 @@ function renderBottomNav() {
   const hasReport = getUserReportTypes(CU).length > 0;
   const canSeeTeam = (level >= 2 && CU.dept === 'mobile') || level >= 5;
   const canSeeTeamOrg = true; // チーム編成は全社横断のため全ログインユーザーに表示
-  const canSetTargets = (level >= 4 && CU.dept === 'mobile') || level >= 5;
   const hash = location.hash.replace('#', '') || 'dashboard';
 
   const isShiftHash = hash === 'shifts-week' || hash === 'shifts-month' || hash === 'shifts-plan' || hash === 'shifts';
@@ -348,7 +342,7 @@ function renderBottomNav() {
     { id: 'shifts-week',            icon: 'calendar',       label: 'シフト',     active: isShiftHash },
     canSeeTeamOrg && { id: 'team',  icon: 'users',          label: 'チーム',     active: hash === 'team' },
     canSeeTeam && { id: 'ranking',  icon: 'trophy',         label: 'ランキング', active: hash === 'ranking' },
-    canSetTargets && { id: 'targets', icon: 'target',       label: '目標',     active: hash === 'targets' },
+    { id: 'targets',                icon: 'target',         label: 'コミット',   active: hash === 'targets' },
     { id: 'venue-achieve-weekday',  icon: 'chart-bar',      label: '現場',       active: isVenueHash },
     { id: 'myprofile',              icon: 'user',           label: 'プロフィール', active: isOwnProfileHash },
     level >= 4 && { id: 'talent',   icon: 'clipboard-list', label: 'ステータス', active: hash === 'talent' || (hash === 'profile' && !isOwnProfileHash) },
@@ -2500,73 +2494,78 @@ function renderRanking() {
 }
 
 // ═══════════════════════════════════════════════════════
-// ─── PAGE: 目標設定 ───
+// ─── PAGE: コミット設定（旧: 目標設定） ───
 // ═══════════════════════════════════════════════════════
 function renderTargets() {
   const month = currentMonth();
   const level = roleLevel(CU.role);
   const isAdmin = level >= 5;
 
-  // 管理者は全reportType持ちユーザー、チーフはモバイルのみ。複数タイプ持ちは1人につき1行ずつ表示
+  // 全社員が対象（報告タイプを持つ人のみ、コミットできる数値があるため）。閲覧は全員、編集は本人 or admin。複数タイプ持ちは1人につき1行ずつ表示
   const entries = getUsers()
-    .filter(u => isAdmin || u.dept === 'mobile')
     .flatMap(u => getUserReportTypes(u).map(type => ({ u, type })));
   const targets = getTargets();
+  const allReports = getReports().filter(r => r.date.startsWith(month));
 
   document.getElementById('main').innerHTML = `
     <div class="page-header fade-in">
       <div>
-        <div class="page-title">目標設定</div>
-        <div class="page-sub">${monthLabel(month)}のメンバー別目標</div>
+        <div class="page-title">コミット設定</div>
+        <div class="page-sub">${monthLabel(month)} — 全社員のコミットと達成率（自分のコミットのみ編集できます）</div>
       </div>
-      <button class="btn btn-primary" onclick="saveAllTargets()">全員まとめて保存</button>
+      ${isAdmin ? `<button class="btn btn-primary" onclick="saveAllTargets()">全員まとめて保存</button>` : ''}
     </div>
 
     <div class="card fade-in">
-      <div class="table-wrap">
-        <table class="targets-table">
-          <thead>
-            <tr>
-              <th>名前</th>
-              ${isAdmin ? '<th class="col-dept">事業部</th>' : ''}
-              <th class="col-role">役職</th>
-              <th>目標①</th>
-              <th>目標②</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            ${entries.map(({ u, type }) => {
-              const t = targets.find(x => x.userId === u.id && x.month === month);
-              const isMobile = type === 'mobile';
-              const nameSuffix = getUserReportTypes(u).length > 1 ? `<span class="report-type-chip">${REPORT_TYPE_LABELS[type]}</span>` : '';
-              return `
-                <tr>
-                  <td>
-                    <div class="emp-cell">
-                      <div class="avatar" style="background:${roleColor(u.role)}">${u.name[0]}</div>
-                      <span>${u.name}</span>
-                      ${nameSuffix}
-                    </div>
-                  </td>
-                  ${isAdmin ? `<td class="col-dept" style="color:${DEPTS[u.dept]?.color};font-size:12px">${deptLabel(u.dept)}</td>` : ''}
-                  <td class="col-role" style="color:${roleColor(u.role)};font-size:12px">${getUserDisplayRole(u)}</td>
-                  ${isMobile ? `
-                    <td><input type="number" class="form-input-sm targets-input-pt" id="pt_${u.id}_${type}" value="${t?.ptTarget ?? ''}" placeholder="PT目標" min="0"></td>
-                    <td style="color:var(--text-sub);font-size:12px">pt</td>
-                  ` : `
-                    <td><input type="number" class="form-input-sm targets-input-amt" id="amt_${u.id}_${type}" value="${t?.amountTarget ?? ''}" placeholder="目標売上" min="0"></td>
-                    <td style="color:var(--text-sub);font-size:12px">円</td>
-                  `}
-                  <td>
-                    <button class="btn btn-ghost" style="font-size:12px;padding:6px 12px"
-                      onclick="saveOneTarget('${u.id}','${type}')">保存</button>
-                  </td>
-                </tr>
-              `;
-            }).join('')}
-          </tbody>
-        </table>
+      <div class="commit-list">
+        <div class="commit-head">
+          <div>メンバー</div>
+          <div>コミット（${monthLabel(month)}）</div>
+        </div>
+        ${entries.map(({ u, type }) => {
+          const t = targets.find(x => x.userId === u.id && x.month === month);
+          const isMobile = type === 'mobile';
+          const canEditRow = isAdmin || u.id === CU.id;
+          const nameSuffix = getUserReportTypes(u).length > 1 ? `<span class="report-type-chip">${REPORT_TYPE_LABELS[type]}</span>` : '';
+          const target = isMobile ? t?.ptTarget : t?.amountTarget;
+          const unit = isMobile ? 'pt' : '円';
+
+          const uReports = allReports.filter(r => r.userId === u.id && (isMobile ? (!r.type || r.type === 'mobile') : r.type === type));
+          const actual = isMobile ? aggregateReports(uReports).totalPt : uReports.reduce((s, r) => s + (r.amount || 0), 0);
+          const achieve = calcAchieve(actual, target);
+          const fmt = v => isMobile ? v.toFixed(1) + 'pt' : formatMoney(v);
+
+          return `
+            <div class="commit-row">
+              <div class="cr-person">
+                <div class="avatar" style="background:${roleColor(u.role)}">${u.name[0]}</div>
+                <div>
+                  <div class="emp-name">${u.name} ${nameSuffix}</div>
+                  <div style="font-size:11px;color:${roleColor(u.role)}">${getUserDisplayRole(u)} ・ ${deptLabel(u.dept)}</div>
+                </div>
+              </div>
+              <div class="cr-input">
+                ${canEditRow ? `
+                  <input type="number" class="form-input-sm ${isMobile ? 'targets-input-pt' : 'targets-input-amt'}"
+                    id="${isMobile ? 'pt' : 'amt'}_${u.id}_${type}" value="${target ?? ''}" placeholder="${isMobile ? 'PT目標' : '目標売上'}" min="0">
+                  <span class="targets-unit">${unit}</span>
+                  <button class="btn btn-ghost" style="font-size:12px;padding:6px 12px" onclick="saveOneTarget('${u.id}','${type}')">保存</button>
+                ` : `
+                  <span style="font-size:13px;color:var(--text-sub)">${target != null ? fmt(target) : 'コミット未設定'}</span>
+                `}
+              </div>
+              <div class="cr-progress">
+                ${achieve !== null ? `
+                  <div class="progress-wrap" style="min-width:auto">
+                    <div class="progress-bar"><div class="progress-fill" style="width:${Math.min(achieve, 100)}%;background:${achieveColor(achieve)}"></div></div>
+                    <span style="color:${achieveColor(achieve)};font-size:12px;font-weight:700">${achieve}% 達成</span>
+                  </div>
+                  <div style="font-size:11px;color:var(--text-sub);margin-top:3px">実績 ${fmt(actual)} ／ コミット ${fmt(target)}</div>
+                ` : `<div style="font-size:12px;color:var(--text-sub)">コミット未設定のため達成率なし</div>`}
+              </div>
+            </div>
+          `;
+        }).join('')}
       </div>
     </div>
   `;
@@ -2581,14 +2580,11 @@ function saveOneTarget(userId, reportType) {
     const amt = parseInt(document.getElementById(`amt_${userId}_${reportType}`)?.value) || 0;
     setRefaTarget(userId, month, amt);
   }
-  showToast('目標を保存しました');
+  showToast('コミットを保存しました');
 }
 
 function saveAllTargets() {
-  const level = roleLevel(CU.role);
-  const isAdmin = level >= 5;
   const entries = getUsers()
-    .filter(u => isAdmin || u.dept === 'mobile')
     .flatMap(u => getUserReportTypes(u).map(type => ({ u, type })));
   entries.forEach(({ u, type }) => {
     if (type === 'mobile') {
@@ -2599,7 +2595,7 @@ function saveAllTargets() {
       setRefaTarget(u.id, currentMonth(), amt);
     }
   });
-  showToast('全員の目標を保存しました！');
+  showToast('全員のコミットを保存しました！');
 }
 
 // ═══════════════════════════════════════════════════════

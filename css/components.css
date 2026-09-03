@@ -1809,6 +1809,13 @@ td { padding: 12px 16px; vertical-align: middle; }
   .targets-table .targets-input-pt,
   .targets-table .targets-input-amt { width: 76px; }
 
+  /* スキルシート（3段階認定）: ラベル+承認欄が横並びで文字が1文字ずつ折り返っていたのを縦積みに */
+  .sk-item--cert { flex-direction: column; align-items: stretch; gap: 8px; }
+  .sk-cert-steps { padding-left: 0; }
+  .sk-cert-step { flex-wrap: wrap; row-gap: 6px; }
+  .sk-cert-input:not(.sk-cert-date) { flex: 1; min-width: 90px; }
+  .sk-cert-date { width: 130px; }
+
   /* ボタン: タップ領域を広げる */
   .btn { padding: 10px 16px; font-size: 14px; }
   .btn-icon { padding: 8px; font-size: 16px; }

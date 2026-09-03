@@ -1004,7 +1004,11 @@ td { padding: 12px 16px; vertical-align: middle; }
   align-items: flex-start;
   transition: gap .3s cubic-bezier(.4,0,.2,1);
 }
-.profile-layout.skill-active { gap: 0; }
+/* スキルタブを開いた時に左カラム(アバター/名前カード)を畳んで幅を稼ぐのはデスクトップの2カラムレイアウト限定の演出。
+   モバイルは元々1カラム縦積みなので、同じclassでも畳まない(畳むと空白ができてカードが消えたように見える)。 */
+@media (min-width: 768px) {
+  .profile-layout.skill-active { gap: 0; }
+}
 
 /* 左カラム */
 .profile-left {
@@ -1023,12 +1027,14 @@ td { padding: 12px 16px; vertical-align: middle; }
               opacity .2s ease,
               border-color .2s ease;
 }
-.profile-layout.skill-active .profile-left {
-  width: 0;
-  min-width: 0;
-  opacity: 0;
-  border-color: transparent;
-  pointer-events: none;
+@media (min-width: 768px) {
+  .profile-layout.skill-active .profile-left {
+    width: 0;
+    min-width: 0;
+    opacity: 0;
+    border-color: transparent;
+    pointer-events: none;
+  }
 }
 
 .profile-avatar-block {
@@ -1812,9 +1818,9 @@ td { padding: 12px 16px; vertical-align: middle; }
   /* スキルシート（3段階認定）: ラベル+承認欄が横並びで文字が1文字ずつ折り返っていたのを縦積みに */
   .sk-item--cert { flex-direction: column; align-items: stretch; gap: 8px; }
   .sk-cert-steps { padding-left: 0; }
-  .sk-cert-step { flex-wrap: wrap; row-gap: 6px; }
-  .sk-cert-input:not(.sk-cert-date) { width: 88px; flex: none; }
-  .sk-cert-date { width: 128px; }
+  .sk-cert-step { flex-wrap: wrap; gap: 6px; row-gap: 6px; }
+  .sk-cert-input:not(.sk-cert-date) { width: 74px; flex: none; }
+  .sk-cert-date { width: 108px; }
 
   /* ボタン: タップ領域を広げる */
   .btn { padding: 10px 16px; font-size: 14px; }

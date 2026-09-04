@@ -40,6 +40,9 @@ let reportTypeTab = ''; // 実績報告ページで選択中の報告タイプ
 let selectedTeamId = ''; // チーム実績で選択中のチーム（空 = 一覧表示）
 let teamDetailMonth = ''; // チーム詳細の個人目標・数値目標の表示月（空 = 期間全体）
 
+// ─── コミット設定 STATE ───
+let targetsSortOrder = ''; // '' = 表示順 / 'achieve_desc' / 'achieve_asc'
+
 // ─── ICON HELPER（Tabler Icons スプライト参照。app.html/index.html の <symbol id="ic-{name}"> を使う） ───
 function icon(name, cls) {
   return `<svg class="ico${cls ? ' ' + cls : ''}"><use href="#ic-${name}"></use></svg>`;
@@ -2502,10 +2505,30 @@ function renderTargets() {
   const isAdmin = level >= 5;
 
   // 全社員が対象（報告タイプを持つ人のみ、コミットできる数値があるため）。閲覧は全員、編集は本人 or admin。複数タイプ持ちは1人につき1行ずつ表示
-  const entries = getUsers()
-    .flatMap(u => getUserReportTypes(u).map(type => ({ u, type })));
   const targets = getTargets();
   const allReports = getReports().filter(r => r.date.startsWith(month));
+
+  let rows = getUsers()
+    .flatMap(u => getUserReportTypes(u).map(type => ({ u, type })))
+    .map(({ u, type }) => {
+      const t = targets.find(x => x.userId === u.id && x.month === month);
+      const isMobile = type === 'mobile';
+      const target = isMobile ? t?.ptTarget : t?.amountTarget;
+      const uReports = allReports.filter(r => r.userId === u.id && (isMobile ? (!r.type || r.type === 'mobile') : r.type === type));
+      const actual = isMobile ? aggregateReports(uReports).totalPt : uReports.reduce((s, r) => s + (r.amount || 0), 0);
+      const achieve = calcAchieve(actual, target);
+      return { u, type, isMobile, target, actual, achieve };
+    });
+
+  if (targetsSortOrder === 'achieve_desc' || targetsSortOrder === 'achieve_asc') {
+    const dir = targetsSortOrder === 'achieve_asc' ? 1 : -1;
+    rows = rows.slice().sort((a, b) => {
+      if (a.achieve === null && b.achieve === null) return 0;
+      if (a.achieve === null) return 1;
+      if (b.achieve === null) return -1;
+      return (a.achieve - b.achieve) * dir;
+    });
+  }
 
   document.getElementById('main').innerHTML = `
     <div class="page-header fade-in">
@@ -2513,7 +2536,11 @@ function renderTargets() {
         <div class="page-title">コミット設定</div>
         <div class="page-sub">${monthLabel(month)} — 全社員のコミットと達成率（自分のコミットのみ編集できます）</div>
       </div>
-      ${isAdmin ? `<button class="btn btn-primary" onclick="saveAllTargets()">全員まとめて保存</button>` : ''}
+      <select class="filter-select" onchange="targetsSortOrder=this.value;renderTargets()">
+        <option value="" ${targetsSortOrder === '' ? 'selected' : ''}>表示順</option>
+        <option value="achieve_desc" ${targetsSortOrder === 'achieve_desc' ? 'selected' : ''}>達成率が高い順</option>
+        <option value="achieve_asc" ${targetsSortOrder === 'achieve_asc' ? 'selected' : ''}>達成率が低い順</option>
+      </select>
     </div>
 
     <div class="card fade-in">
@@ -2522,17 +2549,10 @@ function renderTargets() {
           <div>メンバー</div>
           <div>コミット（${monthLabel(month)}）</div>
         </div>
-        ${entries.map(({ u, type }) => {
-          const t = targets.find(x => x.userId === u.id && x.month === month);
-          const isMobile = type === 'mobile';
+        ${rows.map(({ u, type, isMobile, target, actual, achieve }) => {
           const canEditRow = isAdmin || u.id === CU.id;
           const nameSuffix = getUserReportTypes(u).length > 1 ? `<span class="report-type-chip">${REPORT_TYPE_LABELS[type]}</span>` : '';
-          const target = isMobile ? t?.ptTarget : t?.amountTarget;
           const unit = isMobile ? 'pt' : '円';
-
-          const uReports = allReports.filter(r => r.userId === u.id && (isMobile ? (!r.type || r.type === 'mobile') : r.type === type));
-          const actual = isMobile ? aggregateReports(uReports).totalPt : uReports.reduce((s, r) => s + (r.amount || 0), 0);
-          const achieve = calcAchieve(actual, target);
           const fmt = v => isMobile ? v.toFixed(1) + 'pt' : formatMoney(v);
 
           return `
@@ -2581,21 +2601,6 @@ function saveOneTarget(userId, reportType) {
     setRefaTarget(userId, month, amt);
   }
   showToast('コミットを保存しました');
-}
-
-function saveAllTargets() {
-  const entries = getUsers()
-    .flatMap(u => getUserReportTypes(u).map(type => ({ u, type })));
-  entries.forEach(({ u, type }) => {
-    if (type === 'mobile') {
-      const pt = parseFloat(document.getElementById(`pt_${u.id}_${type}`)?.value) || 0;
-      _upsertTarget(u.id, currentMonth(), { ptTarget: pt });
-    } else if (type === 'refa' || type === 'style') {
-      const amt = parseInt(document.getElementById(`amt_${u.id}_${type}`)?.value) || 0;
-      setRefaTarget(u.id, currentMonth(), amt);
-    }
-  });
-  showToast('全員のコミットを保存しました！');
 }
 
 // ═══════════════════════════════════════════════════════

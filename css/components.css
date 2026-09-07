@@ -1942,6 +1942,10 @@ td { padding: 12px 16px; vertical-align: middle; }
   .card { padding: 16px; }
   .card .table-wrap { margin: 0 -16px -16px; }
 
+  /* 設定ページ: テーマ・ナビ表示の選択カードは固定幅だと2枚並べたときに画面幅を超えて縦積みになるため、
+     幅を可変にして常に横並びを維持する（flex-basis:0 + min-width:0 で折り返し判定に幅を持たせない） */
+  .theme-option { width: auto; flex: 1 1 0; min-width: 0; }
+
   /* KPIグリッド: 4列/5列/3列 → すべて2列に統一 */
   .kpi-grid, .kpi-cols-3, .kpi-cols-5 { grid-template-columns: repeat(2, 1fr); gap: 10px; }
   .kpi-card { padding: 14px; }

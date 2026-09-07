@@ -368,6 +368,12 @@ body.impersonating .topbar { top: 40px; }
     gap: 10px;
   }
   .topbar-logo { font-size: 15px; }
+  .topbar-title {
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
   .topbar-name, .topbar-role { display: none; }
   .btn-logout { display: none; }
   .mobile-subtabs { display: flex; }

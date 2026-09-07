@@ -236,7 +236,7 @@ td { padding: 12px 16px; vertical-align: middle; }
 .progress-fill { height: 100%; border-radius: 3px; transition: width .5s ease; }
 
 /* ─── FORMS ─── */
-.form-group { display: flex; flex-direction: column; gap: 6px; }
+.form-group { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .form-label { font-size: 12px; font-weight: 600; color: var(--text-sub); }
 .form-input, .form-select, .form-textarea {
@@ -250,6 +250,7 @@ td { padding: 12px 16px; vertical-align: middle; }
   font-family: inherit;
   transition: border-color .15s;
   width: 100%;
+  min-width: 0;
 }
 .form-input:focus, .form-select:focus, .form-textarea:focus { border-color: var(--accent); }
 .form-textarea { resize: vertical; min-height: 80px; }
@@ -1334,6 +1335,7 @@ td { padding: 12px 16px; vertical-align: middle; }
   gap: 16px;
   padding: 20px 24px;
   overflow-y: auto;
+  min-width: 0;
 }
 .profile-panel.hidden { display: none; }
 

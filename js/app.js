@@ -1689,10 +1689,10 @@ function renderMobileReportPage() {
       </div>
 
       <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:20px">
-        <div class="form-group" style="margin-bottom:0">
+        <div class="form-group" style="margin-bottom:0;width:160px;flex-shrink:0">
           <label class="form-label">日付</label>
           <input type="date" class="form-input" id="repDate" value="${todayStr()}"
-                 style="max-width:200px" onchange="updateSiteFromShift(this.value)">
+                 onchange="updateSiteFromShift(this.value)">
         </div>
         <div class="form-group" style="margin-bottom:0;flex:1;min-width:180px">
           <label class="form-label">現場</label>

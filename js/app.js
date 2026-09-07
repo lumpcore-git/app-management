@@ -1068,7 +1068,6 @@ function renderMobileDashboard() {
   const target = getTargetForUser(CU.id, month);
   const agg = aggregateReports(myReports);
   const myPt = agg.totalPt;
-  const achieve = calcAchieve(myPt, target?.ptTarget);
   const recent = [...myReports].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5);
 
   // トップ商材（0より大きいもの上位3つ）
@@ -1082,34 +1081,18 @@ function renderMobileDashboard() {
     })
     .slice(0, 3);
 
-  // チーフはチームKPIも表示
-  let teamSection = '';
-  if (roleLevel(CU.role) >= 4) {
+  // チーフはチームKPIも表示項目の選択肢に加える
+  const isChief = roleLevel(CU.role) >= 4;
+  let teamAgg = null, unreported = null;
+  if (isChief) {
     const teamReports = getReports().filter(r => {
       const u = getUserById(r.userId);
       return u?.dept === 'mobile' && r.date.startsWith(month) && (!r.type || r.type === 'mobile');
     });
-    const teamAgg = aggregateReports(teamReports);
+    teamAgg = aggregateReports(teamReports);
     const mobileUsers = getUsers().filter(u => u.dept === 'mobile' && getUserReportTypes(u).includes('mobile'));
     const reportedIds = new Set(teamReports.map(r => r.userId));
-    const unreported = mobileUsers.filter(u => !reportedIds.has(u.id)).length;
-
-    teamSection = `
-      <div class="kpi-grid kpi-cols-3">
-        <div class="kpi-card blue">
-          <div class="kpi-icon">${icon('star')}</div><div class="kpi-label">チーム総合計PT</div>
-          <div class="kpi-value">${teamAgg.totalPt.toFixed(1)}</div><div class="kpi-meta">チーム合計</div>
-        </div>
-        <div class="kpi-card green">
-          <div class="kpi-icon">${icon('device-mobile')}</div><div class="kpi-label">チームSBMNP</div>
-          <div class="kpi-value">${teamAgg.sbmnp}</div><div class="kpi-meta">今月合計</div>
-        </div>
-        <div class="kpi-card ${unreported > 0 ? 'warn' : 'green'}">
-          <div class="kpi-icon">${icon('bell')}</div><div class="kpi-label">未報告</div>
-          <div class="kpi-value">${unreported}</div><div class="kpi-meta">今月未報告</div>
-        </div>
-      </div>
-    `;
+    unreported = mobileUsers.filter(u => !reportedIds.has(u.id)).length;
   }
 
   document.getElementById('main').innerHTML = `
@@ -1121,32 +1104,12 @@ function renderMobileDashboard() {
       <button class="btn btn-primary" onclick="navigate('report')">${icon('edit')} 実績を報告する</button>
     </div>
 
-    ${teamSection ? `<div class="fade-in">${teamSection}</div>` : ''}
-
-    <div class="kpi-grid fade-in">
-      <div class="kpi-card blue">
-        <div class="kpi-icon">${icon('star')}</div><div class="kpi-label">今月総合計PT</div>
-        <div class="kpi-value" style="font-size:28px">${myPt.toFixed(1)}</div>
-        <div class="kpi-meta">${target?.ptTarget ? `目標: ${target.ptTarget}pt` : '目標未設定'}</div>
-      </div>
-      <div class="kpi-card ${achieve !== null && achieve >= 100 ? 'green' : achieve !== null && achieve >= 70 ? 'blue' : 'warn'}">
-        <div class="kpi-icon">${icon('chart-bar')}</div><div class="kpi-label">達成率</div>
-        <div class="kpi-value" style="color:${achieveColor(achieve)}">${achieve !== null ? achieve + '%' : '—'}</div>
-        <div class="kpi-meta">${target?.ptTarget ? '今月目標PT比' : '目標未設定'}</div>
-      </div>
-      <div class="kpi-card green">
-        <div class="kpi-icon">${icon('device-mobile')}</div><div class="kpi-label">SBMNP</div>
-        <div class="kpi-value">${agg.sbmnp}</div>
-        <div class="kpi-meta">×5.0pt = ${(agg.sbmnp * 5).toFixed(1)}pt</div>
-      </div>
-      <div class="kpi-card blue">
-        <div class="kpi-icon">${icon('device-mobile')}</div><div class="kpi-label">YMNP</div>
-        <div class="kpi-value">${agg.ymnp}</div>
-        <div class="kpi-meta">×3.0pt = ${(agg.ymnp * 3).toFixed(1)}pt</div>
-      </div>
+    <div class="dash-hero-grid">
+      ${_todayShiftCard(CU.id)}
+      ${_commitAchieveCard(myPt, target?.ptTarget, 'pt')}
     </div>
 
-    ${_todayShiftCard(CU.id)}
+    ${_renderDashWidgets('mobile', { myPt, agg, target, teamAgg, unreported })}
 
     ${topProducts.length > 0 ? `
     <div class="card fade-in">
@@ -1281,25 +1244,186 @@ function _todayShiftCard(userId) {
       return s?.site === slot.site;
     });
     if (colleagues.length) {
-      chipHtml += `<div style="margin-top:8px;font-size:11px;color:var(--text-sub)">同じ現場: ${colleagues.map(u => u.name).join('、')}</div>`;
+      chipHtml += `<div class="dash-shift-colleagues">同じ現場: ${colleagues.map(u => u.name).join('、')}</div>`;
     }
   }
 
   return `
-    <div class="card fade-in" style="display:flex;align-items:flex-start;gap:16px">
-      <div style="font-size:28px;line-height:1;padding-top:2px">${icon(iconSlug)}</div>
-      <div style="flex:1">
-        <div style="font-size:11px;color:var(--text-sub);font-weight:600;letter-spacing:.8px;text-transform:uppercase;margin-bottom:4px">本日のシフト</div>
-        <div style="font-size:16px;font-weight:700">${title}</div>
-        ${sub ? `<div style="font-size:12px;color:var(--text-sub);margin-top:2px">${sub}</div>` : ''}
+    <div class="card fade-in dash-shift-card">
+      <div class="dash-shift-icon">${icon(iconSlug)}</div>
+      <div class="dash-shift-body">
+        <div class="dash-shift-label">本日のシフト</div>
+        <div class="dash-shift-title">${title}</div>
+        ${sub ? `<div class="dash-shift-sub">${sub}</div>` : ''}
         ${chipHtml}
       </div>
-      <div style="text-align:right;flex-shrink:0">
-        <div style="font-size:11px;color:var(--text-sub)">${month.slice(5)}月出勤日数</div>
-        <div style="font-size:22px;font-weight:700;color:${workCount >= 21 ? 'var(--green)' : 'var(--accent)'}">${workCount}<span style="font-size:12px;font-weight:400;color:var(--text-sub)"> / 21日</span></div>
+      <div class="dash-shift-count">
+        <div class="dash-shift-count-label">${month.slice(5)}月出勤日数</div>
+        <div class="dash-shift-count-val" style="color:${workCount >= 21 ? 'var(--green)' : 'var(--accent)'}">${workCount}<span style="font-size:12px;font-weight:400;color:var(--text-sub)"> / 21日</span></div>
       </div>
     </div>
   `;
+}
+
+// ── 今月のコミット達成率カード（全ダッシュボード共通。report typeを持つユーザーのみ呼ばれる） ──
+function _commitAchieveCard(actual, target, unit) {
+  const fmt = v => unit === 'pt' ? `${Number(v).toFixed(1)}pt` : formatMoney(v);
+
+  if (target == null || target <= 0) {
+    return `
+      <div class="card fade-in dash-commit-card">
+        <div class="dash-commit-head">
+          <div class="dash-commit-icon">${icon('chart-bar')}</div>
+          <div>
+            <div class="dash-commit-label">今月のコミット達成率</div>
+            <div class="dash-commit-empty">コミットが未設定です</div>
+          </div>
+        </div>
+        <button class="btn btn-ghost" style="margin-top:12px" onclick="navigate('targets')">${icon('edit')} コミットを設定する</button>
+      </div>
+    `;
+  }
+
+  const achieve = calcAchieve(actual, target);
+  const color = achieveColor(achieve);
+  return `
+    <div class="card fade-in dash-commit-card">
+      <div class="dash-commit-head">
+        <div class="dash-commit-icon">${icon('chart-bar')}</div>
+        <div style="flex:1;min-width:0">
+          <div class="dash-commit-label">今月のコミット達成率</div>
+          <div class="dash-commit-pct" style="color:${color}">${achieve}%</div>
+        </div>
+        ${achieve >= 100 ? `<span class="dash-commit-badge">${icon('confetti')} 達成</span>` : ''}
+      </div>
+      <div class="progress-bar dash-commit-bar"><div class="progress-fill" style="width:${Math.min(achieve, 100)}%;background:${color}"></div></div>
+      <div class="dash-commit-meta">実績 <strong>${fmt(actual)}</strong> ／ コミット <strong>${fmt(target)}</strong></div>
+    </div>
+  `;
+}
+
+// ── ダッシュボード表示項目カスタマイズ（本人が選んだ項目だけをKPIカードとして表示） ──
+function _renderDashWidgets(type, ctx) {
+  const catalog = DASH_WIDGET_CATALOG[type] || [];
+  const isChief = type === 'mobile' && roleLevel(CU.role) >= 4;
+  const items = catalog.filter(it => !it.chiefOnly || isChief);
+  const selected = getDashboardWidgets(CU.id, type);
+  const chosen = items.filter(it => selected.includes(it.key));
+
+  return `
+    <div class="card fade-in dash-widgets-card">
+      <div class="dash-widgets-head">
+        <div class="section-title" style="margin-bottom:0">表示項目</div>
+        <button class="btn-icon" onclick="openDashWidgetPicker('${type}')" title="表示項目を編集">${icon('settings')}</button>
+      </div>
+      ${chosen.length === 0 ? `
+        <div class="dash-widgets-empty">まだ表示項目がありません。${icon('settings')} アイコンから好きな項目を追加できます。</div>
+      ` : `
+        <div class="kpi-grid dash-widget-grid">
+          ${chosen.map(it => _dashWidgetCard(it.key, ctx)).join('')}
+        </div>
+      `}
+    </div>
+  `;
+}
+
+function _dashWidgetCard(key, ctx) {
+  switch (key) {
+    case 'totalPt':
+      return `
+        <div class="kpi-card blue">
+          <div class="kpi-icon">${icon('star')}</div><div class="kpi-label">今月総合計PT</div>
+          <div class="kpi-value" style="font-size:28px">${ctx.myPt.toFixed(1)}</div>
+          <div class="kpi-meta">${ctx.target?.ptTarget ? `目標: ${ctx.target.ptTarget}pt` : '目標未設定'}</div>
+        </div>`;
+    case 'team_totalPt':
+      return `
+        <div class="kpi-card blue">
+          <div class="kpi-icon">${icon('star')}</div><div class="kpi-label">チーム総合計PT</div>
+          <div class="kpi-value">${ctx.teamAgg.totalPt.toFixed(1)}</div><div class="kpi-meta">チーム合計</div>
+        </div>`;
+    case 'team_sbmnp':
+      return `
+        <div class="kpi-card green">
+          <div class="kpi-icon">${icon('device-mobile')}</div><div class="kpi-label">チームSBMNP</div>
+          <div class="kpi-value">${ctx.teamAgg.sbmnp}</div><div class="kpi-meta">今月合計</div>
+        </div>`;
+    case 'team_unreported':
+      return `
+        <div class="kpi-card ${ctx.unreported > 0 ? 'warn' : 'green'}">
+          <div class="kpi-icon">${icon('bell')}</div><div class="kpi-label">未報告（チーム）</div>
+          <div class="kpi-value">${ctx.unreported}</div><div class="kpi-meta">今月未報告</div>
+        </div>`;
+    case 'amount':
+      return `
+        <div class="kpi-card" style="position:relative;overflow:hidden">
+          <div style="position:absolute;top:0;left:0;right:0;height:3px;background:${ctx.accentColor}"></div>
+          <div class="kpi-icon">${icon(ctx.amountIcon)}</div><div class="kpi-label">今月売上</div>
+          <div class="kpi-value" style="font-size:22px;color:${ctx.accentColor}">${formatMoney(ctx.totalAmount)}</div>
+          <div class="kpi-meta">${ctx.target?.amountTarget ? `目標: ${formatMoney(ctx.target.amountTarget)}` : '目標未設定'}</div>
+        </div>`;
+    case 'count':
+      return `
+        <div class="kpi-card blue">
+          <div class="kpi-icon">${icon('clipboard-list')}</div><div class="kpi-label">報告件数</div>
+          <div class="kpi-value">${ctx.count}</div><div class="kpi-meta">今月の報告回数</div>
+        </div>`;
+    default: {
+      const p = PRODUCTS.find(x => x.key === key);
+      if (!p || !ctx.agg) return '';
+      const val = ctx.agg[key] || 0;
+      const pts = p.type === 'amount' ? (val / p.per) * p.pt : val * p.pt;
+      return `
+        <div class="kpi-card blue">
+          <div class="kpi-icon">${icon('device-mobile')}</div><div class="kpi-label">${p.label}</div>
+          <div class="kpi-value">${p.type === 'amount' ? formatMoney(val) : val}</div>
+          <div class="kpi-meta">×${p.pt}pt = ${pts.toFixed(1)}pt</div>
+        </div>`;
+    }
+  }
+}
+
+function openDashWidgetPicker(type) {
+  const catalog = DASH_WIDGET_CATALOG[type] || [];
+  const isChief = type === 'mobile' && roleLevel(CU.role) >= 4;
+  const items = catalog.filter(it => !it.chiefOnly || isChief);
+  const selected = getDashboardWidgets(CU.id, type);
+  const groups = [...new Set(items.map(it => it.group))];
+
+  showModal(`
+    <div class="modal-header">
+      <div class="modal-title">表示項目のカスタマイズ</div>
+      <button class="modal-close" onclick="closeModal()">${icon('x')}</button>
+    </div>
+    <div class="modal-body">
+      <div style="font-size:12px;color:var(--text-sub)">ダッシュボードに表示したい項目にチェックを入れてください。</div>
+      ${groups.map(g => `
+        <div>
+          <div class="section-title" style="margin-bottom:8px">${g}</div>
+          <div class="report-type-checks">
+            ${items.filter(it => it.group === g).map(it => `
+              <label class="report-type-check">
+                <input type="checkbox" class="dash-widget-check" value="${it.key}" ${selected.includes(it.key) ? 'checked' : ''}>
+                <span>${it.label}</span>
+              </label>
+            `).join('')}
+          </div>
+        </div>
+      `).join('')}
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">キャンセル</button>
+      <button class="btn btn-primary" onclick="saveDashWidgetPicker('${type}')">保存する</button>
+    </div>
+  `);
+}
+
+function saveDashWidgetPicker(type) {
+  const keys = [...document.querySelectorAll('.dash-widget-check:checked')].map(el => el.value);
+  setDashboardWidgets(CU.id, type, keys);
+  closeModal();
+  showToast('表示項目を保存しました');
+  renderDashboard();
 }
 
 // ── Refaダッシュボード ──
@@ -1310,7 +1434,6 @@ function renderRefaDashboard() {
 
   const totalAmount = myReports.reduce((s, r) => s + (r.amount || 0), 0);
   const count = myReports.length;
-  const achieve = calcAchieve(totalAmount, target?.amountTarget);
 
   const recent = [...myReports].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5);
 
@@ -1323,26 +1446,12 @@ function renderRefaDashboard() {
       <button class="btn btn-primary" onclick="navigate('report')">${icon('edit')} 実績を報告する</button>
     </div>
 
-    ${_todayShiftCard(CU.id)}
-
-    <div class="kpi-grid kpi-cols-3 fade-in">
-      <div class="kpi-card" style="position:relative;overflow:hidden">
-        <div style="position:absolute;top:0;left:0;right:0;height:3px;background:#f472b6"></div>
-        <div class="kpi-icon">${icon('diamond')}</div><div class="kpi-label">今月売上</div>
-        <div class="kpi-value" style="font-size:22px;color:#f472b6">${formatMoney(totalAmount)}</div>
-        <div class="kpi-meta">${target?.amountTarget ? `目標: ${formatMoney(target.amountTarget)}` : '目標未設定'}</div>
-      </div>
-      <div class="kpi-card blue">
-        <div class="kpi-icon">${icon('clipboard-list')}</div><div class="kpi-label">報告件数</div>
-        <div class="kpi-value">${count}</div>
-        <div class="kpi-meta">今月の報告回数</div>
-      </div>
-      <div class="kpi-card ${achieve !== null && achieve >= 100 ? 'green' : 'warn'}">
-        <div class="kpi-icon">${icon('chart-bar')}</div><div class="kpi-label">達成率</div>
-        <div class="kpi-value" style="color:${achieveColor(achieve)}">${achieve !== null ? achieve + '%' : '—'}</div>
-        <div class="kpi-meta">${target?.amountTarget ? '今月目標比' : '目標未設定'}</div>
-      </div>
+    <div class="dash-hero-grid">
+      ${_todayShiftCard(CU.id)}
+      ${_commitAchieveCard(totalAmount, target?.amountTarget, 'amount')}
     </div>
+
+    ${_renderDashWidgets('refa', { totalAmount, count, target, accentColor: '#f472b6', amountIcon: 'diamond' })}
 
     <div class="card fade-in">
       <div class="section-title">最近の報告</div>
@@ -1377,7 +1486,6 @@ function renderStyleDashboard() {
 
   const totalAmount = myReports.reduce((s, r) => s + (r.amount || 0), 0);
   const count = myReports.length;
-  const achieve = calcAchieve(totalAmount, target?.amountTarget);
 
   const recent = [...myReports].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5);
 
@@ -1390,26 +1498,12 @@ function renderStyleDashboard() {
       <button class="btn btn-primary" onclick="navigate('report')">${icon('edit')} 実績を報告する</button>
     </div>
 
-    ${_todayShiftCard(CU.id)}
-
-    <div class="kpi-grid kpi-cols-3 fade-in">
-      <div class="kpi-card" style="position:relative;overflow:hidden">
-        <div style="position:absolute;top:0;left:0;right:0;height:3px;background:#fbbf24"></div>
-        <div class="kpi-icon">${icon('sparkles')}</div><div class="kpi-label">今月売上</div>
-        <div class="kpi-value" style="font-size:22px;color:#fbbf24">${formatMoney(totalAmount)}</div>
-        <div class="kpi-meta">${target?.amountTarget ? `目標: ${formatMoney(target.amountTarget)}` : '目標未設定'}</div>
-      </div>
-      <div class="kpi-card blue">
-        <div class="kpi-icon">${icon('clipboard-list')}</div><div class="kpi-label">報告件数</div>
-        <div class="kpi-value">${count}</div>
-        <div class="kpi-meta">今月の報告回数</div>
-      </div>
-      <div class="kpi-card ${achieve !== null && achieve >= 100 ? 'green' : 'warn'}">
-        <div class="kpi-icon">${icon('chart-bar')}</div><div class="kpi-label">達成率</div>
-        <div class="kpi-value" style="color:${achieveColor(achieve)}">${achieve !== null ? achieve + '%' : '—'}</div>
-        <div class="kpi-meta">${target?.amountTarget ? '今月目標比' : '目標未設定'}</div>
-      </div>
+    <div class="dash-hero-grid">
+      ${_todayShiftCard(CU.id)}
+      ${_commitAchieveCard(totalAmount, target?.amountTarget, 'amount')}
     </div>
+
+    ${_renderDashWidgets('style', { totalAmount, count, target, accentColor: '#fbbf24', amountIcon: 'sparkles' })}
 
     <div class="card fade-in">
       <div class="section-title">最近の報告</div>

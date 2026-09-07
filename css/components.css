@@ -31,6 +31,7 @@
   grid-template-columns: repeat(4, 1fr);
   gap: 16px;
 }
+.kpi-cols-2 { grid-template-columns: repeat(2, 1fr); }
 .kpi-cols-3 { grid-template-columns: repeat(3, 1fr); }
 .kpi-cols-5 { grid-template-columns: repeat(5, 1fr); }
 .kpi-card {
@@ -427,6 +428,50 @@ td { padding: 12px 16px; vertical-align: middle; }
   transition: opacity .15s;
 }
 .shift-chip:hover { opacity: .85; }
+
+/* ─── ダッシュボード上部: 本日のシフト + 今月のコミット達成率（管理者以外の全ダッシュボード共通） ─── */
+.dash-hero-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  align-items: stretch;
+}
+.dash-hero-grid > .card { margin: 0; }
+
+.dash-shift-card { display: flex; align-items: flex-start; gap: 16px; }
+.dash-shift-icon { font-size: 30px; line-height: 1; padding-top: 2px; flex-shrink: 0; color: var(--accent2); }
+.dash-shift-body { flex: 1; min-width: 0; }
+.dash-shift-label {
+  font-size: 11px; color: var(--text-sub); font-weight: 600;
+  letter-spacing: .8px; text-transform: uppercase; margin-bottom: 4px;
+}
+.dash-shift-title { font-size: 18px; font-weight: 700; }
+.dash-shift-sub { font-size: 13px; color: var(--text-sub); margin-top: 2px; }
+.dash-shift-colleagues { margin-top: 8px; font-size: 11px; color: var(--text-sub); }
+.dash-shift-count { text-align: right; flex-shrink: 0; }
+.dash-shift-count-label { font-size: 11px; color: var(--text-sub); white-space: nowrap; }
+.dash-shift-count-val { font-size: 24px; font-weight: 700; font-family: 'Space Grotesk', sans-serif; }
+
+.dash-commit-card { display: flex; flex-direction: column; }
+.dash-commit-head { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
+.dash-commit-icon { font-size: 28px; line-height: 1; color: var(--accent); flex-shrink: 0; }
+.dash-commit-label {
+  font-size: 11px; color: var(--text-sub); font-weight: 600;
+  letter-spacing: .8px; text-transform: uppercase; margin-bottom: 4px;
+}
+.dash-commit-pct { font-family: 'Space Grotesk', sans-serif; font-size: 34px; font-weight: 700; line-height: 1; }
+.dash-commit-empty { font-size: 15px; color: var(--text-sub); margin-top: 2px; }
+.dash-commit-badge {
+  background: rgba(134,249,215,.15); color: var(--green);
+  font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 20px; white-space: nowrap; flex-shrink: 0;
+}
+.dash-commit-bar { height: 10px; margin-bottom: 10px; }
+.dash-commit-meta { font-size: 12px; color: var(--text-sub); }
+
+/* ─── ダッシュボード: 表示項目カスタマイズ（個人が選んだ項目だけをKPIカードで表示） ─── */
+.dash-widgets-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.dash-widgets-empty { font-size: 13px; color: var(--text-sub); padding: 8px 0 4px; line-height: 1.7; }
+.dash-widgets-card .dash-widget-grid { margin-bottom: 0; }
 
 /* ─── SHIFT PLAN TABLE（シフト作成ページ） ─── */
 .splan-scroll-wrap {
@@ -1876,6 +1921,15 @@ td { padding: 12px 16px; vertical-align: middle; }
 
   /* シフトチップ */
   .shift-chip { font-size: 10px; max-width: 70px; }
+
+  /* ダッシュボード上部: 本日のシフト + コミット達成率を1列に積み上げ */
+  .dash-hero-grid { grid-template-columns: 1fr; gap: 12px; }
+  .dash-shift-card { flex-wrap: wrap; }
+  .dash-shift-count {
+    text-align: left; margin-top: 4px; width: 100%;
+    display: flex; align-items: baseline; gap: 6px;
+  }
+  .dash-commit-pct { font-size: 28px; }
 
   /* セクションタイトル margin調整 */
   .section-title { margin-bottom: 12px; }

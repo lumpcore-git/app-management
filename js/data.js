@@ -102,6 +102,7 @@ const LS = {
   interviewLogs:  'lc_interview_logs',
   teams:          'lc_teams',
   teamPeriod:     'lc_team_period',
+  dashboardWidgets: 'lc_dashboard_widgets',
 };
 
 // ─── STORAGE ADAPTER ───
@@ -122,6 +123,7 @@ const CLOUD_KEYS = new Set([
   'lc_users', 'lc_reports', 'lc_targets', 'lc_shift_schedules',
   'lc_shift_sites', 'lc_talent', 'lc_photos', 'lc_skill_template',
   'lc_skill_eval', 'lc_venue_plans', 'lc_teams', 'lc_team_period',
+  'lc_dashboard_widgets',
 ]);
 
 const Store = {
@@ -632,6 +634,26 @@ const PRODUCTS = [
   { key: 'selection',     label: 'セレクション',        pt: 3.0, type: 'amount', unit: '円', per: 50000, group: 'その他' },
 ];
 
+// ─── ダッシュボード表示項目カタログ（カスタマイズ機能の選択肢一覧） ───
+// chiefOnly: true の項目はチーフ以上（roleLevel>=4）のモバイルユーザーにのみ選択肢として見せる
+const DASH_WIDGET_CATALOG = {
+  mobile: [
+    { key: 'totalPt', label: '今月総合計PT', group: '合計' },
+    ...PRODUCTS.map(p => ({ key: p.key, label: p.label, group: p.group })),
+    { key: 'team_totalPt',    label: 'チーム総合計PT',   group: 'チーム（チーフ以上）', chiefOnly: true },
+    { key: 'team_sbmnp',      label: 'チームSBMNP',      group: 'チーム（チーフ以上）', chiefOnly: true },
+    { key: 'team_unreported', label: '未報告（チーム）', group: 'チーム（チーフ以上）', chiefOnly: true },
+  ],
+  refa: [
+    { key: 'amount', label: '今月売上',   group: '合計' },
+    { key: 'count',  label: '報告件数',   group: '合計' },
+  ],
+  style: [
+    { key: 'amount', label: '今月売上',   group: '合計' },
+    { key: 'count',  label: '報告件数',   group: '合計' },
+  ],
+};
+
 // 1件のレポートのポイントを計算
 function calcPoints(report) {
   return PRODUCTS.reduce((total, p) => {
@@ -704,6 +726,24 @@ function setTalentCard(userId, data) {
   const cards = getTalentCards();
   cards[userId] = { ...(cards[userId] || {}), ...data, updatedAt: new Date().toISOString() };
   saveTalentCards(cards);
+}
+
+// ─── ダッシュボード表示項目カスタマイズ ───
+// lc_dashboard_widgets: { [userId]: { mobile: ['sbmnp', 'totalPt', ...], refa: ['amount', ...], style: [...] } }
+// 各ユーザーが自分のダッシュボードに表示したい項目（report typeごと）を個別に選べる。デフォルトは空（非表示）。
+function getAllDashboardWidgets() {
+  return Store.get(LS.dashboardWidgets, {});
+}
+function saveAllDashboardWidgets(all) {
+  Store.set(LS.dashboardWidgets, all);
+}
+function getDashboardWidgets(userId, type) {
+  return getAllDashboardWidgets()[userId]?.[type] || [];
+}
+function setDashboardWidgets(userId, type, keys) {
+  const all = getAllDashboardWidgets();
+  all[userId] = { ...(all[userId] || {}), [type]: keys };
+  saveAllDashboardWidgets(all);
 }
 
 // ─── MBTI ───

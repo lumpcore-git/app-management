@@ -73,6 +73,7 @@ function _syncThemeBtn(theme) {
 // ─── INIT ───
 window.addEventListener('DOMContentLoaded', async () => {
   initTheme();
+  applyNavStyle(getNavStyle());
   initData();
   await tryEntraIdLogin();
   CU = requireAuth();
@@ -318,6 +319,7 @@ function route() {
   };
   (pages[hash] || renderDashboard)();
   renderBottomNav();
+  renderHamburgerMenu();
   renderMobileSubtabs(hash);
 }
 
@@ -379,6 +381,57 @@ function _updateBottomNavFade() {
   el.classList.toggle('has-scroll-right', scroll.scrollLeft + scroll.clientWidth < scroll.scrollWidth - 4);
 }
 
+// ─── HAMBURGER MENU (mobile ナビ表示スタイルの選択肢) ───
+// 下部バーと同じ対象・権限だが、フルラベル（サイドバーと同じ表記）で縦一列に表示する
+function _navFullItems() {
+  const level = roleLevel(CU.role);
+  const hasReport = getUserReportTypes(CU).length > 0;
+  const canSeeTeam = (level >= 2 && CU.dept === 'mobile') || level >= 5;
+  const hash = location.hash.replace('#', '') || 'dashboard';
+
+  const isShiftHash = hash === 'shifts-week' || hash === 'shifts-month' || hash === 'shifts-plan' || hash === 'shifts';
+  const isVenueHash = hash === 'venue-achieve-weekday' || hash === 'venue-achieve-weekend' || hash === 'venue-achieve';
+  const isOwnProfileHash = hash === 'profile' && profileUserId === CU.id;
+
+  return [
+    { id: 'dashboard',             icon: 'home',           label: 'ダッシュボード',     active: hash === 'dashboard' },
+    hasReport && { id: 'report',   icon: 'edit',           label: '実績報告',           active: hash === 'report' },
+    { id: 'shifts-week',           icon: 'calendar',       label: 'シフト',             active: isShiftHash },
+    { id: 'team',                  icon: 'users',          label: 'チーム実績',         active: hash === 'team' },
+    canSeeTeam && { id: 'ranking', icon: 'trophy',         label: 'ランキング',         active: hash === 'ranking' },
+    { id: 'targets',               icon: 'target',         label: 'コミット設定',       active: hash === 'targets' },
+    { id: 'venue-achieve-weekday', icon: 'chart-bar',      label: '現場達成率',         active: isVenueHash },
+    { id: 'myprofile',             icon: 'user',           label: 'プロフィール',       active: isOwnProfileHash },
+    level >= 4 && { id: 'talent',  icon: 'clipboard-list', label: 'メンバーステータス', active: hash === 'talent' || (hash === 'profile' && !isOwnProfileHash) },
+    level >= 5 && { id: 'members', icon: 'settings',       label: 'メンバー管理',       active: hash === 'members' },
+    { id: 'settings',              icon: 'tool',           label: '設定',               active: hash === 'settings' },
+  ].filter(Boolean);
+}
+
+function renderHamburgerMenu() {
+  const panel = document.getElementById('hamburgerMenuPanel');
+  if (!panel) return;
+  const items = _navFullItems();
+  panel.innerHTML = items.map(item => `
+    <div class="hamburger-nav-item ${item.active ? 'active' : ''}" onclick="navigate('${item.id}')">
+      <span class="icon">${icon(item.icon)}</span>
+      <span>${item.label}</span>
+    </div>`).join('');
+}
+
+function toggleHamburgerMenu() {
+  document.getElementById('hamburgerOverlay')?.classList.toggle('hidden');
+}
+function closeHamburgerMenu() {
+  document.getElementById('hamburgerOverlay')?.classList.add('hidden');
+}
+
+// ナビ表示スタイル（'hamburger' | 'bottomnav'）を <body> のクラスに反映する
+function applyNavStyle(style) {
+  document.body.classList.toggle('nav-style-hamburger', style === 'hamburger');
+  document.body.classList.toggle('nav-style-bottomnav', style === 'bottomnav');
+}
+
 // ─── MOBILE SUB-TABS (shift / venue page switcher) ───
 function renderMobileSubtabs(hash) {
   const main = document.getElementById('main');
@@ -429,6 +482,7 @@ function syncShiftMenu() {
 }
 
 function navigate(page) {
+  closeHamburgerMenu();
   if (page === 'shifts') {
     location.hash = 'shifts-week';
     return;
@@ -1314,10 +1368,10 @@ function _renderDashWidgets(type, ctx) {
     <div class="card fade-in dash-widgets-card">
       <div class="dash-widgets-head">
         <div class="section-title" style="margin-bottom:0">表示項目</div>
-        <button class="btn-icon" onclick="openDashWidgetPicker('${type}')" title="表示項目を編集">${icon('settings')}</button>
+        <button class="btn btn-ghost dash-widgets-edit-btn" onclick="openDashWidgetPicker('${type}')">${icon('settings')} 表示項目を編集</button>
       </div>
       ${chosen.length === 0 ? `
-        <div class="dash-widgets-empty">まだ表示項目がありません。${icon('settings')} アイコンから好きな項目を追加できます。</div>
+        <div class="dash-widgets-empty">まだ表示項目がありません。「表示項目を編集」から好きな項目を追加できます。</div>
       ` : `
         <div class="kpi-grid dash-widget-grid">
           ${chosen.map(it => _dashWidgetCard(it.key, ctx)).join('')}
@@ -3601,12 +3655,36 @@ function setMemberFilterDept(dept) { memberFilterDept = dept; renderMembers(); }
 // ─── SETTINGS ───
 function renderSettings() {
   const theme = document.documentElement.getAttribute('data-theme') || 'dark';
+  const navStyle = getNavStyle();
 
   document.getElementById('main').innerHTML = `
     <div class="page-header fade-in">
       <div>
         <div class="page-title">設定</div>
         <div class="page-sub">表示・テーマのカスタマイズ</div>
+      </div>
+    </div>
+
+    <div class="card fade-in mobile-only">
+      <div class="section-title">スマホのメニュー表示</div>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div style="font-size:14px;color:var(--text-sub)">メニューの出し方を選択してください。</div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap">
+          <div class="theme-option ${navStyle === 'hamburger' ? 'active' : ''}" onclick="applyNavStyleChoice('hamburger')">
+            <div class="navstyle-preview navstyle-preview-hamburger"></div>
+            <div class="theme-option-label">
+              <span class="theme-radio ${navStyle === 'hamburger' ? 'checked' : ''}"></span>
+              ハンバーガーメニュー
+            </div>
+          </div>
+          <div class="theme-option ${navStyle === 'bottomnav' ? 'active' : ''}" onclick="applyNavStyleChoice('bottomnav')">
+            <div class="navstyle-preview navstyle-preview-bottomnav"></div>
+            <div class="theme-option-label">
+              <span class="theme-radio ${navStyle === 'bottomnav' ? 'checked' : ''}"></span>
+              下部バー
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -3666,6 +3744,12 @@ function applyTheme(theme) {
   document.documentElement.setAttribute('data-theme', theme);
   setTheme(theme);
   _syncThemeBtn(theme);
+  renderSettings(); // re-render to update selected state
+}
+
+function applyNavStyleChoice(style) {
+  setNavStyle(style);
+  applyNavStyle(style);
   renderSettings(); // re-render to update selected state
 }
 

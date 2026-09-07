@@ -422,8 +422,9 @@ let targetsSortOrder = ''; // '' = 表示順 / 'achieve_desc' / 'achieve_asc'
 | `lc_version` | DATA_VERSION番号 |
 | `lc_shift_plan_hidden` | シフト作成の非表示日付 { [month]: ['YYYY-MM-DD',...] } |
 | `lc_theme` | テーマ設定 `'dark'` \| `'light'`（クライアントローカル — Azure移行後も保持） |
+| `lc_nav_style` | スマホのナビ表示スタイル `'hamburger'` \| `'bottomnav'`（クライアントローカル — Azure移行後も保持。デフォルト`'hamburger'`） |
 
-**注意:** `lc_theme` はUIのローカル設定のため、Azure移行後もlocalStorageのままで問題ない。`getTheme()` / `setTheme()` 経由でアクセスすること。
+**注意:** `lc_theme` / `lc_nav_style` はUIのローカル設定のため、Azure移行後もlocalStorageのままで問題ない。それぞれ `getTheme()`/`setTheme()`、`getNavStyle()`/`setNavStyle()` 経由でアクセスすること。
 
 ---
 
@@ -435,6 +436,17 @@ let targetsSortOrder = ''; // '' = 表示順 / 'achieve_desc' / 'achieve_asc'
 - **週次シフト（#shifts-week）:** `shiftWeekStart`（月曜）を基準に7日表示
 - **月次シフト（#shifts-month）:** カレンダー形式。`shiftMonthUserId` で対象ユーザー切替
 - **シフト作成（#shifts-plan）:** level≥4 専用。月全体を縦＝日付・横＝メンバーのテーブルで一括管理
+
+---
+
+## スマホのナビゲーション表示（ハンバーガーメニュー / 下部バー）
+
+2026年9月に追加。スマホ幅（≤767px）でのメニューの出し方を、ユーザーが `#settings`（設定ページ、`.mobile-only`カード）から選べる。`getNavStyle()`/`setNavStyle()`（data.js）で `lc_nav_style` に保存し、`applyNavStyle(style)`（app.js）が `<body>` に `nav-style-hamburger` / `nav-style-bottomnav` のクラスを付け替えることで、CSS側の表示切り替えを行う（`css/base.css` のモバイル用メディアクエリ内）。デフォルトは `'hamburger'`。
+
+- **ハンバーガーメニュー（デフォルト）:** トップバー右上の `.hamburger-btn`（`#hamburgerMenuBtn`）をタップすると、右からスライドインする `#hamburgerOverlay` にメニュー一覧（`renderHamburgerMenu()`が`#hamburgerMenuPanel`へ描画）が縦一列で表示される。項目は `_navFullItems()`（app.js）が生成し、サイドバーと同じフルラベル（「ダッシュボード」「実績報告」など）を使う。シフト・現場達成率はサブメニューを持たず直接 `shifts-week`/`venue-achieve-weekday` に遷移する（週次/月次/作成、平日/週末の切り替えは遷移後のページ上部の`.mobile-subtabs`で行う想定）。`navigate()` は呼ばれるたびに必ず `closeHamburgerMenu()` を実行するため、メニュー項目をタップすると自動で閉じる。
+- **下部バー（旧来の表示）:** `renderBottomNav()`が`#bottomnav`へ描画する、画面下部固定の横スクロール可能なアイコンバー。`_navFullItems()`とは別に、幅の都合で短縮ラベル（「ダッシュ」「報告」など）を使う独自のitems配列を持つ（2つの配列は意図的に別管理。中身の対象・権限ロジックは合わせること）。
+- 両方とも `route()` のたびに毎回描画される（非表示側も裏で更新される。表示/非表示はCSSの`body`クラスのみで制御）。
+- 新しいナビ項目を追加する場合は、`renderSidebar()`の`nav`配列・`renderBottomNav()`の`items`配列・`_navFullItems()`の3箇所を揃えて直すこと。
 
 ---
 
@@ -469,7 +481,7 @@ let targetsSortOrder = ''; // '' = 表示順 / 'achieve_desc' / 'achieve_asc'
 ### 変わらないもの
 - `app.js` のレンダリングロジック全体（UIはそのまま）
 - `css/` のスタイル
-- `lc_theme` のlocalStorage保存（UIローカル設定）
+- `lc_theme` / `lc_nav_style` のlocalStorage保存（UIローカル設定）
 
 ### 移行手順メモ（将来の作業者向け）
 1. `Store.get` / `Store.set` / `Store.remove` を Cosmos DB SDK 呼び出しに書き換える
@@ -480,7 +492,7 @@ let targetsSortOrder = ''; // '' = 表示順 / 'achieve_desc' / 'achieve_asc'
 6. `DATA_VERSION` マイグレーション処理は削除する（DBスキーマ管理に移行）
 
 ### コーディング時の禁止事項
-- `app.js` から直接 `localStorage.getItem/setItem` を呼ぶこと（`lc_theme` は例外）
+- `app.js` から直接 `localStorage.getItem/setItem` を呼ぶこと（`lc_theme` / `lc_nav_style` は例外。ただし実際は`getTheme()`/`setTheme()`、`getNavStyle()`/`setNavStyle()`経由でアクセスしており、app.js内で直接`localStorage`を呼んでいる箇所は無い）
 - `app.js` から直接 `sessionStorage` を呼ぶこと
 - データ操作のロジックを `app.js` に書くこと（必ず `data.js` に関数を作る）
 

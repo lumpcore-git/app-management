@@ -98,6 +98,7 @@ const LS = {
   version:        'lc_version',
   shiftPlanHidden:'lc_shift_plan_hidden',
   theme:          'lc_theme',
+  navStyle:       'lc_nav_style',
   jobHistory:     'lc_job_history',
   interviewLogs:  'lc_interview_logs',
   teams:          'lc_teams',
@@ -118,7 +119,7 @@ const LS = {
 //   4. 認証は auth.js 側で Azure Entra ID (旧Azure AD) に切り替える
 //      → Microsoft 365 アカウントでのシングルサインオンが使える
 //      → pw フィールドは不要になる
-// CosmosDBと同期するキー一覧（lc_theme / lc_session / lc_version は除外）
+// CosmosDBと同期するキー一覧（lc_theme / lc_nav_style / lc_session / lc_version は除外）
 const CLOUD_KEYS = new Set([
   'lc_users', 'lc_reports', 'lc_targets', 'lc_shift_schedules',
   'lc_shift_sites', 'lc_talent', 'lc_photos', 'lc_skill_template',
@@ -168,6 +169,15 @@ function getTheme() {
 }
 function setTheme(theme) {
   localStorage.setItem(LS.theme, theme);
+}
+
+// ─── モバイルナビ表示スタイル（クライアントローカル設定 — Azure移行後もlocalStorageに残す） ───
+// 'hamburger' = 右上のハンバーガーメニュー / 'bottomnav' = 従来の下部バー
+function getNavStyle() {
+  return localStorage.getItem(LS.navStyle) || 'hamburger';
+}
+function setNavStyle(style) {
+  localStorage.setItem(LS.navStyle, style);
 }
 
 // ─── INIT & MIGRATION ───

@@ -156,6 +156,21 @@ body.impersonating .topbar { top: 40px; }
   line-height: 1;
 }
 .btn-theme-toggle:hover { background: var(--border); }
+.hamburger-btn {
+  display: none;
+  width: 34px; height: 34px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  font-size: 16px;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  transition: .15s;
+  line-height: 1;
+  color: var(--text);
+}
+.hamburger-btn:hover { background: var(--border); }
 
 /* ─── SIDEBAR ─── */
 .sidebar {
@@ -355,7 +370,11 @@ body.impersonating .topbar { top: 40px; }
   .topbar-logo { font-size: 15px; }
   .topbar-name, .topbar-role { display: none; }
   .btn-logout { display: none; }
-  .bottomnav { display: flex; }
   .mobile-subtabs { display: flex; }
   .mobile-only { display: block; }
+
+  /* ナビ表示スタイル（設定ページで選択。デフォルトはハンバーガー） */
+  body.nav-style-bottomnav .bottomnav { display: flex; }
+  body.nav-style-hamburger .hamburger-btn { display: flex; }
+  body.nav-style-hamburger .main { padding-bottom: 16px; }
 }

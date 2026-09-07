@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>LUMP CORE</title>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/base.css?v=18">
-  <link rel="stylesheet" href="css/components.css?v=18">
+  <link rel="stylesheet" href="css/base.css?v=19">
+  <link rel="stylesheet" href="css/components.css?v=19">
 </head>
 <body>
 
@@ -228,7 +228,7 @@
 
   <!-- ── TOPBAR ── -->
   <header class="topbar">
-    <div class="topbar-logo">LUMP<span>CORE</span></div>
+    <div class="topbar-logo" onclick="navigate('dashboard')" title="ホームへ">LUMP<span>CORE</span></div>
     <div class="topbar-title" id="topbarTitle">ダッシュボード</div>
     <div class="topbar-right">
       <button class="btn-theme-toggle" id="themeToggleBtn" onclick="toggleTheme()" title="テーマ切替"></button>
@@ -236,7 +236,7 @@
         <button class="notif-bell-btn" id="notifBellBtn" onclick="navigate('dashboard')" title="お知らせ"><svg class="ico"><use href="#ic-bell"></use></svg></button>
         <span class="notif-badge hidden" id="notifBadge"></span>
       </div>
-      <div class="topbar-user">
+      <div class="topbar-user person-link" onclick="navigate('myprofile')" title="プロフィール">
         <div class="avatar-sm" id="topbarAvatar"></div>
         <div>
           <div class="topbar-name" id="topbarName"></div>
@@ -278,10 +278,10 @@
 <!-- ── TOAST ── -->
 <div class="toast" id="toast"></div>
 
-<script src="js/skilldata.js?v=18"></script>
-<script src="js/data.js?v=18"></script>
-<script src="js/auth.js?v=18"></script>
-<script src="js/app.js?v=18"></script>
+<script src="js/skilldata.js?v=19"></script>
+<script src="js/data.js?v=19"></script>
+<script src="js/auth.js?v=19"></script>
+<script src="js/app.js?v=19"></script>
 
 </body>
 </html>

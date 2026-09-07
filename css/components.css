@@ -132,6 +132,13 @@ td { padding: 12px 16px; vertical-align: middle; }
 .emp-name { font-weight: 500; }
 .role-badge { font-size: 12px; font-weight: 600; }
 
+/* ─── 人物名リンク（どこからでもクリックでプロフィールへ） ───
+   単独のテキストにも、アバター+名前をまとめたコンテナにも付けられるよう、
+   :hoverで自分自身のcolorを変える（子要素は色指定が無ければ継承で連動する。
+   役職ラベルなどインラインstyleで色指定済みの部分は継承より優先されるため影響されない） */
+.person-link { cursor: pointer; transition: color .15s; }
+.person-link:hover { color: var(--accent); }
+
 /* ─── チーム詳細: メンバー一覧（テーブルではなくグリッド行 = モバイルで積み上げ可能） ─── */
 .card .team-member-list { margin: 0 -24px -24px; }
 .team-member-head {

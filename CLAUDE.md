@@ -450,6 +450,17 @@ let targetsSortOrder = ''; // '' = 表示順 / 'achieve_desc' / 'achieve_asc'
 
 ---
 
+## 内部リンク（ロゴ・人物名）
+
+2026年9月に追加。
+
+- **ロゴ（左上「LUMPCORE」）:** クリックで `navigate('dashboard')`（ホーム/ダッシュボードへ）。PC・スマホ共通。
+- **トップバー右上の自分のアバター（`.topbar-user`）:** クリックで `navigate('myprofile')`（自分のプロフィールへ）。
+- **人物名（社員名）全般:** アプリ内のあらゆる一覧・カード・テーブル行（ダッシュボードの出勤状況、チーム一覧・チーム詳細、ランキング、コミット設定、シフト表、シフト作成、メンバー管理など）で、名前部分に `.person-link` クラス＋`onclick="openTalentCard('${u.id}')"` を付けている。`openTalentCard(userId)`（app.js）は `profileUserId`をセットして`#profile`へ遷移する共通ヘルパーで、チェックボックスのラベルなど「名前をクリックすると選択操作になってしまう」箇所（宛先選択・メンバー編成の複数選択など）には付けていない。カード全体に別のonclick（`selectTeam()`など）が付いている中の人物名リンクは `event.stopPropagation()` を挟んで親のクリックを止めている。
+- **他人のプロフィールを開いたときの表示範囲:** `renderProfile()`内の`canSeeFullProfile`（`isOwnProfile || level>=4`）で判定。本人 or チーフ以上は全タブ（プロフ/実績/スキル/経歴・面談/メッセージ/MBTI）を見られるが、level<4が他人の名前をクリックして開いた場合は「プロフ/実績」タブのみ表示され、上長コメント・面談ログ・MBTIなど人事情報タブ自体が非表示になる（`route()`側のアクセス制限は撤廃済みで、誰でも他人のプロフィールを開けるが、中身の出し分けは`renderProfile()`側の責務）。新しいプロフィールタブを追加する場合はこの`canSeeFullProfile`分岐に含めるかどうかを検討すること。
+
+---
+
 ## 注意事項
 
 - **セッション管理:** sessionStorage（タブを閉じるとログアウト）。パスワードログイン・Entra IDログインとも通常時は `{ userId }`。admin代理ログイン中のみ `{ userId, impersonatedBy }`（[代理ログイン](#代理ログインadmin専用)参照）

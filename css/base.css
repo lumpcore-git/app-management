@@ -104,6 +104,7 @@ body.impersonating .topbar { top: 40px; }
   font-size: 18px;
   color: var(--accent);
   letter-spacing: -0.5px;
+  cursor: pointer;
 }
 .topbar-logo span { color: var(--accent2); }
 .topbar-title {
@@ -122,6 +123,7 @@ body.impersonating .topbar { top: 40px; }
   display: flex;
   align-items: center;
   gap: 8px;
+  cursor: pointer;
 }
 .topbar-name { font-size: 13px; font-weight: 500; }
 .topbar-role { font-size: 11px; color: var(--text-sub); }

@@ -249,9 +249,7 @@ function route() {
   if (hash === 'profile' && !profileUserId) {
     location.hash = level >= 4 ? 'talent' : 'dashboard'; return;
   }
-  if (hash === 'profile' && profileUserId !== CU.id && level < 4) {
-    location.hash = 'dashboard'; return;
-  }
+  // 他人のプロフィールは誰でも開ける（基本情報・実績タブのみ。人事情報タブはrenderProfile側でlevel<4なら非表示にする）
 
   document.querySelectorAll('.nav-item, .nav-subitem').forEach(el => {
     const page = el.dataset.page;
@@ -1263,7 +1261,7 @@ function _adminTodayShiftCard() {
               <div style="font-size:12px;font-weight:700;color:${c?.text || 'var(--text)'};margin-bottom:6px">${icon('map-pin')} ${site}（${workers.length}名）</div>
               <div style="display:flex;flex-wrap:wrap;gap:6px">
                 ${workers.map(u => `
-                  <span style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:3px 8px;font-size:12px">${u.name}</span>
+                  <span class="person-link" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:3px 8px;font-size:12px" onclick="openTalentCard('${u.id}')">${u.name}</span>
                 `).join('')}
               </div>
             </div>
@@ -2023,7 +2021,7 @@ function _teamCardHTML(team) {
     ? (team.goalText.length > 80 ? team.goalText.slice(0, 80) + '…' : team.goalText)
     : '（目標未設定）';
   const leaderBadge = leader
-    ? `<span class="tc-tag accent">${icon('star')} リーダー: ${leader.name}</span>`
+    ? `<span class="tc-tag accent person-link" onclick="event.stopPropagation();openTalentCard('${leader.id}')">${icon('star')} リーダー: ${leader.name}</span>`
     : '';
   return `
     <div class="tc" onclick="selectTeam('${team.id}')">
@@ -2174,7 +2172,7 @@ function renderTeamDetail(team) {
               }
               return `
                 <div class="team-member-row">
-                  <div class="tmr-person">
+                  <div class="tmr-person person-link" onclick="openTalentCard('${u.id}')">
                     <div class="avatar" style="background:${roleColor(u.role)}">${u.name[0]}</div>
                     <div>
                       <div class="emp-name">${u.name} ${team.leaderId === u.id ? `<span class="report-type-chip" style="color:var(--warn);border-color:var(--warn)">${icon('star')} リーダー</span>` : ''}</div>
@@ -2584,7 +2582,7 @@ function renderRanking() {
           ? `SBMNP ${u.agg.sbmnp} / YMNP ${u.agg.ymnp} / SB新規 ${u.agg.sb_shinki}`
           : !rankItem ? '' : '';
         return `
-          <div class="rank-item ${i < 3 ? 'rank-top' : ''}" ${u.sortVal === 0 ? 'style="opacity:.4"' : ''}>
+          <div class="rank-item person-link ${i < 3 ? 'rank-top' : ''}" ${u.sortVal === 0 ? 'style="opacity:.4"' : ''} onclick="openTalentCard('${u.id}')">
             <div class="rank-num">${u.sortVal > 0 ? _rankBadge(i) : '—'}</div>
             <div class="avatar" style="background:${roleColor(u.role)}">${u.name[0]}</div>
             <div class="rank-info">
@@ -2606,7 +2604,7 @@ function renderRanking() {
       <div class="section-title">イベントプロモーション部 — Refa売上</div>
       ${refaStats.length === 0 ? `<div class="empty-state">${monthLabel(rankMonth)}のデータがありません</div>` :
         refaStats.map((u, i) => `
-          <div class="rank-item ${i < 3 ? 'rank-top' : ''}" ${u.total === 0 ? 'style="opacity:.4"' : ''}>
+          <div class="rank-item person-link ${i < 3 ? 'rank-top' : ''}" ${u.total === 0 ? 'style="opacity:.4"' : ''} onclick="openTalentCard('${u.id}')">
             <div class="rank-num">${u.total > 0 ? _rankBadge(i) : '—'}</div>
             <div class="avatar" style="background:${roleColor(u.role)}">${u.name[0]}</div>
             <div class="rank-info">
@@ -2627,7 +2625,7 @@ function renderRanking() {
       <div class="section-title">イベントプロモーション部 — style営業売上</div>
       ${styleStats.length === 0 ? `<div class="empty-state">${monthLabel(rankMonth)}のデータがありません</div>` :
         styleStats.map((u, i) => `
-          <div class="rank-item ${i < 3 ? 'rank-top' : ''}" ${u.total === 0 ? 'style="opacity:.4"' : ''}>
+          <div class="rank-item person-link ${i < 3 ? 'rank-top' : ''}" ${u.total === 0 ? 'style="opacity:.4"' : ''} onclick="openTalentCard('${u.id}')">
             <div class="rank-num">${u.total > 0 ? _rankBadge(i) : '—'}</div>
             <div class="avatar" style="background:${roleColor(u.role)}">${u.name[0]}</div>
             <div class="rank-info">
@@ -2705,7 +2703,7 @@ function renderTargets() {
 
           return `
             <div class="commit-row">
-              <div class="cr-person">
+              <div class="cr-person person-link" onclick="openTalentCard('${u.id}')">
                 <div class="avatar" style="background:${roleColor(u.role)}">${u.name[0]}</div>
                 <div>
                   <div class="emp-name">${u.name} ${nameSuffix}</div>
@@ -2828,7 +2826,7 @@ function renderShifts() {
     return `
       <tr>
         <td class="shift-name-cell">
-          <div class="emp-cell">
+          <div class="emp-cell person-link" onclick="openTalentCard('${u.id}')">
             <div class="avatar" style="width:28px;height:28px;font-size:11px;background:${roleColor(u.role)}">${u.name[0]}</div>
             <div>
               <div style="font-size:12px;font-weight:600">${u.name}</div>
@@ -3146,7 +3144,7 @@ function renderShiftsPlan() {
 
   // ── ヘッダー列（メンバー名） ──
   const memberHeaders = mobileUsers.map(u => `
-    <th class="splan-member-th">
+    <th class="splan-member-th person-link" onclick="openTalentCard('${u.id}')">
       <div class="avatar" style="width:26px;height:26px;font-size:10px;margin:0 auto 3px;background:${roleColor(u.role)}">${u.name[0]}</div>
       <div style="font-size:10px;font-weight:600;line-height:1.2">${u.name}</div>
     </th>`).join('');
@@ -3522,7 +3520,7 @@ function _memberRowsHTML(users) {
   return users.map(u => `
     <tr>
       <td>
-        <div class="emp-cell">
+        <div class="emp-cell person-link" onclick="openTalentCard('${u.id}')">
           <div class="avatar" style="background:${roleColor(u.role)}">${u.name[0]}</div>
           <span class="emp-name">${u.name}</span>
         </div>
@@ -4265,6 +4263,13 @@ function renderProfile() {
   const user = getUserById(profileUserId);
   if (!user) { navigate('talent'); return; }
   const isMobile = window.innerWidth <= 767;
+  const isOwnProfile = profileUserId === CU.id;
+  // 本人 or チーフ以上は全タブ閲覧可。それ以外（他人のプロフィールをlevel<4が見る場合）は基本情報・実績タブのみ
+  // （上長コメント・面談ログ・MBTIなど人事情報タブは非表示にする）
+  const canSeeFullProfile = isOwnProfile || level >= 4;
+  if (!canSeeFullProfile && !['info', 'perf'].includes(profileActiveTab)) {
+    profileActiveTab = isMobile ? 'info' : 'perf';
+  }
 
   document.getElementById('topbarTitle').textContent = user.name;
 
@@ -4549,12 +4554,10 @@ function renderProfile() {
     : isRefa ? (refaAmt > 0 ? (refaAmt / 10000).toFixed(1) + '万' : '—')
     : agg.totalPt > 0 ? agg.totalPt.toFixed(1) + 'pt' : '—';
 
-  const isOwnProfile = profileUserId === CU.id;
-
   document.getElementById('main').innerHTML = `
     <div class="profile-page fade-in">
       <div class="profile-topbar">
-        ${isOwnProfile ? '' : `<button class="btn btn-ghost profile-back" onclick="navigate('talent')">${icon('arrow-left')} 一覧へ</button>`}
+        ${(!isOwnProfile && level >= 4) ? `<button class="btn btn-ghost profile-back" onclick="navigate('talent')">${icon('arrow-left')} 一覧へ</button>` : ''}
         ${canEdit ? `<button class="btn btn-primary" style="margin-left:auto" onclick="saveProfileCard('${user.id}')">保存する</button>` : ''}
       </div>
 
@@ -4614,10 +4617,12 @@ function renderProfile() {
           <div class="profile-tabs">
             ${isMobile ? `<button class="profile-tab ${profileActiveTab === 'info' ? 'active' : ''}" onclick="switchProfileTab('info')">${icon('user')} プロフ</button>` : ''}
             <button class="profile-tab ${profileActiveTab === 'perf' ? 'active' : ''}" onclick="switchProfileTab('perf')">実績</button>
+            ${canSeeFullProfile ? `
             <button class="profile-tab ${profileActiveTab === 'skill' ? 'active' : ''}" onclick="switchProfileTab('skill')">スキル</button>
             <button class="profile-tab ${profileActiveTab === 'history' ? 'active' : ''}" onclick="switchProfileTab('history')">経歴・面談</button>
             <button class="profile-tab ${profileActiveTab === 'msg' ? 'active' : ''}" onclick="switchProfileTab('msg')">メッセージ</button>
             <button class="profile-tab ${profileActiveTab === 'mbti' ? 'active' : ''}" onclick="switchProfileTab('mbti')">MBTI</button>
+            ` : ''}
           </div>
 
           ${isMobile ? `
@@ -4658,6 +4663,7 @@ function renderProfile() {
             ${strengthsBlock}
           </div>
 
+          ${canSeeFullProfile ? `
           <div class="profile-panel${profileActiveTab === 'skill' ? '' : ' hidden'}" id="pp_skill">
             ${skillPanelHTML}
           </div>
@@ -4673,6 +4679,7 @@ function renderProfile() {
           <div class="profile-panel${profileActiveTab === 'mbti' ? '' : ' hidden'}" id="pp_mbti">
             ${mbtiBlock}
           </div>
+          ` : ''}
         </div>
       </div>
     </div>

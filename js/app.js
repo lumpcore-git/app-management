@@ -249,6 +249,10 @@ function route() {
   if (hash === 'profile' && !profileUserId) {
     location.hash = level >= 4 ? 'talent' : 'dashboard'; return;
   }
+  // 役員（dept:'executive'）のプロフィールはadmin以外絶対に開けない
+  if (hash === 'profile' && level < 5 && getUserById(profileUserId)?.dept === 'executive') {
+    location.hash = level >= 4 ? 'talent' : 'dashboard'; return;
+  }
   // 他人のプロフィールは誰でも開ける（基本情報・実績タブのみ。人事情報タブはrenderProfile側でlevel<4なら非表示にする）
 
   document.querySelectorAll('.nav-item, .nav-subitem').forEach(el => {
@@ -526,6 +530,13 @@ function calcAchieve(actual, target) {
 }
 function roleColor(role) { return ROLES[role]?.color || '#4f7cff'; }
 function deptLabel(dept) { return DEPTS[dept]?.label || dept; }
+// 役員（dept:'executive'）はメンバー管理（admin専用）以外の一覧・選択肢に出さない。
+// admin（役員自身を含む）はメンバー管理で全員を扱えるので、admin視点ではフィルタしない。
+function visibleUsers() {
+  const users = getUsers();
+  if (roleLevel(CU.role) >= 5) return users;
+  return users.filter(u => u.dept !== 'executive');
+}
 function getShiftDayTone(day) {
   const toneMap = {
     0: { textColor: '#ffb347', cellBg: 'rgba(255,179,71,.08)',  headBg: 'rgba(255,179,71,.12)'  }, // 日: オレンジ
@@ -751,7 +762,7 @@ function deleteTaskAndRefresh(taskId) {
 }
 
 function showCreateTaskModal() {
-  const users = getUsers().filter(u => u.id !== CU.id);
+  const users = visibleUsers().filter(u => u.id !== CU.id);
   showModal(`
     <div class="modal-title">${icon('clipboard-list')} タスク / コミットを作成</div>
     <div style="display:flex;flex-direction:column;gap:16px;margin-top:16px">
@@ -859,7 +870,7 @@ function submitTask() {
 
 // ── お知らせ送信モーダル（level≥4） ──
 function showSendNotificationModal() {
-  const users = getUsers().filter(u => u.id !== CU.id);
+  const users = visibleUsers().filter(u => u.id !== CU.id);
   const presets = [
     'スキルシートの入力をお願いします',
     '実績報告を入力してください',
@@ -1290,7 +1301,7 @@ function _todayShiftCard(userId) {
     sub  = slot.start ? `${slot.start} 〜 ${slot.end}` : '';
     chipHtml = `<div class="shift-chip" style="background:${c?.bg};color:${c?.text};border-color:${c?.border};margin-top:8px">${slot.site}</div>`;
     // 同じ現場の仲間
-    const colleagues = getUsers().filter(u => {
+    const colleagues = visibleUsers().filter(u => {
       if (u.id === userId) return false;
       const s = getShiftForUser(u.id, today);
       return s?.site === slot.site;
@@ -2460,7 +2471,7 @@ function submitSetTeamLeader(teamId) {
 
 // メンバー選択チェックボックス群（チーム編成用。事業部不問で全社員を対象にする）
 function _memberChecks(containerId, selectedIds) {
-  const users = getUsers().slice().sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+  const users = visibleUsers().slice().sort((a, b) => a.name.localeCompare(b.name, 'ja'));
   return `
     <div class="report-type-checks" id="${containerId}" style="max-height:280px;overflow-y:auto">
       ${users.map(u => `
@@ -2758,7 +2769,7 @@ function renderShifts() {
 
   const level    = roleLevel(CU.role);
   const canEdit  = level >= 4;
-  const users    = getUsers();
+  const users    = visibleUsers();
   const sites    = getShiftSites();
   const weekDates = getWeekDates(shiftWeekStart);
   const today    = todayStr();
@@ -4076,7 +4087,7 @@ function _filterTalentUsers(users) {
 // グリッドと件数だけ更新（検索inputには触らない）
 function _refreshTalentGrid() {
   const level = roleLevel(CU.role);
-  let users = getUsers();
+  let users = visibleUsers();
   if (talentFilterDept !== 'all') users = users.filter(u => u.dept === talentFilterDept);
   users = _filterTalentUsers(users);
   users = _sortTalentUsers(users);
@@ -4087,7 +4098,7 @@ function _refreshTalentGrid() {
     : '<div class="list-empty">該当するメンバーが見つかりません</div>';
 
   const sub = document.getElementById('talent-sub');
-  if (sub) sub.textContent = `生産性指標 × ジョブ面談を中核にした1人1カード（${users.length} / ${getUsers().length}名）`;
+  if (sub) sub.textContent = `生産性指標 × ジョブ面談を中核にした1人1カード（${users.length} / ${visibleUsers().length}名）`;
 
   const clear = document.getElementById('talent-clear');
   if (clear) clear.style.display = talentQuery ? '' : 'none';
@@ -4096,15 +4107,15 @@ function _refreshTalentGrid() {
 // ─── 一覧ページ ───
 function renderTalent() {
   const level = roleLevel(CU.role);
-  let users = getUsers();
+  let users = visibleUsers();
   if (talentFilterDept !== 'all') users = users.filter(u => u.dept === talentFilterDept);
   users = _filterTalentUsers(users);
   users = _sortTalentUsers(users);
 
-  const totalAll = getUsers().length;
+  const totalAll = visibleUsers().length;
   const deptFilters = [
     { key: 'all', label: 'すべて' },
-    ...Object.entries(DEPTS).map(([k, v]) => ({ key: k, label: v.label })),
+    ...Object.entries(DEPTS).filter(([k]) => level >= 5 || k !== 'executive').map(([k, v]) => ({ key: k, label: v.label })),
   ];
   const sortOptions = [
     { key: 'productivity',  label: '生産性順' },

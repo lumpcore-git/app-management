@@ -189,6 +189,15 @@
 - 代理ログイン中は画面上部に常時バナー表示（`#impersonationBar`, `renderImpersonationBar()`）。`body.impersonating` クラスと `.impersonation-bar` / `body.impersonating .topbar` のCSS（`css/base.css`）で、バナーとtopbarが両方sticky表示で正しく積み重なるようにしている。
 - 代理ログイン中に到達できるページ・機能は、実際にセッションが切り替わった対象ユーザーの権限（`CU.role`）にそのまま従う（admin専用ページには当然入れない）。監査ログは実装していない（要件外）。
 
+### 役員（dept: 'executive'）の表示範囲（2026年9月〜）
+役員も`role`は`admin`（level 5）だが、**admin以外の目には一切触れさせない**運用にしている。一般社員・チーフが役員の氏名やステータスを見る必要が無いため。
+- `js/app.js` の `visibleUsers()` が唯一の窓口。`roleLevel(CU.role) >= 5`（admin本人）なら`getUsers()`をそのまま返し、それ未満なら`dept==='executive'`のユーザーを除外する。
+- ランキング・コミット設定は報告タイプ（`getUserReportTypes`）で絞り込んでいるため、役員（`reportTypes: []`）は元々表示されず追加対応不要。同様に事業部が`mobile`限定の画面（シフト作成など）も自然に対象外。
+- admin専用画面（メンバー管理`#members`、管理者ダッシュボード）は`getUsers()`のまま（意図的に未フィルタ）。役員が一覧に出るのはこの2箇所のみ。
+- 他人のプロフィール（`#profile`）はもともと誰でも開けるが、`route()`内で「対象が役員 かつ 閲覧者がadmin未満」なら`talent`/`dashboard`へ強制リダイレクトするガードを追加済み。
+- 例外: お知らせ・タスク機能（`_notificationsCard`, `_taskItem`）は送信者名を`getUserById()`で解決して表示するため、役員が送ったお知らせ・タスクの送信者名はフィルタ対象外（意図した仕様）。宛先選択リスト（`showSendNotificationModal`/`showCreateTaskModal`）自体は`visibleUsers()`で絞っているため、一般社員が役員個人を宛先に選ぶことはできない。
+- 新しく「全社員一覧」的な画面・セレクトボックスを追加する場合は、admin専用ページでない限り`getUsers()`ではなく`visibleUsers()`を使うこと。
+
 ## 事業部
 
 | dept | label | 備考 |

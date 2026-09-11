@@ -102,21 +102,28 @@ function requireAuth() {
 // リダイレクト帰り、または既存のMSALセッションからMicrosoftアカウントを取得し、
 // emailで紐付けてセッションを作成する
 async function tryEntraIdLogin() {
-  if (getSession()) return; // すでにセッションあり
-  if (!msalInstance) return; // MSAL.jsが読み込めない環境（ローカル等）では無視
+  if (getSession()) return { ok: true }; // すでにセッションあり
+  if (!msalInstance) return { ok: false, reason: 'unavailable' }; // MSAL.jsが読み込めない環境（ローカル等）では無視
   try {
     await msalReady;
     const result = await msalInstance.handleRedirectPromise();
     const account = result?.account || msalInstance.getAllAccounts()[0];
-    if (!account) return;
+    if (!account) return { ok: false, reason: 'no_account' };
     msalInstance.setActiveAccount(account);
     const email = account.username; // userPrincipalName相当
+    // 他の端末（メンバー管理）で追加されたemailを反映してから照合する。
+    // これをせず端末ローカルの古いユーザー一覧で照合すると、後から追加されたメンバーが
+    // 「一致するユーザーが見つからない」扱いになりログイン画面に戻り続けてしまう。
+    await Store.syncFromCloud();
     const user = getUserByEmail(email);
     if (user) {
       sessionStorage.setItem(LS.session, JSON.stringify({ userId: user.id }));
+      return { ok: true };
     }
+    return { ok: false, reason: 'no_match', email };
   } catch (_) {
     // サインインのキャンセルなどは無視
+    return { ok: false, reason: 'error' };
   }
 }
 

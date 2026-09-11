@@ -3842,6 +3842,10 @@ function openAddMember() {
         <input type="text" class="form-input" id="newName" placeholder="例: 田中 太郎">
       </div>
       <div class="form-group">
+        <label class="form-label">メールアドレス（Microsoftアカウントでログインさせる場合のみ）</label>
+        <input type="email" class="form-input" id="newEmail" placeholder="例: t.tanaka@lumpcore.co.jp">
+      </div>
+      <div class="form-group">
         <label class="form-label">事業部</label>
         <select class="form-select" id="newDept">${_deptOptions('mobile')}</select>
       </div>
@@ -3871,6 +3875,7 @@ function openAddMember() {
 
 function addMember() {
   const name        = document.getElementById('newName').value.trim();
+  const email       = document.getElementById('newEmail').value.trim().toLowerCase() || undefined;
   const dept        = document.getElementById('newDept').value;
   const role        = document.getElementById('newRole').value;
   const jobTitle    = document.getElementById('newJobTitle').value.trim() || undefined;
@@ -3880,7 +3885,7 @@ function addMember() {
   if (!name) { showToast('氏名を入力してください', 'error'); return; }
 
   const users = getUsers();
-  users.push({ id: 'u' + Date.now(), name, role, dept, reportTypes, jobTitle, pw });
+  users.push({ id: 'u' + Date.now(), name, email, role, dept, reportTypes, jobTitle, pw });
   saveUsers(users);
   closeModal();
   showToast(`${name} を追加しました`);
@@ -3901,6 +3906,10 @@ function openEditMember(userId) {
       <div class="form-group">
         <label class="form-label">氏名</label>
         <input type="text" class="form-input" id="editName" value="${u.name}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">メールアドレス（Microsoftアカウントでログインさせる場合のみ）</label>
+        <input type="email" class="form-input" id="editEmail" value="${u.email || ''}" placeholder="例: t.tanaka@lumpcore.co.jp">
       </div>
       <div class="form-group">
         <label class="form-label">事業部</label>
@@ -3932,6 +3941,7 @@ function openEditMember(userId) {
 
 function saveMember(userId) {
   const name        = document.getElementById('editName').value.trim();
+  const email       = document.getElementById('editEmail').value.trim().toLowerCase() || undefined;
   const dept        = document.getElementById('editDept').value;
   const role        = document.getElementById('editRole').value;
   const jobTitle    = document.getElementById('editJobTitle').value.trim() || undefined;
@@ -3944,13 +3954,14 @@ function saveMember(userId) {
   const idx = users.findIndex(u => u.id === userId);
   if (idx < 0) return;
 
-  users[idx] = { ...users[idx], name, dept, role, jobTitle, reportTypes };
+  users[idx] = { ...users[idx], name, email, dept, role, jobTitle, reportTypes };
+  if (!email) delete users[idx].email;
   delete users[idx].reportType; // 旧形式（単一値）は新形式に一本化
   if (pw) users[idx].pw = pw;
   saveUsers(users);
 
   if (userId === CU.id) {
-    Object.assign(CU, { name, dept, role, jobTitle, reportTypes });
+    Object.assign(CU, { name, email, dept, role, jobTitle, reportTypes });
     delete CU.reportType;
     renderTopbar();
     renderSidebar();

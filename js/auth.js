@@ -8,6 +8,23 @@
 //   - pw フィールドは INITIAL_USERS から削除できる
 //   - ユーザー識別は Azure AD の objectId または userPrincipalName を使う
 
+// ─── ENTRA ID 認証（MSAL.js）設定 ───
+// Azure Static Web AppsのFreeプランではサーバー側のカスタム認証(staticwebapp.config.jsonのauth設定)が
+// Standardプラン限定のため使えない。追加課金なしで実現するため、ブラウザ側で直接Microsoftとやり取りする
+// MSAL.js（js/auth.jsより先にCDNから読み込み済み）を使う。
+const MSAL_CONFIG = {
+  auth: {
+    clientId: 'bdace26f-ef88-43d6-838f-078372fafa89',
+    authority: 'https://login.microsoftonline.com/2d4a0f8f-5b57-4dd4-8599-05d3af407c85',
+    redirectUri: location.origin + '/index.html',
+  },
+  cache: {
+    cacheLocation: 'sessionStorage', // タブを閉じたらログアウトという既存の挙動に合わせる
+  },
+};
+const msalInstance = (typeof msal !== 'undefined') ? new msal.PublicClientApplication(MSAL_CONFIG) : null;
+const msalReady = msalInstance ? msalInstance.initialize() : Promise.resolve();
+
 // ─── SESSION ───
 function getSession() {
   const s = sessionStorage.getItem(LS.session);
@@ -25,6 +42,10 @@ function login(userId, password) {
 
 function logout() {
   sessionStorage.removeItem(LS.session);
+  if (msalInstance && msalInstance.getAllAccounts().length > 0) {
+    msalInstance.logoutRedirect({ postLogoutRedirectUri: location.origin + '/index.html' });
+    return; // logoutRedirect自体が遷移するのでlocation.hrefは不要
+  }
   location.href = 'index.html';
 }
 
@@ -78,23 +99,31 @@ function requireAuth() {
 }
 
 // ─── ENTRA ID 認証 ───
-// /.auth/me からログイン中のMicrosoftアカウントを取得し、emailで紐付けてセッションを作成する
+// リダイレクト帰り、または既存のMSALセッションからMicrosoftアカウントを取得し、
+// emailで紐付けてセッションを作成する
 async function tryEntraIdLogin() {
   if (getSession()) return; // すでにセッションあり
+  if (!msalInstance) return; // MSAL.jsが読み込めない環境（ローカル等）では無視
   try {
-    const res = await fetch('/.auth/me');
-    if (!res.ok) return;
-    const data = await res.json();
-    const principal = data.clientPrincipal;
-    if (!principal) return;
-    const email = principal.userDetails;
+    await msalReady;
+    const result = await msalInstance.handleRedirectPromise();
+    const account = result?.account || msalInstance.getAllAccounts()[0];
+    if (!account) return;
+    msalInstance.setActiveAccount(account);
+    const email = account.username; // userPrincipalName相当
     const user = getUserByEmail(email);
     if (user) {
       sessionStorage.setItem(LS.session, JSON.stringify({ userId: user.id }));
     }
   } catch (_) {
-    // ローカル環境など /.auth/me が存在しない場合は無視
+    // サインインのキャンセルなどは無視
   }
+}
+
+// index.html の「Microsoftアカウントでログイン」ボタンから呼ぶ
+function loginWithEntraId() {
+  if (!msalInstance) return;
+  msalReady.then(() => msalInstance.loginRedirect({ scopes: ['User.Read'] }));
 }
 
 // ─── PERMISSION HELPERS ───

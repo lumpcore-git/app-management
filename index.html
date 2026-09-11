@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>LUMP CORE - ログイン</title>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/base.css?v=23">
-  <link rel="stylesheet" href="css/components.css?v=23">
+  <link rel="stylesheet" href="css/base.css?v=24">
+  <link rel="stylesheet" href="css/components.css?v=24">
 </head>
 <body>
 
@@ -60,7 +60,7 @@
 
     <button class="btn"
       style="width:100%;margin-top:12px;padding:12px;font-size:15px;justify-content:center;background:var(--surface2);border:1px solid var(--border);color:var(--text)"
-      onclick="location.href='/.auth/login/aad?post_login_redirect_uri=/app.html'">
+      onclick="loginWithEntraId()">
       <svg class="ico"><use href="#ic-building"></use></svg> Microsoft アカウントでログイン
     </button>
 
@@ -71,30 +71,21 @@
   </div>
 </div>
 
-<script src="js/data.js?v=23"></script>
-<script src="js/auth.js?v=23"></script>
+<script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@5.21.0/lib/msal-browser.min.js"></script>
+<script src="js/data.js?v=24"></script>
+<script src="js/auth.js?v=24"></script>
 <script>
 
   // すでにログイン済みならアプリへ
   initData();
   if (getSession()) {
     location.href = 'app.html';
+  } else {
+    // Entra ID (MSAL.js) のリダイレクト帰り、または既存セッションをチェックしてアプリへ
+    tryEntraIdLogin().then(() => {
+      if (getSession()) location.href = 'app.html';
+    });
   }
-
-  // Entra ID でログイン済みかチェックし、emailで紐付けてアプリへ
-  fetch('/.auth/me')
-    .then(r => r.ok ? r.json() : null)
-    .then(data => {
-      const principal = data?.clientPrincipal;
-      if (!principal) return;
-      const email = principal.userDetails;
-      const user = getUserByEmail(email);
-      if (user) {
-        sessionStorage.setItem(LS.session, JSON.stringify({ userId: user.id }));
-        location.href = 'app.html';
-      }
-    })
-    .catch(() => {});  // ローカル環境では無視
 
   // ユーザー一覧をドロップダウンに追加
   (function populateUsers() {

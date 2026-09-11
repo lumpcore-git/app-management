@@ -33,7 +33,10 @@ html[data-theme="light"] {
   --body-grad2: #9e8cd8;
 }
 
-* { box-sizing: border-box; margin: 0; padding: 0; touch-action: manipulation; }
+/* touch-action: pan-x pan-y … スクロールは許可しつつピンチズーム・ダブルタップズームを禁止する。
+   viewport meta の user-scalable=no はiOS Safari等が意図的に無視するため効かず、
+   ブラウザが今も尊重するCSSのtouch-actionで制御する必要がある。 */
+* { box-sizing: border-box; margin: 0; padding: 0; touch-action: pan-x pan-y; }
 
 body {
   font-family: 'Noto Sans JP', sans-serif;

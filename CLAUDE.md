@@ -477,6 +477,7 @@ let targetsSortOrder = ''; // '' = 表示順 / 'achieve_desc' / 'achieve_asc'
 - **DATA_VERSIONマイグレーション:** 初回起動（保存済みユーザーが0件）の初期化にのみ使う。ユーザーデータの一括上書きには使わないこと
 - **新機能追加時:** 権限チェックを `route()` と `renderSidebar()` の**両方**に追加する
 - **CSS/JSのキャッシュバスティング:** `app.html`/`index.html` の `css/base.css`・`css/components.css`・`js/*.js` は `?v=N` というクエリ付きで読み込んでいる（例: `css/components.css?v=12`）。ビルドステップがなくハッシュ付きファイル名も無いため、これがブラウザ・CDNキャッシュを無効化する唯一の手段。**CSSまたはJSを編集したら、この`?v=N`を必ずインクリメントすること**（両ファイルの全箇所を揃える）。バージョンを上げ忘れると、実機のブラウザで修正が反映されず「直したはずなのに直っていない」という報告の原因になる（2026年9月に実際に複数回発生した）。
+- **HTMLファイル自体のキャッシュ:** `?v=N`は`app.html`/`index.html`が読み込む**サブリソース**（css/js）だけを対象にしており、`app.html`/`index.html`自体はこの仕組みでは救えない。ブラウザがHTMLファイル自体を古いままキャッシュしていると、中身のCSS/JSをいくら直してもスマホ実機に反映されない（2026年9月に発生）。これを防ぐため、リポジトリ直下に`staticwebapp.config.json`を置き、`/`・`/index.html`・`/app.html`に`Cache-Control: no-cache`を明示している。新しいHTMLファイルを追加する場合はこの設定にもルートを追加すること。
 - **写真のlocalStorage容量:** base64画像は大きい。35名全員に写真を入れると ~5MB上限に近づく
 - **ダッシュボード分岐:** `renderDashboard()` はロール別に4つの関数を呼び分ける
   - level≥5 → `renderAdminDashboard()`

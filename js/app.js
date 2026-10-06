@@ -18,6 +18,21 @@ let shiftPlanWeekdayOnly = false;  // 土日非表示トグル
 let profileUserId = '';
 let profileActiveTab = 'perf';
 let mbtiEditMode = false;
+let profileReturnHash = 'talent'; // プロフィールを開く直前にいたページ（「一覧へ」で戻る先）
+
+// プロフィールの「戻る」ボタンに表示するページ名（遷移元をひと目で分かるように）
+const PROFILE_RETURN_LABELS = {
+  dashboard:      'ダッシュボード',
+  talent:         'メンバーステータス',
+  orgchart:       '組織図',
+  members:        'メンバー管理',
+  team:           'チーム実績',
+  ranking:        'ランキング',
+  targets:        'コミット設定',
+  'shifts-week':  '週次シフト',
+  'shifts-month': '月次シフト',
+  'shifts-plan':  'シフト作成',
+};
 
 // ─── VENUE ACHIEVE STATE ───
 let venueAchieveMonth = '';
@@ -42,6 +57,11 @@ let teamDetailMonth = ''; // チーム詳細の個人目標・数値目標の表
 
 // ─── コミット設定 STATE ───
 let targetsSortOrder = ''; // '' = 表示順 / 'achieve_desc' / 'achieve_asc'
+
+// ─── 組織図 STATE ───
+let orgChartTab = 'tree';    // 'tree' | 'tags'
+let orgChartTagFilter = '';  // タグID（空 = フィルタなし）
+let orgChartDeptFilter = 'all';
 
 // ─── ICON HELPER（Tabler Icons スプライト参照。app.html/index.html の <symbol id="ic-{name}"> を使う） ───
 function icon(name, cls) {
@@ -186,6 +206,7 @@ function renderSidebar() {
     { id: 'myprofile',              icon: 'user',            label: 'プロフィール',   show: true },
     { id: 'talent',                 icon: 'clipboard-list',  label: 'メンバーステータス', show: level >= 4 },
     { id: 'members',                icon: 'settings',        label: 'メンバー管理',  show: level >= 5 },
+    { id: 'orgchart',               icon: 'sitemap',         label: '組織図',        show: level >= 5 },
     { id: 'settings',               icon: 'tool',            label: '設定',           show: true },
   ];
 
@@ -246,6 +267,9 @@ function route() {
   if (hash === 'members' && level < 5) {
     location.hash = 'dashboard'; return;
   }
+  if (hash === 'orgchart' && level < 5) {
+    location.hash = 'dashboard'; return;
+  }
   if (hash === 'profile' && !profileUserId) {
     location.hash = level >= 4 ? 'talent' : 'dashboard'; return;
   }
@@ -297,6 +321,7 @@ function route() {
     talent:         'メンバーステータス',
     profile:        '',
     members:        'メンバー管理',
+    orgchart:       '組織図',
     settings:       '設定',
   };
   document.getElementById('topbarTitle').textContent = titles[hash] || '';
@@ -317,6 +342,7 @@ function route() {
     talent:         renderTalent,
     profile:        renderProfile,
     members:        renderMembers,
+    orgchart:       renderOrgChart,
     settings:       renderSettings,
   };
   (pages[hash] || renderDashboard)();
@@ -354,6 +380,7 @@ function renderBottomNav() {
     { id: 'myprofile',              icon: 'user',           label: 'プロフィール', active: isOwnProfileHash },
     level >= 4 && { id: 'talent',   icon: 'clipboard-list', label: 'ステータス', active: hash === 'talent' || (hash === 'profile' && !isOwnProfileHash) },
     level >= 5 && { id: 'members',  icon: 'settings',       label: 'メンバー',  active: hash === 'members' },
+    level >= 5 && { id: 'orgchart', icon: 'sitemap',        label: '組織図',    active: hash === 'orgchart' },
     { id: 'settings',               icon: 'tool',           label: '設定',       active: hash === 'settings' },
   ].filter(Boolean);
 
@@ -406,6 +433,7 @@ function _navFullItems() {
     { id: 'myprofile',             icon: 'user',           label: 'プロフィール',       active: isOwnProfileHash },
     level >= 4 && { id: 'talent',  icon: 'clipboard-list', label: 'メンバーステータス', active: hash === 'talent' || (hash === 'profile' && !isOwnProfileHash) },
     level >= 5 && { id: 'members', icon: 'settings',       label: 'メンバー管理',       active: hash === 'members' },
+    level >= 5 && { id: 'orgchart', icon: 'sitemap',       label: '組織図',             active: hash === 'orgchart' },
     { id: 'settings',              icon: 'tool',           label: '設定',               active: hash === 'settings' },
   ].filter(Boolean);
 }
@@ -3661,6 +3689,336 @@ function setMemberQuery(val) {
 
 function setMemberFilterDept(dept) { memberFilterDept = dept; renderMembers(); }
 
+// ═══════════════════════════════════════════════════════
+// ─── PAGE: 組織図（admin専用） ───
+// レポートライン（上司-部下）をツリー図で可視化し、属性タグで社員を分類・フィルタする。
+// 「上司変更」は履歴を上書きするのではなく、月単位のタイムライン（lc_org_manager_history）に
+// エントリを積み上げる方式。ある時点の上司はその月以前で最新のエントリから逆算する（data.js参照）。
+// ═══════════════════════════════════════════════════════
+function renderOrgChart() {
+  document.getElementById('main').innerHTML = `
+    <div class="page-header fade-in">
+      <div>
+        <div class="page-title">組織図</div>
+        <div class="page-sub">レポートライン（上司-部下）と属性タグでメンバーを分布・管理します</div>
+      </div>
+    </div>
+    <div class="report-type-tabs fade-in">
+      <button class="talent-filter-btn ${orgChartTab === 'tree' ? 'active' : ''}" onclick="setOrgChartTab('tree')">${icon('sitemap')} 組織図</button>
+      <button class="talent-filter-btn ${orgChartTab === 'tags' ? 'active' : ''}" onclick="setOrgChartTab('tags')">${icon('tag')} 属性タグ管理</button>
+    </div>
+    <div id="orgChartBody" class="fade-in"></div>
+  `;
+  _renderOrgChartBody();
+}
+
+function setOrgChartTab(tab) {
+  orgChartTab = tab;
+  renderOrgChart();
+}
+
+function _renderOrgChartBody() {
+  const body = document.getElementById('orgChartBody');
+  if (!body) return;
+  body.innerHTML = orgChartTab === 'tree' ? _orgTreeHTML() : _orgTagsHTML();
+}
+
+// ─── 組織図タブ: ツリー表示 ───
+function _orgTreeHTML() {
+  const month = currentMonth();
+  const tags = getOrgTags();
+  const deptFilters = [
+    { key: 'all', label: 'すべて' },
+    ...Object.entries(DEPTS).map(([k, v]) => ({ key: k, label: v.label })),
+  ];
+  const roots = getOrgRoots(month).slice().sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+
+  return `
+    <div class="org-controls">
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        ${deptFilters.map(f => `
+          <button class="talent-filter-btn ${orgChartDeptFilter === f.key ? 'active' : ''}"
+            onclick="setOrgChartDeptFilter('${f.key}')">${f.label}</button>
+        `).join('')}
+      </div>
+      <select class="filter-select" onchange="setOrgChartTagFilter(this.value)">
+        <option value="">タグで絞り込み（すべて表示）</option>
+        ${tags.map(t => `<option value="${t.id}" ${orgChartTagFilter === t.id ? 'selected' : ''}>${t.name}</option>`).join('')}
+      </select>
+    </div>
+    <div class="card org-tree-card">
+      <div style="font-size:12px;color:var(--text-sub);margin-bottom:16px">
+        各カードの${icon('settings')}から上司の設定・履歴の確認・タグの付与ができます。名前をクリックするとプロフィールに移動します。
+      </div>
+      ${roots.length === 0 ? `<div class="list-empty">メンバーがいません</div>` : `
+        <div class="org-tree-scroll">
+          <ul class="org-tree">
+            ${roots.map(u => _orgNodeHTML(u, month)).join('')}
+          </ul>
+        </div>
+      `}
+    </div>
+  `;
+}
+
+function _orgNodeHTML(user, month) {
+  const children = getDirectReports(user.id, month).sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+  const photo = getPhoto(user.id);
+  const userTagIds = getUserTags(user.id);
+  const matchesFilter = !orgChartTagFilter || userTagIds.includes(orgChartTagFilter);
+  const matchesDept = orgChartDeptFilter === 'all' || user.dept === orgChartDeptFilter;
+  const hasActiveFilter = orgChartTagFilter || orgChartDeptFilter !== 'all';
+  const dim = hasActiveFilter && !(matchesFilter && matchesDept);
+
+  return `
+    <li class="org-li">
+      <div class="org-node ${dim ? 'org-node-dim' : ''}">
+        <button class="btn-icon org-node-edit" onclick="openOrgPersonModal('${user.id}')" title="上司・履歴・タグを編集">${icon('settings')}</button>
+        <div class="org-node-head person-link" onclick="openTalentCard('${user.id}')">
+          ${photo
+            ? `<img class="org-node-avatar" src="${photo}" alt="${user.name}">`
+            : `<div class="org-node-avatar org-node-avatar-fallback" style="background:${roleColor(user.role)}">${user.name[0]}</div>`}
+          <div class="org-node-info">
+            <div class="org-node-name">${user.name}</div>
+            <div class="org-node-role" style="color:${roleColor(user.role)}">${getUserDisplayRole(user)}</div>
+          </div>
+        </div>
+      </div>
+      ${children.length ? `<ul class="org-children">${children.map(c => _orgNodeHTML(c, month)).join('')}</ul>` : ''}
+    </li>
+  `;
+}
+
+function setOrgChartDeptFilter(dept) { orgChartDeptFilter = dept; _renderOrgChartBody(); }
+function setOrgChartTagFilter(tagId) { orgChartTagFilter = tagId; _renderOrgChartBody(); }
+
+// ─── 上司・履歴・タグ編集モーダル ───
+function openOrgPersonModal(userId) {
+  const user = getUserById(userId);
+  if (!user) return;
+  const month = currentMonth();
+  const history = getManagerHistory(userId);
+  const currentManagerId = getManagerAt(userId, month);
+  const currentManager = currentManagerId ? getUserById(currentManagerId) : null;
+  const candidates = visibleUsers().filter(u => u.id !== userId && !wouldCreateCycle(userId, u.id, month))
+    .sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+  const tags = getOrgTags();
+  const userTagIds = getUserTags(userId);
+
+  showWideModal(`
+    <div class="modal-header">
+      <div style="font-size:20px">${icon('sitemap')}</div>
+      <div class="modal-title">${user.name} の組織情報</div>
+      <button class="modal-close" onclick="closeModal()">${icon('x')}</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">現在の上司（${monthLabel(month)}時点）</label>
+        <div style="font-size:14px">${currentManager ? currentManager.name : '（未設定・最上位）'}</div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">上司を変更</label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <select class="form-select" id="orgManagerSelect" style="flex:1;min-width:160px">
+            <option value="">（上司なし・最上位にする）</option>
+            ${candidates.map(u => `<option value="${u.id}">${u.name}（${deptLabel(u.dept)}）</option>`).join('')}
+          </select>
+          <input type="month" class="form-input" id="orgManagerFrom" style="max-width:160px" value="${month}">
+          <button class="btn btn-primary" onclick="submitSetManager('${userId}')">設定する</button>
+        </div>
+        <div style="font-size:12px;color:var(--text-sub)">指定した年月から、この上司の配下として扱われます。</div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">配置履歴</label>
+        ${history.length === 0 ? `<div style="font-size:12px;color:var(--text-sub)">履歴はまだありません</div>` : `
+          <div style="display:flex;flex-direction:column;gap:6px">
+            ${history.slice().reverse().map((e, i) => {
+              const mgr = e.managerId ? getUserById(e.managerId) : null;
+              const isCurrent = i === 0;
+              return `
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:13px;background:var(--surface2);border-radius:8px;padding:6px 10px">
+                  <span>${monthLabel(e.from)}〜　${mgr ? mgr.name : '（上司なし）'} ${isCurrent ? '<span class="report-type-chip">現在</span>' : ''}</span>
+                  <button class="btn-icon" onclick="removeManagerEntry('${userId}','${e.from}')" title="この履歴を削除">${icon('trash')}</button>
+                </div>`;
+            }).join('')}
+          </div>
+        `}
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">属性タグ</label>
+        ${tags.length === 0 ? `<div style="font-size:12px;color:var(--text-sub)">タグがまだありません。「属性タグ管理」タブから作成してください。</div>` : `
+          <div class="report-type-checks">
+            ${tags.map(t => `
+              <label class="report-type-check">
+                <input type="checkbox" ${userTagIds.includes(t.id) ? 'checked' : ''} onchange="toggleUserOrgTag('${userId}','${t.id}',this.checked)">
+                <span>${t.name}</span>
+              </label>
+            `).join('')}
+          </div>
+        `}
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">閉じる</button>
+    </div>
+  `);
+}
+
+function submitSetManager(userId) {
+  const managerId = document.getElementById('orgManagerSelect').value || null;
+  const from = document.getElementById('orgManagerFrom').value || currentMonth();
+  if (wouldCreateCycle(userId, managerId, from)) {
+    showToast('循環した配置になるため設定できません', 'error');
+    return;
+  }
+  setManagerFrom(userId, managerId, from);
+  showToast('配置を更新しました');
+  openOrgPersonModal(userId); // モーダル内を最新状態で再描画
+  _renderOrgChartBody();
+}
+
+function removeManagerEntry(userId, from) {
+  removeManagerHistoryEntry(userId, from);
+  showToast('履歴を削除しました');
+  openOrgPersonModal(userId);
+  _renderOrgChartBody();
+}
+
+function toggleUserOrgTag(userId, tagId, checked) {
+  if (checked) addUserTag(userId, tagId);
+  else removeUserTag(userId, tagId);
+  _renderOrgChartBody();
+}
+
+// ─── 属性タグ管理タブ ───
+function _orgTagsHTML() {
+  const tags = getOrgTags();
+  return `
+    <div class="page-header" style="margin-bottom:16px">
+      <div class="page-sub">研修名・資格名などをタグとして作成し、社員に付与できます。付与したタグはメンバーステータスの絞り込みにも使えます。</div>
+      <button class="btn btn-primary" onclick="openCreateOrgTag()">＋ タグを作成</button>
+    </div>
+    ${tags.length === 0 ? `
+      <div class="card" style="text-align:center;padding:48px;color:var(--text-sub)">
+        まだタグがありません。「＋ タグを作成」から作成しましょう（例: 新人研修受講済み）。
+      </div>
+    ` : `
+      <div class="perm-guide-grid">
+        ${tags.map(t => _orgTagCardHTML(t)).join('')}
+      </div>
+    `}
+  `;
+}
+
+function _orgTagCardHTML(tag) {
+  const members = getUsersByTag(tag.id).map(getUserById).filter(Boolean)
+    .sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+  return `
+    <div class="perm-guide-card">
+      <div class="perm-guide-head">
+        <span class="role-badge" style="color:var(--accent)">${icon('tag')} ${tag.name}</span>
+        <span class="perm-guide-level">${members.length}名</span>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">
+        ${members.length
+          ? members.map(u => `<span class="org-tag-chip person-link" onclick="openTalentCard('${u.id}')">${u.name}</span>`).join('')
+          : `<span style="font-size:12px;color:var(--text-sub)">まだ誰も割り当てられていません</span>`}
+      </div>
+      <div style="font-size:11px;color:var(--text-sub);margin-bottom:10px">メンバーへの割り当ては、組織図の各カードの${icon('settings')}から行えます。</div>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-ghost" style="font-size:11px;padding:4px 10px" onclick="openRenameOrgTag('${tag.id}')">${icon('pencil')}</button>
+        <button class="btn btn-danger" style="font-size:11px;padding:4px 10px" onclick="confirmDeleteOrgTag('${tag.id}')">${icon('trash')}</button>
+      </div>
+    </div>
+  `;
+}
+
+function openCreateOrgTag() {
+  showModal(`
+    <div class="modal-header">
+      <div style="font-size:20px">${icon('tag')}</div>
+      <div class="modal-title">タグを作成</div>
+      <button class="modal-close" onclick="closeModal()">${icon('x')}</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">タグ名（例: 新人研修受講済み）</label>
+        <input type="text" class="form-input" id="newOrgTagName" placeholder="例: 新人研修受講済み">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">キャンセル</button>
+      <button class="btn btn-primary" onclick="submitCreateOrgTag()">作成する</button>
+    </div>
+  `);
+}
+function submitCreateOrgTag() {
+  const name = document.getElementById('newOrgTagName').value.trim();
+  if (!name) { showToast('タグ名を入力してください', 'error'); return; }
+  createOrgTag(name);
+  closeModal();
+  showToast(`「${name}」を作成しました`);
+  _renderOrgChartBody();
+}
+
+function openRenameOrgTag(tagId) {
+  const tag = getOrgTags().find(t => t.id === tagId);
+  if (!tag) return;
+  showModal(`
+    <div class="modal-header">
+      <div style="font-size:20px">${icon('pencil')}</div>
+      <div class="modal-title">タグ名の編集</div>
+      <button class="modal-close" onclick="closeModal()">${icon('x')}</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">タグ名</label>
+        <input type="text" class="form-input" id="editOrgTagName" value="${tag.name}">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">キャンセル</button>
+      <button class="btn btn-primary" onclick="submitRenameOrgTag('${tagId}')">保存する</button>
+    </div>
+  `);
+}
+function submitRenameOrgTag(tagId) {
+  const name = document.getElementById('editOrgTagName').value.trim();
+  if (!name) { showToast('タグ名を入力してください', 'error'); return; }
+  renameOrgTag(tagId, name);
+  closeModal();
+  showToast('タグ名を更新しました');
+  _renderOrgChartBody();
+}
+
+function confirmDeleteOrgTag(tagId) {
+  const tag = getOrgTags().find(t => t.id === tagId);
+  if (!tag) return;
+  showModal(`
+    <div class="modal-header">
+      <div style="font-size:20px">${icon('trash')}</div>
+      <div class="modal-title">タグを削除</div>
+      <button class="modal-close" onclick="closeModal()">${icon('x')}</button>
+    </div>
+    <div class="modal-body">
+      <p>「${tag.name}」を削除しますか？全メンバーからこのタグの割り当てが解除されます。</p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">キャンセル</button>
+      <button class="btn btn-danger" onclick="execDeleteOrgTag('${tagId}')">削除する</button>
+    </div>
+  `);
+}
+function execDeleteOrgTag(tagId) {
+  deleteOrgTag(tagId);
+  closeModal();
+  showToast('タグを削除しました');
+  _renderOrgChartBody();
+}
+
 // ─── SETTINGS ───
 function renderSettings() {
   const theme = document.documentElement.getAttribute('data-theme') || 'dark';
@@ -4005,6 +4363,7 @@ function execDeleteMember(userId) {
 // ════════════════════════════════════════════
 
 let talentFilterDept = 'all';
+let talentFilterTag  = ''; // 組織図の属性タグでの絞り込み（空 = フィルタなし）
 let talentSortKey    = 'productivity'; // 'productivity'|'skill'|'interview_new'|'interview_old'|'joined'
 let talentQuery      = '';
 let memberQuery      = '';
@@ -4100,6 +4459,7 @@ function _refreshTalentGrid() {
   const level = roleLevel(CU.role);
   let users = visibleUsers();
   if (talentFilterDept !== 'all') users = users.filter(u => u.dept === talentFilterDept);
+  if (level >= 5 && talentFilterTag) users = users.filter(u => getUserTags(u.id).includes(talentFilterTag));
   users = _filterTalentUsers(users);
   users = _sortTalentUsers(users);
 
@@ -4120,6 +4480,7 @@ function renderTalent() {
   const level = roleLevel(CU.role);
   let users = visibleUsers();
   if (talentFilterDept !== 'all') users = users.filter(u => u.dept === talentFilterDept);
+  if (level >= 5 && talentFilterTag) users = users.filter(u => getUserTags(u.id).includes(talentFilterTag));
   users = _filterTalentUsers(users);
   users = _sortTalentUsers(users);
 
@@ -4155,6 +4516,12 @@ function renderTalent() {
       <select class="form-select tc-sort-select" onchange="setTalentSort(this.value)">
         ${sortOptions.map(o => `<option value="${o.key}" ${talentSortKey === o.key ? 'selected' : ''}>${o.label}</option>`).join('')}
       </select>
+      ${(level >= 5 && getOrgTags().length) ? `
+        <select class="form-select tc-sort-select" onchange="setTalentFilterTag(this.value)">
+          <option value="">すべてのタグ</option>
+          ${getOrgTags().map(t => `<option value="${t.id}" ${talentFilterTag === t.id ? 'selected' : ''}>${t.name}</option>`).join('')}
+        </select>
+      ` : ''}
     </div>
     <div class="talent-filter-bar fade-in">
       ${deptFilters.map(f => `
@@ -4179,6 +4546,11 @@ function setTalentQuery(val) {
 
 function setTalentFilter(dept) {
   talentFilterDept = dept;
+  renderTalent();
+}
+
+function setTalentFilterTag(tagId) {
+  talentFilterTag = tagId;
   renderTalent();
 }
 
@@ -4241,7 +4613,7 @@ function _tcCardHTML(user, canEdit) {
       <div class="tc-body-text">${bodyText.length > 80 ? bodyText.slice(0, 80) + '…' : bodyText}</div>
     </div>` : '';
 
-  // フッタータグ
+  // フッタータグ（組織図の属性タグはプロフィールの「属性タグ」タブへ移動済み）
   const tags = [];
   if (card.lastInterviewDate) tags.push(`<span class="tc-tag">面談 ${formatDate(card.lastInterviewDate)}</span>`);
   if (card.nextRoleCandidate) tags.push(`<span class="tc-tag accent">${icon('arrow-up')} ${card.nextRoleCandidate}</span>`);
@@ -4271,7 +4643,11 @@ function _tcCardHTML(user, canEdit) {
 }
 
 // ─── 詳細ページへ遷移 ───
+// どのページから開いたかを覚えておき、「戻る」で同じページに戻れるようにする
+// （プロフィールから別のプロフィールへ連続で飛んだ場合は、最初の遷移元を保持し続ける）
 function openTalentCard(userId) {
+  const curHash = location.hash.replace('#', '') || 'dashboard';
+  if (curHash !== 'profile') profileReturnHash = curHash;
   profileUserId = userId;
   profileActiveTab = 'perf';
   navigate('profile');
@@ -4290,6 +4666,11 @@ function renderProfile() {
   // （上長コメント・面談ログ・MBTIなど人事情報タブは非表示にする）
   const canSeeFullProfile = isOwnProfile || level >= 4;
   if (!canSeeFullProfile && !['info', 'perf'].includes(profileActiveTab)) {
+    profileActiveTab = isMobile ? 'info' : 'perf';
+  }
+  // 属性タグタブは管理者のみ（メンバーステータスと同じ扱い）
+  const canSeeOrgTags = level >= 5;
+  if (profileActiveTab === 'tags' && !canSeeOrgTags) {
     profileActiveTab = isMobile ? 'info' : 'perf';
   }
 
@@ -4571,6 +4952,17 @@ function renderProfile() {
   // ── MBTIタブ ──
   const mbtiBlock = buildMbtiView(getMbti(user.id), canManagerApprove, user.id);
 
+  // ── 属性タグタブ（組織図で付与したタグの一覧。閲覧のみ・付与は組織図から） ──
+  const orgTagsBlock = (() => {
+    const assigned = getUserTags(user.id).map(id => getOrgTags().find(t => t.id === id)).filter(Boolean);
+    if (assigned.length === 0) {
+      return `<div class="list-empty" style="padding:24px 0">まだタグが付与されていません。組織図の各カードの${icon('settings')}から付与できます。</div>`;
+    }
+    return `<div style="display:flex;flex-wrap:wrap;gap:8px">
+      ${assigned.map(t => `<span class="org-tag-chip" style="font-size:13px;padding:5px 14px">${icon('tag')} ${t.name}</span>`).join('')}
+    </div>`;
+  })();
+
   // ── 生産性スコア（左カラム） ──
   const prodScore = !agg && !isRefa ? '—'
     : isRefa ? (refaAmt > 0 ? (refaAmt / 10000).toFixed(1) + '万' : '—')
@@ -4579,7 +4971,7 @@ function renderProfile() {
   document.getElementById('main').innerHTML = `
     <div class="profile-page fade-in">
       <div class="profile-topbar">
-        ${(!isOwnProfile && level >= 4) ? `<button class="btn btn-ghost profile-back" onclick="navigate('talent')">${icon('arrow-left')} 一覧へ</button>` : ''}
+        ${(!isOwnProfile && level >= 4) ? `<button class="btn btn-ghost profile-back" onclick="navigate('${profileReturnHash}')">${icon('arrow-left')} ${PROFILE_RETURN_LABELS[profileReturnHash] || 'メンバーステータス'}へ戻る</button>` : ''}
         ${canEdit ? `<button class="btn btn-primary" style="margin-left:auto" onclick="saveProfileCard('${user.id}')">保存する</button>` : ''}
       </div>
 
@@ -4644,6 +5036,7 @@ function renderProfile() {
             <button class="profile-tab ${profileActiveTab === 'history' ? 'active' : ''}" onclick="switchProfileTab('history')">経歴・面談</button>
             <button class="profile-tab ${profileActiveTab === 'msg' ? 'active' : ''}" onclick="switchProfileTab('msg')">メッセージ</button>
             <button class="profile-tab ${profileActiveTab === 'mbti' ? 'active' : ''}" onclick="switchProfileTab('mbti')">MBTI</button>
+            ${canSeeOrgTags ? `<button class="profile-tab ${profileActiveTab === 'tags' ? 'active' : ''}" onclick="switchProfileTab('tags')">属性タグ</button>` : ''}
             ` : ''}
           </div>
 
@@ -4701,6 +5094,12 @@ function renderProfile() {
           <div class="profile-panel${profileActiveTab === 'mbti' ? '' : ' hidden'}" id="pp_mbti">
             ${mbtiBlock}
           </div>
+
+          ${canSeeOrgTags ? `
+          <div class="profile-panel${profileActiveTab === 'tags' ? '' : ' hidden'}" id="pp_tags">
+            ${orgTagsBlock}
+          </div>
+          ` : ''}
           ` : ''}
         </div>
       </div>
@@ -4713,7 +5112,7 @@ function switchProfileTab(tab) {
   document.querySelectorAll('.profile-tab').forEach(b => {
     b.classList.toggle('active', b.getAttribute('onclick')?.includes(`'${tab}'`));
   });
-  ['info', 'perf', 'skill', 'history', 'msg', 'mbti'].forEach(t => {
+  ['info', 'perf', 'skill', 'history', 'msg', 'mbti', 'tags'].forEach(t => {
     const p = document.getElementById('pp_' + t);
     if (p) p.classList.toggle('hidden', t !== tab);
   });

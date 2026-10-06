@@ -104,6 +104,9 @@ const LS = {
   teams:          'lc_teams',
   teamPeriod:     'lc_team_period',
   dashboardWidgets: 'lc_dashboard_widgets',
+  orgManagerHistory: 'lc_org_manager_history',
+  orgTags:        'lc_org_tags',
+  userTags:       'lc_user_tags',
 };
 
 // ─── STORAGE ADAPTER ───
@@ -124,7 +127,7 @@ const CLOUD_KEYS = new Set([
   'lc_users', 'lc_reports', 'lc_targets', 'lc_shift_schedules',
   'lc_shift_sites', 'lc_talent', 'lc_photos', 'lc_skill_template',
   'lc_skill_eval', 'lc_venue_plans', 'lc_teams', 'lc_team_period',
-  'lc_dashboard_widgets',
+  'lc_dashboard_widgets', 'lc_org_manager_history', 'lc_org_tags', 'lc_user_tags',
 ]);
 
 const Store = {
@@ -196,6 +199,9 @@ function initData() {
   if (!Store.get(LS.shiftVenuePlans)) Store.set(LS.shiftVenuePlans, {});
   if (!Store.get(LS.teams))          Store.set(LS.teams, []);
   if (!Store.get(LS.teamPeriod))     Store.set(LS.teamPeriod, { label: '' });
+  if (!Store.get(LS.orgManagerHistory)) Store.set(LS.orgManagerHistory, {});
+  if (!Store.get(LS.orgTags))        Store.set(LS.orgTags, []);
+  if (!Store.get(LS.userTags))       Store.set(LS.userTags, {});
 
   // MBTIサンプルデータ（未設定時のみ）
   const _mbtiSeeds = {
@@ -1164,6 +1170,126 @@ function setVenueAchieveWeekend(month, sat, sitesArray) {
   const cur = getVenueAchieve(month);
   cur.weekends[sat] = { sites: sitesArray };
   setVenueAchieve(month, cur);
+}
+
+// ─── 組織図: レポートライン（上司-部下）の履歴 ───
+// lc_org_manager_history: { [userId]: [ { from: 'YYYY-MM', managerId: userId|null } ] }
+// 「変更ログ」ではなく「いつから誰の配下か」を月単位で並べたタイムラインとして持つ。
+// ある時点での上司は、その月以前で最も新しい from のエントリを見れば逆算できるため、
+// 終了日や異動理由は持たない（次のエントリの from が実質的な終了日になる）。
+function getManagerHistory(userId) {
+  const all = Store.get(LS.orgManagerHistory, {});
+  return (all[userId] || []).slice().sort((a, b) => a.from.localeCompare(b.from));
+}
+// 指定した年月（'YYYY-MM'）時点の上司IDを返す（未設定・最上位ならnull）
+function getManagerAt(userId, month) {
+  const hist = getManagerHistory(userId);
+  let current = null;
+  for (const e of hist) {
+    if (e.from <= month) current = e.managerId;
+    else break;
+  }
+  return current;
+}
+function getCurrentManager(userId) {
+  return getManagerAt(userId, currentMonth());
+}
+// 指定年月から managerId の配下にする（managerId=null で「上司なし・最上位」にする）。
+// 同じ from が既にあれば上書きする
+function setManagerFrom(userId, managerId, from) {
+  const all = Store.get(LS.orgManagerHistory, {});
+  const list = all[userId] || [];
+  const idx = list.findIndex(e => e.from === from);
+  if (idx >= 0) list[idx] = { from, managerId: managerId || null };
+  else list.push({ from, managerId: managerId || null });
+  list.sort((a, b) => a.from.localeCompare(b.from));
+  all[userId] = list;
+  Store.set(LS.orgManagerHistory, all);
+}
+function removeManagerHistoryEntry(userId, from) {
+  const all = Store.get(LS.orgManagerHistory, {});
+  all[userId] = (all[userId] || []).filter(e => e.from !== from);
+  Store.set(LS.orgManagerHistory, all);
+}
+// 指定年月時点で managerId の直属の部下一覧を返す
+function getDirectReports(managerId, month) {
+  const mon = month || currentMonth();
+  return getUsers().filter(u => getManagerAt(u.id, mon) === managerId);
+}
+// 指定年月時点で上司が誰もいない（組織図の最上位）ユーザー一覧を返す
+function getOrgRoots(month) {
+  const mon = month || currentMonth();
+  return getUsers().filter(u => !getManagerAt(u.id, mon));
+}
+// userId の配下（子孫）に newManagerId が入ってしまう＝循環になるかを判定する
+function wouldCreateCycle(userId, newManagerId, month) {
+  if (!newManagerId) return false;
+  if (userId === newManagerId) return true;
+  const mon = month || currentMonth();
+  let cur = newManagerId;
+  const seen = new Set();
+  while (cur) {
+    if (cur === userId) return true;
+    if (seen.has(cur)) break; // 安全弁（既存データが循環していた場合の無限ループ防止）
+    seen.add(cur);
+    cur = getManagerAt(cur, mon);
+  }
+  return false;
+}
+
+// ─── 組織図: 属性タグ ───
+// lc_org_tags: [{ id, name, createdAt }]
+// lc_user_tags: { [userId]: [tagId, ...] }
+// 研修受講済みなど、admin が自由に作成した「属性」を社員に複数付与できる汎用タグ。
+// メンバーステータス画面のフィルタとしても使われる。
+function getOrgTags() {
+  return Store.get(LS.orgTags, []);
+}
+function saveOrgTags(tags) {
+  Store.set(LS.orgTags, tags);
+}
+function createOrgTag(name) {
+  const trimmed = (name || '').trim();
+  if (!trimmed) return null;
+  const tags = getOrgTags();
+  const existing = tags.find(t => t.name === trimmed);
+  if (existing) return existing;
+  const tag = { id: 'tag' + Date.now(), name: trimmed, createdAt: new Date().toISOString() };
+  tags.push(tag);
+  saveOrgTags(tags);
+  return tag;
+}
+function renameOrgTag(tagId, name) {
+  const trimmed = (name || '').trim();
+  if (!trimmed) return;
+  const tags = getOrgTags();
+  const t = tags.find(x => x.id === tagId);
+  if (t) { t.name = trimmed; saveOrgTags(tags); }
+}
+function deleteOrgTag(tagId) {
+  saveOrgTags(getOrgTags().filter(t => t.id !== tagId));
+  const all = Store.get(LS.userTags, {});
+  Object.keys(all).forEach(uid => { all[uid] = (all[uid] || []).filter(id => id !== tagId); });
+  Store.set(LS.userTags, all);
+}
+function getUserTags(userId) {
+  return Store.get(LS.userTags, {})[userId] || [];
+}
+function setUserTags(userId, tagIds) {
+  const all = Store.get(LS.userTags, {});
+  all[userId] = tagIds;
+  Store.set(LS.userTags, all);
+}
+function addUserTag(userId, tagId) {
+  const cur = getUserTags(userId);
+  if (!cur.includes(tagId)) setUserTags(userId, [...cur, tagId]);
+}
+function removeUserTag(userId, tagId) {
+  setUserTags(userId, getUserTags(userId).filter(id => id !== tagId));
+}
+function getUsersByTag(tagId) {
+  const all = Store.get(LS.userTags, {});
+  return Object.entries(all).filter(([, ids]) => ids.includes(tagId)).map(([uid]) => uid);
 }
 
 function getTalentProductivityTrend(userId, months = 6) {

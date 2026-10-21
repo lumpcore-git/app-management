@@ -62,6 +62,7 @@ let targetsSortOrder = ''; // '' = 表示順 / 'achieve_desc' / 'achieve_asc'
 let orgChartTab = 'tree';    // 'tree' | 'tags'
 let orgChartTagFilter = '';  // タグID（空 = フィルタなし）
 let orgChartDeptFilter = 'all';
+let orgChartCollapsedIds = new Set(); // 折りたたみ中のユーザーID（ディレクトリツリー風の開閉状態）
 
 // ─── ICON HELPER（Tabler Icons スプライト参照。app.html/index.html の <symbol id="ic-{name}"> を使う） ───
 function icon(name, cls) {
@@ -100,6 +101,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   if (!CU) return;
 
   await Store.syncFromCloud();
+  applyLabelColorOverrides(); // クラウドから取得した最新のラベル色をROLES/DEPTSに反映
 
   renderImpersonationBar();
   renderTopbar();
@@ -3647,6 +3649,7 @@ function renderMembers() {
         <div id="member-sub" class="page-sub">ユーザーの追加・編集・削除（${users.length} / ${totalAll}名）</div>
       </div>
       <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost" onclick="openLabelColorSettings()">${icon('palette')} ラベル設定</button>
         <button class="btn btn-ghost" onclick="openPermissionGuide()">${icon('book')} 権限ガイド</button>
         <button class="btn btn-primary" onclick="openAddMember()">＋ メンバー追加</button>
       </div>
@@ -3747,22 +3750,23 @@ function _orgTreeHTML() {
       </select>
     </div>
     <div class="card org-tree-card">
-      <div style="font-size:12px;color:var(--text-sub);margin-bottom:16px">
-        各カードの${icon('settings')}から上司の設定・履歴の確認・タグの付与ができます。名前をクリックするとプロフィールに移動します。
+      <div style="font-size:12px;color:var(--text-sub);margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <span>名前以外の行をクリックすると部下の開閉、${icon('settings')}で上司の設定・履歴の確認・タグの付与ができます。名前をクリックするとプロフィールに移動します。</span>
+        <button class="btn btn-ghost" style="font-size:11px;padding:4px 10px" onclick="expandAllOrgNodes()">すべて展開</button>
       </div>
       ${roots.length === 0 ? `<div class="list-empty">メンバーがいません</div>` : `
-        <div class="org-tree-scroll">
-          <ul class="org-tree">
-            ${roots.map(u => _orgNodeHTML(u, month)).join('')}
-          </ul>
+        <div class="org-list">
+          ${roots.map(u => _orgRowHTML(u, month, 0)).join('')}
         </div>
       `}
     </div>
   `;
 }
 
-function _orgNodeHTML(user, month) {
+function _orgRowHTML(user, month, depth) {
   const children = getDirectReports(user.id, month).sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+  const hasChildren = children.length > 0;
+  const collapsed = orgChartCollapsedIds.has(user.id);
   const photo = getPhoto(user.id);
   const userTagIds = getUserTags(user.id);
   const matchesFilter = !orgChartTagFilter || userTagIds.includes(orgChartTagFilter);
@@ -3770,23 +3774,42 @@ function _orgNodeHTML(user, month) {
   const hasActiveFilter = orgChartTagFilter || orgChartDeptFilter !== 'all';
   const dim = hasActiveFilter && !(matchesFilter && matchesDept);
 
+  const toggle = hasChildren
+    ? `<button class="org-row-toggle ${collapsed ? '' : 'open'}" onclick="event.stopPropagation();toggleOrgNode('${user.id}')" title="${collapsed ? '展開' : '折りたたむ'}">▸</button>`
+    : `<span class="org-row-toggle-spacer"></span>`;
+
   return `
-    <li class="org-li">
-      <div class="org-node ${dim ? 'org-node-dim' : ''}">
-        <button class="btn-icon org-node-edit" onclick="openOrgPersonModal('${user.id}')" title="上司・履歴・タグを編集">${icon('settings')}</button>
-        <div class="org-node-head person-link" onclick="openTalentCard('${user.id}')">
+    <div class="org-row-wrap">
+      <div class="org-row ${dim ? 'org-row-dim' : ''} ${hasChildren ? 'org-row-clickable' : ''}" style="padding-left:${depth * 22}px"
+        ${hasChildren ? `onclick="toggleOrgNode('${user.id}')" title="クリックで折りたたみ"` : ''}>
+        ${toggle}
+        <div class="org-row-person">
           ${photo
-            ? `<img class="org-node-avatar" src="${photo}" alt="${user.name}">`
-            : `<div class="org-node-avatar org-node-avatar-fallback" style="background:${roleColor(user.role)}">${user.name[0]}</div>`}
-          <div class="org-node-info">
-            <div class="org-node-name">${user.name}</div>
-            <div class="org-node-role" style="color:${roleColor(user.role)}">${getUserDisplayRole(user)}</div>
-          </div>
+            ? `<img class="org-row-avatar" src="${photo}" alt="${user.name}">`
+            : `<div class="org-row-avatar org-row-avatar-fallback" style="background:${roleColor(user.role)}">${user.name[0]}</div>`}
+          <span class="org-row-name person-link" onclick="event.stopPropagation();openTalentCard('${user.id}')" title="プロフィールを見る">${user.name}</span>
+          <span class="org-row-role" style="color:${roleColor(user.role)}">${getUserDisplayRole(user)}</span>
+          ${hasChildren ? `<span class="org-row-count">${children.length}名</span>` : ''}
         </div>
+        <button class="btn-icon org-row-edit" onclick="event.stopPropagation();openOrgPersonModal('${user.id}')" title="上司・履歴・タグを編集">${icon('settings')}</button>
       </div>
-      ${children.length ? `<ul class="org-children">${children.map(c => _orgNodeHTML(c, month)).join('')}</ul>` : ''}
-    </li>
+      ${hasChildren ? `
+        <div class="org-row-children${collapsed ? ' hidden' : ''}">
+          ${children.map(c => _orgRowHTML(c, month, depth + 1)).join('')}
+        </div>
+      ` : ''}
+    </div>
   `;
+}
+
+function toggleOrgNode(userId) {
+  if (orgChartCollapsedIds.has(userId)) orgChartCollapsedIds.delete(userId);
+  else orgChartCollapsedIds.add(userId);
+  _renderOrgChartBody();
+}
+function expandAllOrgNodes() {
+  orgChartCollapsedIds.clear();
+  _renderOrgChartBody();
 }
 
 function setOrgChartDeptFilter(dept) { orgChartDeptFilter = dept; _renderOrgChartBody(); }
@@ -4129,6 +4152,76 @@ function _roleOptions(selected) {
   return Object.entries(ROLES).sort((a, b) => b[1].level - a[1].level).map(([k, v]) =>
     `<option value="${k}" ${k === selected ? 'selected' : ''}>${v.label}</option>`
   ).join('');
+}
+
+// ─── ラベル設定（事業部・役職バッジの色をカスタマイズ） ───
+function openLabelColorSettings() {
+  showWideModal(`
+    <div class="modal-header">
+      <div style="font-size:20px">${icon('palette')}</div>
+      <div class="modal-title">ラベル設定</div>
+      <button class="modal-close" onclick="closeModal()">${icon('x')}</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:12px;color:var(--text-sub)">事業部・役職バッジの色を変更できます。色見本にマウスを乗せると、その色が今どのラベルで使われているか確認できます。</p>
+      <div>
+        <div class="section-title">事業部</div>
+        <div id="labelColorDepts">${_labelColorRows('depts')}</div>
+      </div>
+      <div>
+        <div class="section-title">役職</div>
+        <div id="labelColorRoles">${_labelColorRows('roles')}</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">閉じる</button>
+    </div>
+  `);
+}
+
+function _labelColorRows(category) {
+  const defs = category === 'roles' ? ROLES : DEPTS;
+  const defaults = category === 'roles' ? DEFAULT_ROLE_COLORS : DEFAULT_DEPT_COLORS;
+  return Object.entries(defs).map(([key, def]) => `
+    <div class="label-color-row">
+      <span class="label-color-preview" style="color:${def.color};background:${def.color}22;border:1px solid ${def.color}55" title="${def.label}">${def.label}</span>
+      <div class="label-color-swatches">
+        ${LABEL_COLOR_PALETTE.map(c => {
+          const usage = getLabelColorUsage(c).filter(l => l !== def.label);
+          const isActive = c.toLowerCase() === def.color.toLowerCase();
+          const title = usage.length ? `使用中: ${usage.join('、')}` : '未使用';
+          return `<button class="label-color-swatch ${isActive ? 'active' : ''}" style="background:${c}"
+            title="${title}" onclick="pickLabelColor('${category}','${key}','${c}')"></button>`;
+        }).join('')}
+      </div>
+      ${def.color.toLowerCase() !== defaults[key].toLowerCase() ? `
+        <button class="btn btn-ghost" style="font-size:11px;padding:3px 8px" onclick="resetLabelColorUI('${category}','${key}')">リセット</button>
+      ` : ''}
+    </div>
+  `).join('');
+}
+
+function pickLabelColor(category, key, color) {
+  const defs = category === 'roles' ? ROLES : DEPTS;
+  const label = defs[key]?.label || key;
+  setLabelColor(category, key, color);
+  _refreshLabelColorModal();
+  if (location.hash.replace('#', '') === 'members') _refreshMemberTable();
+  showToast(`「${label}」の色を変更しました`);
+}
+function resetLabelColorUI(category, key) {
+  const defs = category === 'roles' ? ROLES : DEPTS;
+  const label = defs[key]?.label || key;
+  resetLabelColor(category, key);
+  _refreshLabelColorModal();
+  if (location.hash.replace('#', '') === 'members') _refreshMemberTable();
+  showToast(`「${label}」の色を初期値に戻しました`);
+}
+function _refreshLabelColorModal() {
+  const deptsEl = document.getElementById('labelColorDepts');
+  if (deptsEl) deptsEl.innerHTML = _labelColorRows('depts');
+  const rolesEl = document.getElementById('labelColorRoles');
+  if (rolesEl) rolesEl.innerHTML = _labelColorRows('roles');
 }
 
 // ─── 権限ガイド（表示専用。実際の判定は route()/renderSidebar() 側が正） ───

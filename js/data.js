@@ -107,6 +107,7 @@ const LS = {
   orgManagerHistory: 'lc_org_manager_history',
   orgTags:        'lc_org_tags',
   userTags:       'lc_user_tags',
+  labelColors:    'lc_label_colors',
 };
 
 // ─── STORAGE ADAPTER ───
@@ -128,6 +129,7 @@ const CLOUD_KEYS = new Set([
   'lc_shift_sites', 'lc_talent', 'lc_photos', 'lc_skill_template',
   'lc_skill_eval', 'lc_venue_plans', 'lc_teams', 'lc_team_period',
   'lc_dashboard_widgets', 'lc_org_manager_history', 'lc_org_tags', 'lc_user_tags',
+  'lc_label_colors',
 ]);
 
 const Store = {
@@ -217,6 +219,8 @@ function initData() {
     }
   }
   if (_talentChanged) Store.set(LS.talent, _talentCards);
+
+  applyLabelColorOverrides();
 }
 
 function _migrate() {
@@ -1290,6 +1294,63 @@ function removeUserTag(userId, tagId) {
 function getUsersByTag(tagId) {
   const all = Store.get(LS.userTags, {});
   return Object.entries(all).filter(([, ids]) => ids.includes(tagId)).map(([uid]) => uid);
+}
+
+// ─── ラベル設定（事業部・役職バッジの色をadminがカスタマイズ） ───
+// lc_label_colors: { roles: { [roleKey]: '#rrggbb' }, depts: { [deptKey]: '#rrggbb' } }
+// 保存された色だけ ROLES / DEPTS の .color を書き換える。元のデフォルト色は
+// DEFAULT_ROLE_COLORS / DEFAULT_DEPT_COLORS に保持し、リセット時に使う
+// （この2つは ROLES/DEPTS がまだ書き換わっていないスクリプト読み込み時点で確定させる）。
+const DEFAULT_ROLE_COLORS = Object.fromEntries(Object.entries(ROLES).map(([k, v]) => [k, v.color]));
+const DEFAULT_DEPT_COLORS = Object.fromEntries(Object.entries(DEPTS).map(([k, v]) => [k, v.color]));
+
+// 選べる色のパレット（アプリ全体の配色トーンに合わせた16色）
+const LABEL_COLOR_PALETTE = [
+  '#a78bfa', '#8b6fac', '#ff4f6a', '#f472b6',
+  '#ffb347', '#fbbf24', '#d4a830', '#94a3b8',
+  '#4f7cff', '#60a5fa', '#4fa8d2', '#80f1ff',
+  '#00e5c3', '#34d399', '#86f9d7', '#3aad78',
+];
+
+function getLabelColorOverrides() {
+  return Store.get(LS.labelColors, { roles: {}, depts: {} });
+}
+function saveLabelColorOverrides(overrides) {
+  Store.set(LS.labelColors, overrides);
+}
+// 保存済みの上書き色を ROLES / DEPTS に反映する（アプリ起動時・クラウド同期後に呼ぶ）
+function applyLabelColorOverrides() {
+  const overrides = getLabelColorOverrides();
+  Object.entries(overrides.roles || {}).forEach(([key, color]) => {
+    if (ROLES[key]) ROLES[key].color = color;
+  });
+  Object.entries(overrides.depts || {}).forEach(([key, color]) => {
+    if (DEPTS[key]) DEPTS[key].color = color;
+  });
+}
+// ラベルの色を変更する（category: 'roles'|'depts'）
+function setLabelColor(category, key, color) {
+  const overrides = getLabelColorOverrides();
+  overrides[category] = { ...(overrides[category] || {}), [key]: color };
+  saveLabelColorOverrides(overrides);
+  const defs = category === 'roles' ? ROLES : DEPTS;
+  if (defs[key]) defs[key].color = color;
+}
+// デフォルトの色に戻す
+function resetLabelColor(category, key) {
+  const overrides = getLabelColorOverrides();
+  if (overrides[category]) delete overrides[category][key];
+  saveLabelColorOverrides(overrides);
+  const defs = category === 'roles' ? ROLES : DEPTS;
+  const defaults = category === 'roles' ? DEFAULT_ROLE_COLORS : DEFAULT_DEPT_COLORS;
+  if (defs[key]) defs[key].color = defaults[key];
+}
+// 指定した色が現在どのラベル（事業部・役職）で使われているかを表示名で返す
+function getLabelColorUsage(color) {
+  const c = color.toLowerCase();
+  const roles = Object.values(ROLES).filter(v => v.color.toLowerCase() === c).map(v => v.label);
+  const depts = Object.values(DEPTS).filter(v => v.color.toLowerCase() === c).map(v => v.label);
+  return [...roles, ...depts];
 }
 
 function getTalentProductivityTrend(userId, months = 6) {

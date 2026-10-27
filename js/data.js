@@ -1,76 +1,124 @@
 // ─── DATA VERSION (構造変更時に上げる) ───
-const DATA_VERSION = 6;
+const DATA_VERSION = 7;
 
 // ─── ROLE DEFINITIONS ───
+// 2026年11月の組織改編で「レベル1〜5」制を廃止し、以下の等級制に移行した：
+//   役員（admin） = 等級の枠外・最高権限。それ以外の全社員は1〜6等級（数字が大きいほど権限が強い）。
+// level フィールドはそのまま「等級（非役員）または7（役員）」を表す数値として使い続ける
+// （route()/renderSidebar()側の roleLevel(role) >= N というしきい値判定の形はそのまま流用できるようにするため）。
+// dept/group: メンバー管理の役職選択をイベントセールス部ではさらに「モバイルグループ/MTGグループ」で
+//             絞り込むために使う（権限判定には使わない。権限は常にlevelとreportTypesで判定する）。
+// 人財部の4〜6等級は役職とは別に「コース」（育成G/採用G/総務G、user.course）を併せ持つ。
 const ROLES = {
-  admin:         { label: '役員/管理者',     level: 5, color: '#a78bfa' },
-  chief:         { label: 'チーフ',           level: 4, color: '#ff4f6a' },
-  event_closer:  { label: 'イベントクローザー', level: 3, color: '#ffb347' },
-  closer:        { label: 'クローザー',       level: 2, color: '#4f7cff' },
-  catch:         { label: 'キャッチ',         level: 1, color: '#00e5c3' },
-  refa:          { label: 'Refa営業',         level: 1, color: '#f472b6' },
-  style_sales:   { label: 'style営業',        level: 1, color: '#fbbf24' },
-  cotton_candy:  { label: 'わたあめ師',       level: 1, color: '#60a5fa' },
-  hr_staff:      { label: '人財部スタッフ',   level: 1, color: '#94a3b8' },
+  admin: { label: '役員/管理者', level: 7, color: '#a78bfa', dept: 'executive' },
+
+  // イベントセールス部 - モバイルグループ
+  es_mobile_director:     { label: 'モバイル統括',             level: 6, color: '#ff4f6a', dept: 'event_sales', group: 'mobile' },
+  es_mobile_supervisor:   { label: 'スーパーバイザー（モバイル）', level: 5, color: '#ff6f87', dept: 'event_sales', group: 'mobile' },
+  es_mobile_chief:        { label: 'チーフ（モバイル）',         level: 4, color: '#ff4f6a', dept: 'event_sales', group: 'mobile' },
+  es_mobile_event_closer: { label: 'イベントクローザー',         level: 3, color: '#ffb347', dept: 'event_sales', group: 'mobile' },
+  es_mobile_closer:       { label: 'クローザー',                 level: 2, color: '#4f7cff', dept: 'event_sales', group: 'mobile' },
+  es_mobile_trainee:      { label: 'みならい（モバイル）',       level: 1, color: '#00e5c3', dept: 'event_sales', group: 'mobile' },
+
+  // イベントセールス部 - MTGグループ（Refa/style営業）
+  es_mtg_director:   { label: 'MTG統括',                level: 6, color: '#d6336c', dept: 'event_sales', group: 'mtg' },
+  es_mtg_supervisor: { label: 'スーパーバイザー（MTG）', level: 5, color: '#e8638a', dept: 'event_sales', group: 'mtg' },
+  es_mtg_chief:      { label: 'チーフ（MTG）',           level: 4, color: '#f472b6', dept: 'event_sales', group: 'mtg' },
+  es_mtg_sales_3:    { label: 'セールス（3等級）',       level: 3, color: '#fbbf24', dept: 'event_sales', group: 'mtg' },
+  es_mtg_sales_2:    { label: 'セールス（2等級）',       level: 2, color: '#fbbf24', dept: 'event_sales', group: 'mtg' },
+  es_mtg_trainee:    { label: 'みならい（MTG）',         level: 1, color: '#00e5c3', dept: 'event_sales', group: 'mtg' },
+
+  // イベントパフォーマー部
+  ep_manager:     { label: 'マネージャー',                   level: 6, color: '#8b6fac', dept: 'event_performer' },
+  ep_producer:    { label: 'プロデューサー（パフォーマー部）', level: 6, color: '#a78bfa', dept: 'event_performer' },
+  ep_director:    { label: 'ディレクター（パフォーマー部）',   level: 5, color: '#60a5fa', dept: 'event_performer' },
+  ep_chief:       { label: 'チーフ（パフォーマー）',           level: 4, color: '#f472b6', dept: 'event_performer' },
+  ep_performer_3: { label: 'パフォーマー（3等級）',           level: 3, color: '#94a3b8', dept: 'event_performer' },
+  ep_performer_2: { label: 'パフォーマー（2等級）',           level: 2, color: '#94a3b8', dept: 'event_performer' },
+  ep_trainee:     { label: 'みならい（パフォーマー）',         level: 1, color: '#00e5c3', dept: 'event_performer' },
+
+  // 人財部（4〜6等級は user.course と組み合わせて使う）
+  hr_producer: { label: 'プロデューサー（人財部）', level: 6, color: '#34d399', dept: 'hr' },
+  hr_director: { label: 'ディレクター（人財部）',   level: 5, color: '#3aad78', dept: 'hr' },
+  hr_chief:    { label: 'チーフ（人財部）',         level: 4, color: '#34d399', dept: 'hr' },
+  hr_trainer:  { label: 'トレーナー',               level: 3, color: '#86f9d7', dept: 'hr' },
+  hr_staff_3:  { label: '本社スタッフ（3等級）',    level: 3, color: '#94a3b8', dept: 'hr' },
+  hr_staff_2:  { label: '本社スタッフ（2等級）',    level: 2, color: '#94a3b8', dept: 'hr' },
+  hr_trainee:  { label: 'みならい（人財部）',       level: 1, color: '#00e5c3', dept: 'hr' },
 };
+
+// 人財部の「コース」（育成G・採用G・総務G）。4〜6等級（プロデューサー/ディレクター/チーフ）のみ持つ
+const HR_COURSES = {
+  dev: '育成G',
+  rec: '採用G',
+  adm: '総務G',
+};
+// コースを持つ人財部の役職キー
+const HR_COURSE_ROLES = ['hr_producer', 'hr_director', 'hr_chief'];
 
 // ─── ROLE CAPABILITY GUIDE（表示専用。実際の権限判定は route()/renderSidebar()側の条件式が正） ───
 // minLevel: roleLevel(role) >= minLevel を満たすロールにのみ表示する（表示の足切り）
 // note:     部署条件など、level比較だけでは表せない補足条件があれば添える
 const ROLE_CAPABILITY_RULES = [
   { key: 'talent',            label: '人財カルテ閲覧・編集',           minLevel: 4 },
-  { key: 'members',           label: 'メンバー管理・ロール変更',       minLevel: 5 },
-  { key: 'skillTemplateEdit', label: 'スキルシート設定編集',           minLevel: 5 },
+  { key: 'members',           label: 'メンバー管理・ロール変更',       minLevel: 7 },
+  { key: 'skillTemplateEdit', label: 'スキルシート設定編集',           minLevel: 7 },
   { key: 'shiftsPlan',        label: 'シフト作成（月全体の一括編集）', minLevel: 4 },
   { key: 'shiftsEdit',        label: 'メンバーのシフト個別編集',       minLevel: 4 },
-  { key: 'team',              label: 'チーム実績・ランキング閲覧',     minLevel: 2, note: 'モバイル事業部所属の場合。役員/管理者は部署を問わず閲覧可' },
-  { key: 'targets',           label: '目標設定',                       minLevel: 4, note: 'モバイル事業部所属の場合。役員/管理者は部署を問わず設定可' },
-  { key: 'impersonate',       label: '代理ログイン',                   minLevel: 5 },
+  { key: 'team',              label: 'チーム実績・ランキング閲覧',     minLevel: 2, note: 'イベントセールス部・モバイルグループに所属する場合。役員は部署を問わず閲覧可' },
+  { key: 'targets',           label: '目標設定',                       minLevel: 4, note: 'モバイル報告タイプを持つ場合。役員は部署を問わず設定可' },
+  { key: 'impersonate',       label: '代理ログイン',                   minLevel: 7 },
   { key: 'taskCreate',        label: 'タスク作成・お知らせ送信',       minLevel: 4 },
   { key: 'mbtiApprove',       label: 'MBTI・スキル上長承認欄の編集',   minLevel: 4 },
 ];
 
 // ─── DEPARTMENTS ───
+// 2026年11月の組織改編で「モバイル事業部」「イベントプロモーション部」を統廃合し、
+// 「イベントセールス部」（旧モバイル事業部＋旧イベントプロモーション部のRefa/style営業）と
+// 「イベントパフォーマー部」（旧イベントプロモーション部のわたあめ師など）に再編した。
 const DEPTS = {
-  mobile:      { label: 'モバイル事業部',            color: '#4f7cff' },
-  event_promo: { label: 'イベントプロモーション部',  color: '#f472b6' },
-  hr:          { label: '人財部',                    color: '#34d399' },
-  executive:   { label: '役員',                      color: '#a78bfa' },
+  event_sales:     { label: 'イベントセールス部',     color: '#4f7cff' },
+  event_performer: { label: 'イベントパフォーマー部', color: '#f472b6' },
+  hr:              { label: '人財部',                 color: '#34d399' },
+  executive:       { label: '役員',                   color: '#a78bfa' },
 };
 
 // ─── INITIAL USERS ───
 // dept: 所属事業部
+// course: 人財部4〜6等級のみ使用（'dev'|'rec'|'adm'）
 // reportTypes: ['mobile'|'refa'|'style', ...]（複数可。空配列 [] = 報告なし）
 // jobTitle: 表示用の役職名（任意、省略時はROLESのlabelを使用）
 const INITIAL_USERS = [
-  // ── モバイル事業部 ──
-  { id: 'u1',  name: '北村晃平',   role: 'chief',        dept: 'mobile',      reportTypes: ['mobile'], pw: 'lump1234' },
-  { id: 'u2',  name: '立川航成',   role: 'chief',        dept: 'mobile',      reportTypes: ['mobile'], pw: 'lump1234' },
-  { id: 'u3',  name: '黒井彪雅',   role: 'chief',        dept: 'mobile',      reportTypes: ['mobile'], pw: 'lump1234' },
-  { id: 'u4',  name: '井出大凱',   role: 'event_closer', dept: 'mobile',      reportTypes: ['mobile'], pw: 'lump1234' },
-  { id: 'u5',  name: '小野聖斗',   role: 'event_closer', dept: 'mobile',      reportTypes: ['mobile'], pw: 'lump1234' },
-  { id: 'u9',  name: '木村洸稀',   role: 'closer',       dept: 'mobile',      reportTypes: ['mobile'], pw: 'lump1234' },
-  { id: 'u10', name: '伊能直人',   role: 'closer',       dept: 'mobile',      reportTypes: ['mobile'], pw: 'lump1234' },
-  { id: 'u11', name: '全賢鎭',     role: 'closer',       dept: 'mobile',      reportTypes: ['mobile'], pw: 'lump1234' },
-  { id: 'u15', name: '高橋茉凜',   role: 'catch',        dept: 'mobile',      reportTypes: ['mobile'], pw: 'lump1234' },
-  { id: 'u16', name: '有馬雄士',   role: 'catch',        dept: 'mobile',      reportTypes: ['mobile'], pw: 'lump1234' },
-  { id: 'u17', name: '小川翔',     role: 'catch',        dept: 'mobile',      reportTypes: ['mobile'], pw: 'lump1234' },
-  { id: 'u18', name: '亀田幸',     role: 'catch',        dept: 'mobile',      reportTypes: ['mobile'], pw: 'lump1234' },
+  // ── イベントセールス部 - モバイルグループ ──
+  { id: 'u1',  name: '北村晃平',   role: 'es_mobile_chief',        dept: 'event_sales', reportTypes: ['mobile'], pw: 'lump1234' },
+  { id: 'u2',  name: '立川航成',   role: 'es_mobile_chief',        dept: 'event_sales', reportTypes: ['mobile'], pw: 'lump1234' },
+  { id: 'u3',  name: '黒井彪雅',   role: 'es_mobile_chief',        dept: 'event_sales', reportTypes: ['mobile'], pw: 'lump1234' },
+  { id: 'u4',  name: '井出大凱',   role: 'es_mobile_event_closer', dept: 'event_sales', reportTypes: ['mobile'], pw: 'lump1234' },
+  { id: 'u5',  name: '小野聖斗',   role: 'es_mobile_event_closer', dept: 'event_sales', reportTypes: ['mobile'], pw: 'lump1234' },
+  { id: 'u9',  name: '木村洸稀',   role: 'es_mobile_closer',       dept: 'event_sales', reportTypes: ['mobile'], pw: 'lump1234' },
+  { id: 'u10', name: '伊能直人',   role: 'es_mobile_closer',       dept: 'event_sales', reportTypes: ['mobile'], pw: 'lump1234' },
+  { id: 'u11', name: '全賢鎭',     role: 'es_mobile_closer',       dept: 'event_sales', reportTypes: ['mobile'], pw: 'lump1234' },
+  { id: 'u15', name: '高橋茉凜',   role: 'es_mobile_trainee',      dept: 'event_sales', reportTypes: ['mobile'], pw: 'lump1234' },
+  { id: 'u16', name: '有馬雄士',   role: 'es_mobile_trainee',      dept: 'event_sales', reportTypes: ['mobile'], pw: 'lump1234' },
+  { id: 'u17', name: '小川翔',     role: 'es_mobile_trainee',      dept: 'event_sales', reportTypes: ['mobile'], pw: 'lump1234' },
+  { id: 'u18', name: '亀田幸',     role: 'es_mobile_trainee',      dept: 'event_sales', reportTypes: ['mobile'], pw: 'lump1234' },
 
-  // ── イベントプロモーション部 ──
-  { id: 'u20', name: '川上彩香',   role: 'refa',         dept: 'event_promo', reportTypes: ['refa'], pw: 'lump1234' },
-  { id: 'u21', name: '⽯原玲奈',   role: 'refa',         dept: 'event_promo', reportTypes: ['refa'], pw: 'lump1234' },
-  { id: 'u22', name: '長涼香',   role: 'refa',         dept: 'event_promo', reportTypes: ['refa'], pw: 'lump1234' },
-  { id: 'u24', name: '梅田莉津夢', role: 'cotton_candy', dept: 'event_promo', reportTypes: [],       pw: 'lump1234' },
-  { id: 'u25', name: '瀬之口百合香', role: 'cotton_candy', dept: 'event_promo', reportTypes: [],       pw: 'lump1234' },
+  // ── イベントセールス部 - MTGグループ ──
+  { id: 'u20', name: '川上彩香',   role: 'es_mtg_trainee', dept: 'event_sales', reportTypes: ['refa'], pw: 'lump1234' },
+  { id: 'u21', name: '⽯原玲奈',   role: 'es_mtg_trainee', dept: 'event_sales', reportTypes: ['refa'], pw: 'lump1234' },
+  { id: 'u22', name: '長涼香',   role: 'es_mtg_trainee', dept: 'event_sales', reportTypes: ['refa'], pw: 'lump1234' },
+
+  // ── イベントパフォーマー部 ──
+  { id: 'u24', name: '梅田莉津夢', role: 'ep_trainee', dept: 'event_performer', reportTypes: [], pw: 'lump1234' },
+  { id: 'u25', name: '瀬之口百合香', role: 'ep_trainee', dept: 'event_performer', reportTypes: [], pw: 'lump1234' },
 
   // ── 人財部 ──
-  { id: 'u26', name: '廣瀬',     role: 'admin',    dept: 'hr', reportTypes: [], jobTitle: 'IT / イベントCL',  email: 't.hirose@lumpcore.co.jp', pw: 'lump1234' },
-  { id: 'u27', name: '三瓶久',   role: 'hr_staff', dept: 'hr', reportTypes: [], jobTitle: '総務',              pw: 'lump1234' },
-  { id: 'u28', name: '吉田悠人',   role: 'hr_staff', dept: 'hr', reportTypes: [], jobTitle: '採用',              pw: 'lump1234' },
-  { id: 'u29', name: '岩淵由佳',   role: 'hr_staff', dept: 'hr', reportTypes: [], jobTitle: '採用',              pw: 'lump1234' },
-  { id: 'u30', name: '渡合広明', role: 'hr_staff', dept: 'hr', reportTypes: [], jobTitle: 'チーフトレーナー', pw: 'lump1234' },
-  { id: 'u31', name: '堤拓樹', role: 'hr_staff', dept: 'hr', reportTypes: [], jobTitle: 'IT / 総務',        pw: 'lump1234' },
+  { id: 'u26', name: '廣瀬',     role: 'admin',      dept: 'hr', reportTypes: [], jobTitle: 'IT / イベントCL',  email: 't.hirose@lumpcore.co.jp', pw: 'lump1234' },
+  { id: 'u27', name: '三瓶久',   role: 'hr_staff_3', dept: 'hr', reportTypes: [], jobTitle: '総務',              pw: 'lump1234' },
+  { id: 'u28', name: '吉田悠人',   role: 'hr_staff_3', dept: 'hr', reportTypes: [], jobTitle: '採用',              pw: 'lump1234' },
+  { id: 'u29', name: '岩淵由佳',   role: 'hr_staff_3', dept: 'hr', reportTypes: [], jobTitle: '採用',              pw: 'lump1234' },
+  { id: 'u30', name: '渡合広明', role: 'hr_chief',    dept: 'hr', course: 'dev', reportTypes: [], jobTitle: 'チーフトレーナー', pw: 'lump1234' },
+  { id: 'u31', name: '堤拓樹', role: 'hr_staff_3',    dept: 'hr', reportTypes: [], jobTitle: 'IT / 総務',        pw: 'lump1234' },
 
   // ── 役員 ──
   { id: 'u32', name: '森崎隆介', role: 'admin', dept: 'executive', reportTypes: [], pw: 'lump1234' },
@@ -223,6 +271,33 @@ function initData() {
   applyLabelColorOverrides();
 }
 
+// 2026年11月の組織改編（事業部再編・役職の等級制導入）で廃止した旧ロールキー→新ロールキーの変換。
+// ROLES に存在しないキーを持つ既存ユーザーだけを対象に変換する（新ロール体系の値はそのまま通す）。
+// hr_staff だけは1つの旧ロールに複数の新ロールが対応するため、jobTitleの文言から大まかに推定する
+// （「チーフ」を含む場合のみチーフ級＋育成コースとし、それ以外は3等級の本社スタッフとする）。
+function _migrateRoleSystem(users) {
+  return users.map(u => {
+    if (ROLES[u.role]) return u; // 既に新ロール体系（または既存のadmin）
+    const m = { ...u };
+    switch (u.role) {
+      case 'chief':        m.role = 'es_mobile_chief';        m.dept = 'event_sales'; break;
+      case 'event_closer': m.role = 'es_mobile_event_closer'; m.dept = 'event_sales'; break;
+      case 'closer':       m.role = 'es_mobile_closer';       m.dept = 'event_sales'; break;
+      case 'catch':        m.role = 'es_mobile_trainee';      m.dept = 'event_sales'; break;
+      case 'refa':         m.role = 'es_mtg_trainee';         m.dept = 'event_sales'; break;
+      case 'style_sales':  m.role = 'es_mtg_trainee';         m.dept = 'event_sales'; break;
+      case 'cotton_candy': m.role = 'ep_trainee';             m.dept = 'event_performer'; break;
+      case 'hr_staff':
+        if ((u.jobTitle || '').includes('チーフ')) { m.role = 'hr_chief'; m.course = 'dev'; }
+        else { m.role = 'hr_staff_3'; }
+        m.dept = 'hr';
+        break;
+      default: break; // 未知のroleはそのまま（想定外ケース。メンバー管理で手動修正）
+    }
+    return m;
+  });
+}
+
 function _migrate() {
   // ── 既存の保存済みユーザーは上書きしない。INITIAL_USERSにしかいないユーザーだけ追加する ──
   // （メンバー管理UIでの編集が正となったため。初回起動＝保存データが空の場合のみ INITIAL_USERS で初期化する）
@@ -230,11 +305,11 @@ function _migrate() {
   if (existingUsers.length === 0) {
     Store.set(LS.users, INITIAL_USERS);
   } else {
-    const existingIds = new Set(existingUsers.map(u => u.id));
+    // 旧ロール体系（レベル制・旧事業部）のユーザーを新ロール体系（等級制・新事業部）へ変換する
+    const migratedExisting = _migrateRoleSystem(existingUsers);
+    const existingIds = new Set(migratedExisting.map(u => u.id));
     const newFromInitial = INITIAL_USERS.filter(u => !existingIds.has(u.id));
-    if (newFromInitial.length) {
-      Store.set(LS.users, [...existingUsers, ...newFromInitial]);
-    }
+    Store.set(LS.users, newFromInitial.length ? [...migratedExisting, ...newFromInitial] : migratedExisting);
   }
 
   // ── 既存レポートに type フィールドを追加 ──
@@ -269,7 +344,10 @@ function getUserByEmail(email) {
 }
 // 表示用の役職名（jobTitle優先、なければROLESのlabel）
 function getUserDisplayRole(user) {
-  return user.jobTitle || ROLES[user.role]?.label || user.role;
+  if (user.jobTitle) return user.jobTitle;
+  const label = ROLES[user.role]?.label || user.role;
+  if (user.course && HR_COURSES[user.course]) return `${label}・${HR_COURSES[user.course]}`;
+  return label;
 }
 // ユーザーの報告タイプ一覧を返す（複数可）。新形式 reportTypes（配列）を優先し、
 // 未移行の旧形式 reportType（単一値）しかない場合はそちらを配列化して返す
@@ -638,7 +716,7 @@ function clearPlanHiddenDates(month) {
   Store.set('lc_shift_plan_hidden', all);
 }
 
-// ─── PRODUCTS & POINTS (モバイル事業部) ───
+// ─── PRODUCTS & POINTS (イベントセールス部・モバイルグループ) ───
 const PRODUCTS = [
   { key: 'sbmnp',         label: 'SBMNP',               pt: 5.0, type: 'count', unit: '件', group: 'MNP系' },
   { key: 'ymnp',          label: 'YMNP',                pt: 3.0, type: 'count', unit: '件', group: 'MNP系' },

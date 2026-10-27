@@ -187,7 +187,7 @@ function _updateNotifBadge() {
 function renderSidebar() {
   const level = roleLevel(CU.role);
   const hasReport = getUserReportTypes(CU).length > 0;
-  const canSeeTeam = (level >= 2 && CU.dept === 'mobile') || level >= 5;
+  const canSeeTeam = (level >= 2 && getUserReportTypes(CU).includes('mobile')) || level >= 7;
   const canSeeTeamOrg = true; // チーム編成は全社横断のため全ログインユーザーに表示
 
   const hash = location.hash.replace('#', '') || 'dashboard';
@@ -207,8 +207,8 @@ function renderSidebar() {
     { id: 'venue-achieve',          icon: 'chart-bar',       label: '現場達成率',     show: true },
     { id: 'myprofile',              icon: 'user',            label: 'プロフィール',   show: true },
     { id: 'talent',                 icon: 'clipboard-list',  label: 'メンバーステータス', show: level >= 4 },
-    { id: 'members',                icon: 'settings',        label: 'メンバー管理',  show: level >= 5 },
-    { id: 'orgchart',               icon: 'sitemap',         label: '組織図',        show: level >= 5 },
+    { id: 'members',                icon: 'settings',        label: 'メンバー管理',  show: level >= 7 },
+    { id: 'orgchart',               icon: 'sitemap',         label: '組織図',        show: level >= 7 },
     { id: 'settings',               icon: 'tool',            label: '設定',           show: true },
   ];
 
@@ -255,7 +255,7 @@ function renderSidebar() {
 function route() {
   const hash = location.hash.replace('#', '') || 'dashboard';
   const level = roleLevel(CU.role);
-  const canSeeTeam = (level >= 2 && CU.dept === 'mobile') || level >= 5;
+  const canSeeTeam = (level >= 2 && getUserReportTypes(CU).includes('mobile')) || level >= 7;
 
   if (hash === 'ranking' && !canSeeTeam) {
     location.hash = 'dashboard'; return;
@@ -266,17 +266,17 @@ function route() {
   if (hash === 'talent' && level < 4) {
     location.hash = 'dashboard'; return;
   }
-  if (hash === 'members' && level < 5) {
+  if (hash === 'members' && level < 7) {
     location.hash = 'dashboard'; return;
   }
-  if (hash === 'orgchart' && level < 5) {
+  if (hash === 'orgchart' && level < 7) {
     location.hash = 'dashboard'; return;
   }
   if (hash === 'profile' && !profileUserId) {
     location.hash = level >= 4 ? 'talent' : 'dashboard'; return;
   }
   // 役員（dept:'executive'）のプロフィールはadmin以外絶対に開けない
-  if (hash === 'profile' && level < 5 && getUserById(profileUserId)?.dept === 'executive') {
+  if (hash === 'profile' && level < 7 && getUserById(profileUserId)?.dept === 'executive') {
     location.hash = level >= 4 ? 'talent' : 'dashboard'; return;
   }
   // 他人のプロフィールは誰でも開ける（基本情報・実績タブのみ。人事情報タブはrenderProfile側でlevel<4なら非表示にする）
@@ -363,7 +363,7 @@ function renderBottomNav() {
 
   const level = roleLevel(CU.role);
   const hasReport = getUserReportTypes(CU).length > 0;
-  const canSeeTeam = (level >= 2 && CU.dept === 'mobile') || level >= 5;
+  const canSeeTeam = (level >= 2 && getUserReportTypes(CU).includes('mobile')) || level >= 7;
   const canSeeTeamOrg = true; // チーム編成は全社横断のため全ログインユーザーに表示
   const hash = location.hash.replace('#', '') || 'dashboard';
 
@@ -381,8 +381,8 @@ function renderBottomNav() {
     { id: 'venue-achieve-weekday',  icon: 'chart-bar',      label: '現場',       active: isVenueHash },
     { id: 'myprofile',              icon: 'user',           label: 'プロフィール', active: isOwnProfileHash },
     level >= 4 && { id: 'talent',   icon: 'clipboard-list', label: 'ステータス', active: hash === 'talent' || (hash === 'profile' && !isOwnProfileHash) },
-    level >= 5 && { id: 'members',  icon: 'settings',       label: 'メンバー',  active: hash === 'members' },
-    level >= 5 && { id: 'orgchart', icon: 'sitemap',        label: '組織図',    active: hash === 'orgchart' },
+    level >= 7 && { id: 'members',  icon: 'settings',       label: 'メンバー',  active: hash === 'members' },
+    level >= 7 && { id: 'orgchart', icon: 'sitemap',        label: '組織図',    active: hash === 'orgchart' },
     { id: 'settings',               icon: 'tool',           label: '設定',       active: hash === 'settings' },
   ].filter(Boolean);
 
@@ -417,7 +417,7 @@ function _updateBottomNavFade() {
 function _navFullItems() {
   const level = roleLevel(CU.role);
   const hasReport = getUserReportTypes(CU).length > 0;
-  const canSeeTeam = (level >= 2 && CU.dept === 'mobile') || level >= 5;
+  const canSeeTeam = (level >= 2 && getUserReportTypes(CU).includes('mobile')) || level >= 7;
   const hash = location.hash.replace('#', '') || 'dashboard';
 
   const isShiftHash = hash === 'shifts-week' || hash === 'shifts-month' || hash === 'shifts-plan' || hash === 'shifts';
@@ -434,8 +434,8 @@ function _navFullItems() {
     { id: 'venue-achieve-weekday', icon: 'chart-bar',      label: '現場達成率',         active: isVenueHash },
     { id: 'myprofile',             icon: 'user',           label: 'プロフィール',       active: isOwnProfileHash },
     level >= 4 && { id: 'talent',  icon: 'clipboard-list', label: 'メンバーステータス', active: hash === 'talent' || (hash === 'profile' && !isOwnProfileHash) },
-    level >= 5 && { id: 'members', icon: 'settings',       label: 'メンバー管理',       active: hash === 'members' },
-    level >= 5 && { id: 'orgchart', icon: 'sitemap',       label: '組織図',             active: hash === 'orgchart' },
+    level >= 7 && { id: 'members', icon: 'settings',       label: 'メンバー管理',       active: hash === 'members' },
+    level >= 7 && { id: 'orgchart', icon: 'sitemap',       label: '組織図',             active: hash === 'orgchart' },
     { id: 'settings',              icon: 'tool',           label: '設定',               active: hash === 'settings' },
   ].filter(Boolean);
 }
@@ -564,7 +564,7 @@ function deptLabel(dept) { return DEPTS[dept]?.label || dept; }
 // admin（役員自身を含む）はメンバー管理で全員を扱えるので、admin視点ではフィルタしない。
 function visibleUsers() {
   const users = getUsers();
-  if (roleLevel(CU.role) >= 5) return users;
+  if (roleLevel(CU.role) >= 7) return users;
   return users.filter(u => u.dept !== 'executive');
 }
 function getShiftDayTone(day) {
@@ -722,7 +722,7 @@ function _taskItem(t, level) {
   const today = todayStr();
   const isOverdue = !isDone && t.dueDate && t.dueDate < today;
   const dueLabelText = t.dueDate === today ? '今日まで' : (t.dueDate ? t.dueDate.slice(5).replace('-', '/') + 'まで' : '');
-  const canDelete = level >= 5 || t.fromUserId === CU.id;
+  const canDelete = level >= 7 || t.fromUserId === CU.id;
 
   return `
     <div class="task-item${isDone ? ' task-done' : ''}">
@@ -1001,7 +1001,7 @@ const REPORT_TYPE_LABELS = { mobile: 'モバイル', refa: 'Refa', style: 'style
 
 function renderDashboard() {
   const level = roleLevel(CU.role);
-  if (level >= 5) { renderAdminDashboard(); return; }
+  if (level >= 7) { renderAdminDashboard(); return; }
 
   const types = getUserReportTypes(CU);
   if (types.length === 0) { renderBasicDashboard(); return; }
@@ -1031,10 +1031,7 @@ function renderAdminDashboard() {
   const users = getUsers();
 
   // モバイル集計
-  const mobileReports = allReports.filter(r => {
-    const u = users.find(x => x.id === r.userId);
-    return u?.dept === 'mobile';
-  });
+  const mobileReports = allReports.filter(r => !r.type || r.type === 'mobile');
   const totalMnp    = mobileReports.reduce((s, r) => s + (Number(r.sbmnp || 0) + Number(r.ymnp || 0)), 0);
   const totalShinki = mobileReports.reduce((s, r) => s + (Number(r.sb_shinki || 0) + Number(r.ym_shinki || 0)), 0);
 
@@ -1069,27 +1066,27 @@ function renderAdminDashboard() {
         <div class="kpi-icon">${icon('device-mobile')}</div>
         <div class="kpi-label">MNP合計</div>
         <div class="kpi-value">${totalMnp}</div>
-        <div class="kpi-meta">モバイル事業部</div>
+        <div class="kpi-meta">イベントセールス部・モバイル</div>
       </div>
       <div class="kpi-card green">
         <div class="kpi-icon">${icon('sparkles')}</div>
         <div class="kpi-label">新規合計</div>
         <div class="kpi-value">${totalShinki}</div>
-        <div class="kpi-meta">モバイル事業部</div>
+        <div class="kpi-meta">イベントセールス部・モバイル</div>
       </div>
       <div class="kpi-card" style="border-color:rgba(244,114,182,.3)">
         <div class="kpi-card-bar" style="position:absolute;top:0;left:0;right:0;height:3px;background:#f472b6"></div>
         <div class="kpi-icon">${icon('diamond')}</div>
         <div class="kpi-label">Refa売上</div>
         <div class="kpi-value" style="font-size:22px">${formatMoney(totalRefa)}</div>
-        <div class="kpi-meta">イベントプロモーション部</div>
+        <div class="kpi-meta">イベントセールス部・MTG</div>
       </div>
       <div class="kpi-card" style="border-color:rgba(251,191,36,.3)">
         <div class="kpi-card-bar" style="position:absolute;top:0;left:0;right:0;height:3px;background:#fbbf24"></div>
         <div class="kpi-icon">${icon('sparkles')}</div>
         <div class="kpi-label">style営業売上</div>
         <div class="kpi-value" style="font-size:22px">${formatMoney(totalStyle)}</div>
-        <div class="kpi-meta">イベントプロモーション部</div>
+        <div class="kpi-meta">イベントセールス部・MTG</div>
       </div>
       <div class="kpi-card ${unreported > 0 ? 'warn' : 'green'}">
         <div class="kpi-icon">${icon('bell')}</div>
@@ -1180,10 +1177,10 @@ function renderMobileDashboard() {
   if (isChief) {
     const teamReports = getReports().filter(r => {
       const u = getUserById(r.userId);
-      return u?.dept === 'mobile' && r.date.startsWith(month) && (!r.type || r.type === 'mobile');
+      return getUserReportTypes(u).includes('mobile') && r.date.startsWith(month) && (!r.type || r.type === 'mobile');
     });
     teamAgg = aggregateReports(teamReports);
-    const mobileUsers = getUsers().filter(u => u.dept === 'mobile' && getUserReportTypes(u).includes('mobile'));
+    const mobileUsers = getUsers().filter(u => getUserReportTypes(u).includes('mobile'));
     const reportedIds = new Set(teamReports.map(r => r.userId));
     unreported = mobileUsers.filter(u => !reportedIds.has(u.id)).length;
   }
@@ -2027,7 +2024,7 @@ function renderTeam() {
 }
 
 function renderTeamList() {
-  const isAdmin = roleLevel(CU.role) >= 5;
+  const isAdmin = roleLevel(CU.role) >= 7;
   const teams = getTeams();
   const period = getTeamPeriod();
 
@@ -2109,7 +2106,7 @@ function _teamMemberOverallProgress(team, userId, target) {
 }
 
 function renderTeamDetail(team) {
-  const isAdmin = roleLevel(CU.role) >= 5;
+  const isAdmin = roleLevel(CU.role) >= 7;
   const canManage = isAdmin || team.leaderId === CU.id; // チーム名・メンバー編成・リーダー設定
   const members = team.memberIds.map(getUserById).filter(Boolean);
   const isMember = team.memberIds.includes(CU.id);
@@ -2531,7 +2528,7 @@ function renderRanking() {
   if (!rankMonth) rankMonth = currentMonth();
 
   const level = roleLevel(CU.role);
-  const isAdmin = level >= 5;
+  const isAdmin = level >= 7;
   const months = getAvailableMonths();
 
   // モバイルのみ商材別ランキング対応
@@ -2608,7 +2605,7 @@ function renderRanking() {
     <!-- モバイルランキング -->
     <div class="card fade-in">
       <div class="section-title" style="display:flex;align-items:center;gap:8px">
-        モバイル事業部
+        イベントセールス部（モバイルグループ）
         ${selectedProduct ? `<span style="color:var(--accent);font-size:12px">— ${selectedProduct.label}（${selectedProduct.pt}pt/${selectedProduct.type === 'amount' ? `${selectedProduct.per/10000}万円` : '件'}）</span>` : ''}
       </div>
       ${mobileStats.filter(u => u.sortVal > 0).length === 0 ? `
@@ -2639,10 +2636,10 @@ function renderRanking() {
       }).join('')}
     </div>
 
-    ${isAdmin || CU.dept === 'event_promo' ? `
+    ${isAdmin || getUserReportTypes(CU).some(t => t === 'refa' || t === 'style') ? `
     <!-- Refaランキング -->
     <div class="card fade-in">
-      <div class="section-title">イベントプロモーション部 — Refa売上</div>
+      <div class="section-title">イベントセールス部（MTGグループ） — Refa売上</div>
       ${refaStats.length === 0 ? `<div class="empty-state">${monthLabel(rankMonth)}のデータがありません</div>` :
         refaStats.map((u, i) => `
           <div class="rank-item person-link ${i < 3 ? 'rank-top' : ''}" ${u.total === 0 ? 'style="opacity:.4"' : ''} onclick="openTalentCard('${u.id}')">
@@ -2660,10 +2657,10 @@ function renderRanking() {
     </div>
     ` : ''}
 
-    ${isAdmin || CU.dept === 'event_promo' ? `
+    ${isAdmin || getUserReportTypes(CU).some(t => t === 'refa' || t === 'style') ? `
     <!-- styleランキング -->
     <div class="card fade-in">
-      <div class="section-title">イベントプロモーション部 — style営業売上</div>
+      <div class="section-title">イベントセールス部（MTGグループ） — style営業売上</div>
       ${styleStats.length === 0 ? `<div class="empty-state">${monthLabel(rankMonth)}のデータがありません</div>` :
         styleStats.map((u, i) => `
           <div class="rank-item person-link ${i < 3 ? 'rank-top' : ''}" ${u.total === 0 ? 'style="opacity:.4"' : ''} onclick="openTalentCard('${u.id}')">
@@ -2689,7 +2686,7 @@ function renderRanking() {
 function renderTargets() {
   const month = currentMonth();
   const level = roleLevel(CU.role);
-  const isAdmin = level >= 5;
+  const isAdmin = level >= 7;
 
   // 全社員が対象（報告タイプを持つ人のみ、コミットできる数値があるため）。閲覧は全員、編集は本人 or admin。複数タイプ持ちは1人につき1行ずつ表示
   const targets = getTargets();
@@ -3083,9 +3080,9 @@ function changeShiftMonthUser(userId) {
 
 function getShiftViewableUsers() {
   const level = roleLevel(CU.role);
-  if (level >= 5) return getUsers();
-  if (level >= 2 && CU.dept === 'mobile') {
-    return getUsers().filter(u => u.dept === 'mobile');
+  if (level >= 7) return getUsers();
+  if (level >= 2 && getUserReportTypes(CU).includes('mobile')) {
+    return getUsers().filter(u => getUserReportTypes(u).includes('mobile'));
   }
   return [CU];
 }
@@ -3159,7 +3156,7 @@ function saveShiftFromModal(userId, dateStr) {
 function renderShiftsPlan() {
   if (!shiftPlanMonth) shiftPlanMonth = currentMonth();
 
-  const mobileUsers = getUsers().filter(u => u.dept === 'mobile');
+  const mobileUsers = getUsers().filter(u => getUserReportTypes(u).includes('mobile'));
   const sites       = getShiftSites();
   const plan        = getVenuePlanForMonth(shiftPlanMonth);
   const [planY, planM] = shiftPlanMonth.split('-').map(Number);
@@ -3267,7 +3264,7 @@ function renderShiftsPlan() {
       <div class="splan-table-info">
         <div>
           <div class="splan-table-info-title">シフト作成</div>
-          <div class="splan-table-info-sub">モバイル事業部の月次シフトを組みます — <span style="color:var(--green)">現場選択→セルクリックで連続入力</span></div>
+          <div class="splan-table-info-sub">イベントセールス部（モバイルグループ）の月次シフトを組みます — <span style="color:var(--green)">現場選択→セルクリックで連続入力</span></div>
         </div>
         <div class="splan-table-info-actions">
           <button class="splan-toggle-btn${shiftPlanWeekdayOnly ? ' is-active' : ''}" onclick="toggleShiftPlanWeekdayOnly()">
@@ -3489,7 +3486,7 @@ function openPlanCellModal(userId, dateStr) {
   const [, mm, dd] = dateStr.split('-');
 
   // この日の各現場の配置人数（自分を除く）
-  const mobileUsers = getUsers().filter(x => x.dept === 'mobile');
+  const mobileUsers = getUsers().filter(x => getUserReportTypes(x).includes('mobile'));
   const schedules   = getShiftSchedules();
   const venueCounts = {};
   sites.forEach(s => { venueCounts[s] = 0; });
@@ -3592,7 +3589,12 @@ function quickChangeRole(userId, newRole) {
   if (idx < 0) return;
   if (users[idx].role === newRole) return;
 
-  users[idx] = { ...users[idx], role: newRole };
+  // 役職には対応する事業部が決まっている（admin以外）ため、役職変更時に事業部も揃える。
+  // 人財部4〜6等級以外の役職に変わった場合はコース（育成G等）も意味を持たなくなるので外す
+  const updated = { ...users[idx], role: newRole };
+  if (newRole !== 'admin' && ROLES[newRole]?.dept) updated.dept = ROLES[newRole].dept;
+  if (!HR_COURSE_ROLES.includes(newRole)) delete updated.course;
+  users[idx] = updated;
   saveUsers(users);
 
   if (userId === CU.id) {
@@ -4148,9 +4150,30 @@ function _deptOptions(selected) {
     `<option value="${k}" ${k === selected ? 'selected' : ''}>${v.label}</option>`
   ).join('');
 }
+// 役職は27種類あるため、事業部（イベントセールス部はさらにモバイル/MTGグループ）ごとに
+// optgroupでまとめて選びやすくする
 function _roleOptions(selected) {
-  return Object.entries(ROLES).sort((a, b) => b[1].level - a[1].level).map(([k, v]) =>
-    `<option value="${k}" ${k === selected ? 'selected' : ''}>${v.label}</option>`
+  return Object.keys(DEPTS).map(deptKey => {
+    const deptRoles = Object.entries(ROLES).filter(([, v]) => v.dept === deptKey);
+    if (!deptRoles.length) return '';
+    if (deptKey === 'event_sales') {
+      return [['mobile', 'モバイルグループ'], ['mtg', 'MTGグループ']].map(([gKey, gLabel]) => {
+        const gRoles = deptRoles.filter(([, v]) => v.group === gKey).sort((a, b) => b[1].level - a[1].level);
+        if (!gRoles.length) return '';
+        return `<optgroup label="${DEPTS[deptKey].label}・${gLabel}">
+          ${gRoles.map(([k, v]) => `<option value="${k}" ${k === selected ? 'selected' : ''}>${v.label}</option>`).join('')}
+        </optgroup>`;
+      }).join('');
+    }
+    const sorted = deptRoles.sort((a, b) => b[1].level - a[1].level);
+    return `<optgroup label="${DEPTS[deptKey].label}">
+      ${sorted.map(([k, v]) => `<option value="${k}" ${k === selected ? 'selected' : ''}>${v.label}</option>`).join('')}
+    </optgroup>`;
+  }).join('');
+}
+function _courseOptions(selected) {
+  return `<option value="">（なし）</option>` + Object.entries(HR_COURSES).map(([k, label]) =>
+    `<option value="${k}" ${k === selected ? 'selected' : ''}>${label}</option>`
   ).join('');
 }
 
@@ -4280,6 +4303,22 @@ function _readReportTypeChecks(containerId) {
   return [...document.querySelectorAll(`#${containerId} input[type=checkbox]:checked`)].map(el => el.value);
 }
 
+// 役職を選ぶと、その役職が属する事業部を自動で合わせる（admin役職の場合のみ事業部を手動選択可能にする）。
+// 人財部4〜6等級の役職を選んだ時だけコース欄を表示する
+function syncMemberFieldsFromRole(prefix) {
+  const roleSel = document.getElementById(prefix + 'Role');
+  const deptSel = document.getElementById(prefix + 'Dept');
+  const courseGroup = document.getElementById(prefix + 'CourseGroup');
+  const role = roleSel.value;
+  if (role !== 'admin' && ROLES[role]?.dept) {
+    deptSel.value = ROLES[role].dept;
+    deptSel.disabled = true;
+  } else {
+    deptSel.disabled = false;
+  }
+  if (courseGroup) courseGroup.style.display = HR_COURSE_ROLES.includes(role) ? '' : 'none';
+}
+
 function openAddMember() {
   showModal(`
     <div class="modal-header">
@@ -4297,12 +4336,16 @@ function openAddMember() {
         <input type="email" class="form-input" id="newEmail" placeholder="例: t.tanaka@lumpcore.co.jp">
       </div>
       <div class="form-group">
-        <label class="form-label">事業部</label>
-        <select class="form-select" id="newDept">${_deptOptions('mobile')}</select>
+        <label class="form-label">役職</label>
+        <select class="form-select" id="newRole" onchange="syncMemberFieldsFromRole('new')">${_roleOptions('es_mobile_trainee')}</select>
+      </div>
+      <div class="form-group" id="newCourseGroup" style="display:none">
+        <label class="form-label">コース（人財部4〜6等級のみ）</label>
+        <select class="form-select" id="newCourse">${_courseOptions('')}</select>
       </div>
       <div class="form-group">
-        <label class="form-label">役職</label>
-        <select class="form-select" id="newRole">${_roleOptions('catch')}</select>
+        <label class="form-label">事業部</label>
+        <select class="form-select" id="newDept">${_deptOptions('event_sales')}</select>
       </div>
       <div class="form-group">
         <label class="form-label">役職表示名（任意）</label>
@@ -4322,6 +4365,7 @@ function openAddMember() {
       <button class="btn btn-primary" onclick="addMember()">追加する</button>
     </div>
   `);
+  syncMemberFieldsFromRole('new');
 }
 
 function addMember() {
@@ -4329,6 +4373,7 @@ function addMember() {
   const email       = document.getElementById('newEmail').value.trim().toLowerCase() || undefined;
   const dept        = document.getElementById('newDept').value;
   const role        = document.getElementById('newRole').value;
+  const course      = HR_COURSE_ROLES.includes(role) ? (document.getElementById('newCourse').value || undefined) : undefined;
   const jobTitle    = document.getElementById('newJobTitle').value.trim() || undefined;
   const reportTypes = _readReportTypeChecks('newReportTypes');
   const pw          = document.getElementById('newPw').value || 'lump1234';
@@ -4336,7 +4381,7 @@ function addMember() {
   if (!name) { showToast('氏名を入力してください', 'error'); return; }
 
   const users = getUsers();
-  users.push({ id: 'u' + Date.now(), name, email, role, dept, reportTypes, jobTitle, pw });
+  users.push({ id: 'u' + Date.now(), name, email, role, dept, course, reportTypes, jobTitle, pw });
   saveUsers(users);
   closeModal();
   showToast(`${name} を追加しました`);
@@ -4363,12 +4408,16 @@ function openEditMember(userId) {
         <input type="email" class="form-input" id="editEmail" value="${u.email || ''}" placeholder="例: t.tanaka@lumpcore.co.jp">
       </div>
       <div class="form-group">
-        <label class="form-label">事業部</label>
-        <select class="form-select" id="editDept">${_deptOptions(u.dept)}</select>
+        <label class="form-label">役職</label>
+        <select class="form-select" id="editRole" onchange="syncMemberFieldsFromRole('edit')">${_roleOptions(u.role)}</select>
+      </div>
+      <div class="form-group" id="editCourseGroup" style="display:none">
+        <label class="form-label">コース（人財部4〜6等級のみ）</label>
+        <select class="form-select" id="editCourse">${_courseOptions(u.course || '')}</select>
       </div>
       <div class="form-group">
-        <label class="form-label">役職</label>
-        <select class="form-select" id="editRole">${_roleOptions(u.role)}</select>
+        <label class="form-label">事業部</label>
+        <select class="form-select" id="editDept">${_deptOptions(u.dept)}</select>
       </div>
       <div class="form-group">
         <label class="form-label">役職表示名（任意）</label>
@@ -4388,6 +4437,7 @@ function openEditMember(userId) {
       <button class="btn btn-primary" onclick="saveMember('${userId}')">保存する</button>
     </div>
   `);
+  syncMemberFieldsFromRole('edit');
 }
 
 function saveMember(userId) {
@@ -4395,6 +4445,7 @@ function saveMember(userId) {
   const email       = document.getElementById('editEmail').value.trim().toLowerCase() || undefined;
   const dept        = document.getElementById('editDept').value;
   const role        = document.getElementById('editRole').value;
+  const course      = HR_COURSE_ROLES.includes(role) ? (document.getElementById('editCourse').value || undefined) : undefined;
   const jobTitle    = document.getElementById('editJobTitle').value.trim() || undefined;
   const reportTypes = _readReportTypeChecks('editReportTypes');
   const pw          = document.getElementById('editPw').value;
@@ -4405,14 +4456,16 @@ function saveMember(userId) {
   const idx = users.findIndex(u => u.id === userId);
   if (idx < 0) return;
 
-  users[idx] = { ...users[idx], name, email, dept, role, jobTitle, reportTypes };
+  users[idx] = { ...users[idx], name, email, dept, role, course, jobTitle, reportTypes };
   if (!email) delete users[idx].email;
+  if (!course) delete users[idx].course;
   delete users[idx].reportType; // 旧形式（単一値）は新形式に一本化
   if (pw) users[idx].pw = pw;
   saveUsers(users);
 
   if (userId === CU.id) {
-    Object.assign(CU, { name, email, dept, role, jobTitle, reportTypes });
+    Object.assign(CU, { name, email, dept, role, course, jobTitle, reportTypes });
+    if (!course) delete CU.course;
     delete CU.reportType;
     renderTopbar();
     renderSidebar();
@@ -4552,7 +4605,7 @@ function _refreshTalentGrid() {
   const level = roleLevel(CU.role);
   let users = visibleUsers();
   if (talentFilterDept !== 'all') users = users.filter(u => u.dept === talentFilterDept);
-  if (level >= 5 && talentFilterTag) users = users.filter(u => getUserTags(u.id).includes(talentFilterTag));
+  if (level >= 7 && talentFilterTag) users = users.filter(u => getUserTags(u.id).includes(talentFilterTag));
   users = _filterTalentUsers(users);
   users = _sortTalentUsers(users);
 
@@ -4573,14 +4626,14 @@ function renderTalent() {
   const level = roleLevel(CU.role);
   let users = visibleUsers();
   if (talentFilterDept !== 'all') users = users.filter(u => u.dept === talentFilterDept);
-  if (level >= 5 && talentFilterTag) users = users.filter(u => getUserTags(u.id).includes(talentFilterTag));
+  if (level >= 7 && talentFilterTag) users = users.filter(u => getUserTags(u.id).includes(talentFilterTag));
   users = _filterTalentUsers(users);
   users = _sortTalentUsers(users);
 
   const totalAll = visibleUsers().length;
   const deptFilters = [
     { key: 'all', label: 'すべて' },
-    ...Object.entries(DEPTS).filter(([k]) => level >= 5 || k !== 'executive').map(([k, v]) => ({ key: k, label: v.label })),
+    ...Object.entries(DEPTS).filter(([k]) => level >= 7 || k !== 'executive').map(([k, v]) => ({ key: k, label: v.label })),
   ];
   const sortOptions = [
     { key: 'productivity',  label: '生産性順' },
@@ -4595,7 +4648,7 @@ function renderTalent() {
         <div class="page-title">メンバーステータス</div>
         <div id="talent-sub" class="page-sub">生産性指標 × ジョブ面談を中核にした1人1カード（${users.length} / ${totalAll}名）</div>
       </div>
-      ${level >= 5 ? `<button class="btn btn-ghost" onclick="openSkillTemplateEditor()">${icon('clipboard-list')} スキルシート設定</button>` : ''}
+      ${level >= 7 ? `<button class="btn btn-ghost" onclick="openSkillTemplateEditor()">${icon('clipboard-list')} スキルシート設定</button>` : ''}
     </div>
     <div class="tc-controls fade-in">
       <div class="tc-search-wrap">
@@ -4609,7 +4662,7 @@ function renderTalent() {
       <select class="form-select tc-sort-select" onchange="setTalentSort(this.value)">
         ${sortOptions.map(o => `<option value="${o.key}" ${talentSortKey === o.key ? 'selected' : ''}>${o.label}</option>`).join('')}
       </select>
-      ${(level >= 5 && getOrgTags().length) ? `
+      ${(level >= 7 && getOrgTags().length) ? `
         <select class="form-select tc-sort-select" onchange="setTalentFilterTag(this.value)">
           <option value="">すべてのタグ</option>
           ${getOrgTags().map(t => `<option value="${t.id}" ${talentFilterTag === t.id ? 'selected' : ''}>${t.name}</option>`).join('')}
@@ -4762,7 +4815,7 @@ function renderProfile() {
     profileActiveTab = isMobile ? 'info' : 'perf';
   }
   // 属性タグタブは管理者のみ（メンバーステータスと同じ扱い）
-  const canSeeOrgTags = level >= 5;
+  const canSeeOrgTags = level >= 7;
   if (profileActiveTab === 'tags' && !canSeeOrgTags) {
     profileActiveTab = isMobile ? 'info' : 'perf';
   }
@@ -5446,7 +5499,7 @@ function openJobHistoryModal(userId, entryId) {
       </div>
       <div class="form-group">
         <label class="form-label">事業部・チーム</label>
-        <input type="text" class="form-input" id="jh_dept" placeholder="例: モバイル事業部" value="${(existing?.dept||'').replace(/"/g,'&quot;')}">
+        <input type="text" class="form-input" id="jh_dept" placeholder="例: イベントセールス部" value="${(existing?.dept||'').replace(/"/g,'&quot;')}">
       </div>
       <div class="form-group">
         <label class="form-label">メモ（担当業務・変更理由など）</label>
@@ -5566,7 +5619,7 @@ function execDeleteInterviewLog(userId, logId) {
 function openTalentCardModal(userId, activeTab = 'basic') {
   const level = roleLevel(CU.role);
   const canEdit = level >= 4;
-  const canManagerApprove = level >= 5;
+  const canManagerApprove = level >= 7;
   const user = getUserById(userId);
   if (!user) return;
 

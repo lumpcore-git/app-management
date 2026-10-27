@@ -138,8 +138,8 @@ function roleLevel(role) {
   return ROLES[role]?.level || 0;
 }
 function canViewTeam(role) {
-  return roleLevel(role) >= 2; // クローザー以上
+  return roleLevel(role) >= 2; // 2等級以上
 }
 function isChief(role) {
-  return role === 'chief';
+  return roleLevel(role) >= 4; // 4等級（チーフ相当）以上
 }

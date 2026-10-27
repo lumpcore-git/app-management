@@ -3757,9 +3757,10 @@ function _orgTreeHTML() {
         <span>名前以外の${orgChartViewMode === 'directory' ? '行' : 'カード'}をクリックすると部下の開閉、${icon('settings')}で上司の設定・履歴の確認・タグの付与ができます。名前をクリックするとプロフィールに移動します。</span>
         <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
           <button class="btn btn-ghost" style="font-size:11px;padding:4px 10px" onclick="expandAllOrgNodes()">すべて展開</button>
+          <button class="btn btn-ghost" style="font-size:11px;padding:4px 10px" onclick="collapseAllOrgNodes()">すべて折りたたむ</button>
           <div class="org-view-toggle">
             <button class="org-view-toggle-btn ${orgChartViewMode === 'directory' ? 'active' : ''}" onclick="setOrgChartViewMode('directory')">ディレクトリ表示</button>
-            <button class="org-view-toggle-btn ${orgChartViewMode === 'classic' ? 'active' : ''}" onclick="setOrgChartViewMode('classic')">ツリー表示</button>
+            <button class="org-view-toggle-btn ${orgChartViewMode === 'classic' ? 'active' : ''}" onclick="setOrgChartViewMode('classic')">組織図表示</button>
           </div>
         </div>
       </div>
@@ -3769,9 +3770,11 @@ function _orgTreeHTML() {
           ${roots.map(u => _orgRowHTML(u, month, 0)).join('')}
         </div>
       ` : `
-        <ul class="org-vtree">
-          ${roots.map(u => _orgNodeHTML(u, month)).join('')}
-        </ul>
+        <div class="org-tree-scroll">
+          <ul class="org-tree">
+            ${roots.map(u => _orgNodeHTML(u, month)).join('')}
+          </ul>
+        </div>
       `)}
     </div>
   `;
@@ -3782,7 +3785,7 @@ function setOrgChartViewMode(mode) {
   _renderOrgChartBody();
 }
 
-// ─── 組織図タブ: ツリー表示（縦積み・カード型。子の人数が増えても横には広がらない） ───
+// ─── 組織図タブ: 組織図表示（箱＋線の従来レイアウト。折りたたみで幅を抑えられる） ───
 function _orgNodeHTML(user, month) {
   const children = getDirectReports(user.id, month).sort((a, b) => a.name.localeCompare(b.name, 'ja'));
   const hasChildren = children.length > 0;
@@ -3794,28 +3797,31 @@ function _orgNodeHTML(user, month) {
   const hasActiveFilter = orgChartTagFilter || orgChartDeptFilter !== 'all';
   const dim = hasActiveFilter && !(matchesFilter && matchesDept);
 
-  const toggle = hasChildren
-    ? `<button class="org-vtree-toggle ${collapsed ? '' : 'open'}" onclick="event.stopPropagation();toggleOrgNode('${user.id}')" title="${collapsed ? '展開' : '折りたたむ'}">▸</button>`
-    : `<span class="org-vtree-toggle-spacer"></span>`;
-
   return `
-    <li class="org-vtree-item">
-      <div class="org-vtree-node ${dim ? 'org-vtree-node-dim' : ''} ${hasChildren ? 'org-vtree-node-clickable' : ''}"
+    <li class="org-li">
+      <div class="org-node ${dim ? 'org-node-dim' : ''} ${hasChildren ? 'org-node-clickable' : ''}"
         ${hasChildren ? `onclick="toggleOrgNode('${user.id}')" title="クリックで折りたたみ"` : ''}>
-        ${toggle}
-        ${photo
-          ? `<img class="org-vtree-avatar" src="${photo}" alt="${user.name}">`
-          : `<div class="org-vtree-avatar org-vtree-avatar-fallback" style="background:${roleColor(user.role)}">${user.name[0]}</div>`}
-        <div class="org-vtree-info">
-          <span class="org-vtree-name person-link" onclick="event.stopPropagation();openTalentCard('${user.id}')" title="プロフィールを見る">${user.name}</span>
-          <span class="org-vtree-role" style="color:${roleColor(user.role)}">${getUserDisplayRole(user)}</span>
+        <button class="btn-icon org-node-edit" onclick="event.stopPropagation();openOrgPersonModal('${user.id}')" title="上司・履歴・タグを編集">${icon('settings')}</button>
+        <div class="org-node-head">
+          ${photo
+            ? `<img class="org-node-avatar" src="${photo}" alt="${user.name}">`
+            : `<div class="org-node-avatar org-node-avatar-fallback" style="background:${roleColor(user.role)}">${user.name[0]}</div>`}
+          <div class="org-node-info">
+            <div class="org-node-name person-link" onclick="event.stopPropagation();openTalentCard('${user.id}')" title="プロフィールを見る">${user.name}</div>
+            <div class="org-node-role" style="color:${roleColor(user.role)}">${getUserDisplayRole(user)}</div>
+          </div>
         </div>
-        ${hasChildren ? `<span class="org-vtree-count">${children.length}名</span>` : ''}
-        <button class="btn-icon org-vtree-edit" onclick="event.stopPropagation();openOrgPersonModal('${user.id}')" title="上司・履歴・タグを編集">${icon('settings')}</button>
+        ${hasChildren ? `<div class="org-node-toggle ${collapsed ? '' : 'open'}">部下 ${children.length}名</div>` : ''}
       </div>
-      ${hasChildren ? `<ul class="org-vtree-children${collapsed ? ' hidden' : ''}">${children.map(c => _orgNodeHTML(c, month)).join('')}</ul>` : ''}
+      ${hasChildren ? `<ul class="org-children${collapsed ? ' hidden' : ''}">${children.map(c => _orgNodeHTML(c, month)).join('')}</ul>` : ''}
     </li>
   `;
+}
+
+function collapseAllOrgNodes() {
+  const month = currentMonth();
+  orgChartCollapsedIds = new Set(getUsers().filter(u => getDirectReports(u.id, month).length > 0).map(u => u.id));
+  _renderOrgChartBody();
 }
 
 function _orgRowHTML(user, month, depth) {

@@ -63,6 +63,7 @@ let orgChartTab = 'tree';    // 'tree' | 'tags'
 let orgChartTagFilter = '';  // タグID（空 = フィルタなし）
 let orgChartDeptFilter = 'all';
 let orgChartCollapsedIds = new Set(); // 折りたたみ中のユーザーID（ディレクトリツリー風の開閉状態）
+let orgChartViewMode = 'directory'; // 'directory'（ディレクトリツリー風） | 'classic'（旧・箱＋線の組織図）
 
 // ─── ICON HELPER（Tabler Icons スプライト参照。app.html/index.html の <symbol id="ic-{name}"> を使う） ───
 function icon(name, cls) {
@@ -3753,15 +3754,64 @@ function _orgTreeHTML() {
     </div>
     <div class="card org-tree-card">
       <div style="font-size:12px;color:var(--text-sub);margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
-        <span>名前以外の行をクリックすると部下の開閉、${icon('settings')}で上司の設定・履歴の確認・タグの付与ができます。名前をクリックするとプロフィールに移動します。</span>
-        <button class="btn btn-ghost" style="font-size:11px;padding:4px 10px" onclick="expandAllOrgNodes()">すべて展開</button>
+        <span>${orgChartViewMode === 'directory'
+          ? `名前以外の行をクリックすると部下の開閉、${icon('settings')}で上司の設定・履歴の確認・タグの付与ができます。名前をクリックするとプロフィールに移動します。`
+          : `各カードの${icon('settings')}から上司の設定・履歴の確認・タグの付与ができます。名前をクリックするとプロフィールに移動します。`}</span>
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+          ${orgChartViewMode === 'directory' ? `<button class="btn btn-ghost" style="font-size:11px;padding:4px 10px" onclick="expandAllOrgNodes()">すべて展開</button>` : ''}
+          <div class="org-view-toggle">
+            <button class="org-view-toggle-btn ${orgChartViewMode === 'directory' ? 'active' : ''}" onclick="setOrgChartViewMode('directory')">ディレクトリ表示</button>
+            <button class="org-view-toggle-btn ${orgChartViewMode === 'classic' ? 'active' : ''}" onclick="setOrgChartViewMode('classic')">組織図（従来）</button>
+          </div>
+        </div>
       </div>
-      ${roots.length === 0 ? `<div class="list-empty">メンバーがいません</div>` : `
+      ${roots.length === 0 ? `<div class="list-empty">メンバーがいません</div>` : (
+        orgChartViewMode === 'directory' ? `
         <div class="org-list">
           ${roots.map(u => _orgRowHTML(u, month, 0)).join('')}
         </div>
-      `}
+      ` : `
+        <div class="org-tree-scroll">
+          <ul class="org-tree">
+            ${roots.map(u => _orgNodeHTML(u, month)).join('')}
+          </ul>
+        </div>
+      `)}
     </div>
+  `;
+}
+
+function setOrgChartViewMode(mode) {
+  orgChartViewMode = mode;
+  _renderOrgChartBody();
+}
+
+// ─── 組織図タブ: 箱＋線の従来表示 ───
+function _orgNodeHTML(user, month) {
+  const children = getDirectReports(user.id, month).sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+  const photo = getPhoto(user.id);
+  const userTagIds = getUserTags(user.id);
+  const matchesFilter = !orgChartTagFilter || userTagIds.includes(orgChartTagFilter);
+  const matchesDept = orgChartDeptFilter === 'all' || user.dept === orgChartDeptFilter;
+  const hasActiveFilter = orgChartTagFilter || orgChartDeptFilter !== 'all';
+  const dim = hasActiveFilter && !(matchesFilter && matchesDept);
+
+  return `
+    <li class="org-li">
+      <div class="org-node ${dim ? 'org-node-dim' : ''}">
+        <button class="btn-icon org-node-edit" onclick="openOrgPersonModal('${user.id}')" title="上司・履歴・タグを編集">${icon('settings')}</button>
+        <div class="org-node-head person-link" onclick="openTalentCard('${user.id}')">
+          ${photo
+            ? `<img class="org-node-avatar" src="${photo}" alt="${user.name}">`
+            : `<div class="org-node-avatar org-node-avatar-fallback" style="background:${roleColor(user.role)}">${user.name[0]}</div>`}
+          <div class="org-node-info">
+            <div class="org-node-name">${user.name}</div>
+            <div class="org-node-role" style="color:${roleColor(user.role)}">${getUserDisplayRole(user)}</div>
+          </div>
+        </div>
+      </div>
+      ${children.length ? `<ul class="org-children">${children.map(c => _orgNodeHTML(c, month)).join('')}</ul>` : ''}
+    </li>
   `;
 }
 

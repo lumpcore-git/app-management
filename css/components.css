@@ -291,6 +291,98 @@ td { padding: 12px 16px; vertical-align: middle; }
   margin-left: 17px;
 }
 
+/* ─── 組織図: 表示切替トグル（ディレクトリ表示 / 組織図（従来）） ─── */
+.org-view-toggle {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.org-view-toggle-btn {
+  background: none;
+  border: none;
+  color: var(--text-sub);
+  font-size: 11px;
+  padding: 5px 10px;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.org-view-toggle-btn + .org-view-toggle-btn { border-left: 1px solid var(--border); }
+.org-view-toggle-btn.active { background: var(--accent); color: #1b1230; font-weight: 600; }
+
+/* ─── 組織図: 箱＋線の従来表示 ─── */
+.org-tree-scroll { overflow-x: auto; padding-bottom: 8px; }
+.org-tree {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  justify-content: center;
+  width: max-content;
+  min-width: 100%;
+}
+.org-li {
+  list-style: none;
+  position: relative;
+  padding: 0 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.org-children {
+  list-style: none;
+  margin: 0;
+  padding-top: 24px;
+  position: relative;
+  display: flex;
+  justify-content: center;
+}
+.org-children::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 50%;
+  border-left: 1px solid var(--border);
+  width: 0; height: 24px;
+}
+.org-children .org-li { padding-top: 24px; }
+.org-children .org-li::before,
+.org-children .org-li::after {
+  content: '';
+  position: absolute;
+  top: 0; right: 50%;
+  border-top: 1px solid var(--border);
+  width: 50%; height: 24px;
+}
+.org-children .org-li::after { right: auto; left: 50%; border-left: 1px solid var(--border); }
+.org-children .org-li:only-child { padding-top: 0; }
+.org-children .org-li:only-child::before,
+.org-children .org-li:only-child::after { display: none; }
+.org-children .org-li:first-child::before { border: none; }
+.org-children .org-li:last-child::after { border: none; }
+.org-children .org-li:last-child::before { border-right: 1px solid var(--border); border-radius: 0 6px 0 0; }
+.org-children .org-li:first-child::after { border-radius: 6px 0 0 0; }
+
+.org-node {
+  position: relative;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 32px 10px 14px;
+  min-width: 180px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: opacity .2s, border-color .2s;
+}
+.org-node-dim { opacity: .28; }
+.org-node-head { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.org-node-avatar { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
+.org-node-avatar-fallback { display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: #fff; }
+.org-node-info { min-width: 0; }
+.org-node-name { font-size: 13px; font-weight: 600; white-space: nowrap; }
+.org-node-role { font-size: 11px; white-space: nowrap; }
+.org-node-edit { position: absolute; top: 6px; right: 6px; padding: 3px 5px; font-size: 12px; }
+
 /* ─── 属性タグ チップ（組織図・メンバーステータス共通） ─── */
 .org-tag-chip {
   display: inline-flex; align-items: center; gap: 4px;

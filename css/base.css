@@ -54,7 +54,7 @@ body {
 /* ─── LAYOUT ─── */
 .layout {
   display: grid;
-  grid-template-columns: 220px 1fr;
+  grid-template-columns: 1fr;
   grid-template-rows: 60px 1fr;
   min-height: 100vh;
 }
@@ -177,16 +177,45 @@ body.impersonating .topbar { top: 40px; }
 }
 .hamburger-btn:hover { background: var(--border); }
 
-/* ─── SIDEBAR ─── */
+/* PC版メニュー開閉ボタン（.hamburger-btnとは見た目を揃えつつ別クラスにする。
+   同じ.hamburger-btnクラスを共有すると、モバイルの body.nav-style-hamburger .hamburger-btn { display:flex }
+   というルールにも誤って引っかかり、モバイルでも表示されてしまうため） */
+.sidebar-toggle-btn {
+  display: none;
+  width: 34px; height: 34px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  font-size: 16px;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  transition: .15s;
+  line-height: 1;
+  color: var(--text);
+}
+.sidebar-toggle-btn:hover { background: var(--border); }
+
+/* ─── SIDEBAR ───
+   PCでも常時ドッキングはせず、トグルボタンで開閉するオーバーレイ式のドロワーにする
+   （閉じている状態を標準にして、メイン領域を広く使えるようにするため）。 */
 .sidebar {
+  display: none;
   background: var(--surface);
   border-right: 1px solid var(--border);
   padding: 20px 12px;
-  display: flex;
   flex-direction: column;
   gap: 4px;
   overflow-y: auto;
 }
+.sidebar-backdrop {
+  display: none;
+  position: fixed;
+  inset: 60px 0 0 0;
+  background: rgba(0,0,0,.45);
+  z-index: 149;
+}
+body.impersonating .sidebar-backdrop { inset: 100px 0 0 0; }
 .nav-section {
   font-size: 10px;
   font-weight: 700;
@@ -355,6 +384,26 @@ body.impersonating .topbar { top: 40px; }
 
 /* ─── MOBILE ONLY (hidden on desktop) ─── */
 .mobile-only { display: none; }
+
+/* ─── RESPONSIVE (PC ≥ 768px): メニューはトグルボタンで開閉するオーバーレイ ─── */
+@media (min-width: 768px) {
+  .sidebar-toggle-btn { display: flex; }
+  .sidebar {
+    display: flex;
+    position: fixed;
+    top: 60px;
+    left: 0;
+    bottom: 0;
+    width: 240px;
+    z-index: 150;
+    transform: translateX(-100%);
+    transition: transform .2s ease;
+    box-shadow: 4px 0 24px rgba(0,0,0,.3);
+  }
+  body.impersonating .sidebar { top: 100px; }
+  body.sidebar-open .sidebar { transform: translateX(0); }
+  body.sidebar-open .sidebar-backdrop { display: block; }
+}
 
 /* ─── RESPONSIVE (mobile ≤ 767px) ─── */
 @media (max-width: 767px) {

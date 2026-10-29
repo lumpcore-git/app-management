@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>LUMP CORE</title>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/base.css?v=43">
-  <link rel="stylesheet" href="css/components.css?v=43">
+  <link rel="stylesheet" href="css/base.css?v=45">
+  <link rel="stylesheet" href="css/components.css?v=45">
 </head>
 <body>
 
@@ -248,6 +248,7 @@
     <div class="topbar-logo" onclick="navigate('dashboard')" title="ホームへ">LUMP<span>CORE</span></div>
     <div class="topbar-title" id="topbarTitle">ダッシュボード</div>
     <div class="topbar-right">
+      <button class="sidebar-toggle-btn" id="sidebarToggleBtn" onclick="toggleSidebar()" title="メニュー"><svg class="ico"><use href="#ic-menu-2"></use></svg></button>
       <button class="btn-theme-toggle" id="themeToggleBtn" onclick="toggleTheme()" title="テーマ切替"></button>
       <div style="position:relative">
         <button class="notif-bell-btn" id="notifBellBtn" onclick="navigate('dashboard')" title="お知らせ"><svg class="ico"><use href="#ic-bell"></use></svg></button>
@@ -265,7 +266,8 @@
     </div>
   </header>
 
-  <!-- ── SIDEBAR ── -->
+  <!-- ── SIDEBAR（PCではトグルボタンで開閉するオーバーレイ） ── -->
+  <div id="sidebarBackdrop" class="sidebar-backdrop" onclick="closeSidebar()"></div>
   <nav class="sidebar" id="sidebar"></nav>
 
   <!-- ── MAIN ── -->
@@ -296,10 +298,10 @@
 <div class="toast" id="toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@5.21.0/lib/msal-browser.min.js"></script>
-<script src="js/skilldata.js?v=43"></script>
-<script src="js/data.js?v=43"></script>
-<script src="js/auth.js?v=43"></script>
-<script src="js/app.js?v=43"></script>
+<script src="js/skilldata.js?v=45"></script>
+<script src="js/data.js?v=45"></script>
+<script src="js/auth.js?v=45"></script>
+<script src="js/app.js?v=45"></script>
 
 </body>
 </html>

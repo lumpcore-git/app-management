@@ -465,6 +465,14 @@ function applyNavStyle(style) {
   document.body.classList.toggle('nav-style-bottomnav', style === 'bottomnav');
 }
 
+// ─── PC版メニュー開閉（トグルボタンで開閉するオーバーレイ式。閉じている状態が標準） ───
+function toggleSidebar() {
+  document.body.classList.toggle('sidebar-open');
+}
+function closeSidebar() {
+  document.body.classList.remove('sidebar-open');
+}
+
 // ─── MOBILE SUB-TABS (shift / venue page switcher) ───
 function renderMobileSubtabs(hash) {
   const main = document.getElementById('main');
@@ -516,6 +524,7 @@ function syncShiftMenu() {
 
 function navigate(page) {
   closeHamburgerMenu();
+  closeSidebar();
   if (page === 'shifts') {
     location.hash = 'shifts-week';
     return;
